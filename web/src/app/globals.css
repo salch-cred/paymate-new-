@@ -100,10 +100,6 @@
 :focus-visible{outline:2px solid var(--orange);outline-offset:3px;border-radius:6px}
 .button:active{transform:translateY(0) scale(.985)}
 @supports not (animation-timeline:scroll()){.scroll-progress{display:none}}
-@supports(animation-timeline:scroll()){
-.nav-wrap{animation:navRise .65s cubic-bezier(.2,.8,.2,1) both,navCondense linear both;animation-timeline:auto,scroll(root);animation-range:normal,0px 180px}
-@keyframes navCondense{to{transform:translate(-50%,-33px);box-shadow:0 18px 44px rgba(37,34,27,.16),inset 0 1px 0 rgba(255,255,255,.9)}}
-}
 @media(max-width:900px){
 .nav-links{display:flex;visibility:hidden;opacity:0;transform:translateY(-10px) scale(.98);transform-origin:top;pointer-events:none;box-shadow:0 26px 60px rgba(35,31,24,.14);backdrop-filter:blur(16px);transition:opacity .28s cubic-bezier(.2,.8,.2,1),transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s linear .28s}
 .nav-links.open{visibility:visible;opacity:1;transform:none;pointer-events:auto;transition:opacity .3s cubic-bezier(.2,.8,.2,1),transform .3s cubic-bezier(.2,.8,.2,1)}

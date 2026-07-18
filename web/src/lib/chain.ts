@@ -1,9 +1,17 @@
-import { createPublicClient, createWalletClient, http, getAddress, isAddress, decodeFunctionData } from "viem"
+import { createPublicClient, createWalletClient, http, getAddress, isAddress, decodeFunctionData, defineChain } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
-import { metisSepolia } from "viem/chains"
 import type { Invoice } from "./db"
 
-const RPC_URL = process.env.RPC_METIS_TESTNET || "https://sepolia.metisdevops.link"
+export const goatTestnet3 = defineChain({
+  id: 48816,
+  name: "GOAT Testnet3",
+  nativeCurrency: { name: "Bitcoin", symbol: "BTC", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.testnet3.goat.network"] } },
+  blockExplorers: { default: { name: "GOAT Explorer", url: "https://explorer.testnet3.goat.network" } },
+  testnet: true,
+})
+
+const RPC_URL = process.env.RPC_GOAT_TESTNET || goatTestnet3.rpcUrls.default.http[0]
 
 const REPUTATION_ABI = [
   {
@@ -57,7 +65,7 @@ export class PaymentError extends Error {
 }
 
 export function getPublicClient() {
-  return createPublicClient({ chain: metisSepolia, transport: http(RPC_URL) })
+  return createPublicClient({ chain: goatTestnet3, transport: http(RPC_URL) })
 }
 
 function getIssuerAccount() {
@@ -78,7 +86,7 @@ export async function mintReputation(freelancer: string, amountUsd: number) {
     return
   }
   const publicClient = getPublicClient()
-  const walletClient = createWalletClient({ account, chain: metisSepolia, transport: http(RPC_URL) })
+  const walletClient = createWalletClient({ account, chain: goatTestnet3, transport: http(RPC_URL) })
   const hash = await walletClient.writeContract({
     address: getAddress(contractAddress),
     abi: REPUTATION_ABI,
@@ -119,7 +127,7 @@ export function paymentRequirements(invoice: Invoice) {
     accepts: [
       {
         scheme: "exact",
-        network: "metis-sepolia",
+        network: "goat-testnet3",
         asset: getAddress(usdcToken),
         token: getAddress(usdcToken),
         payTo: invoice.freelancer,

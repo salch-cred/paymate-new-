@@ -2,15 +2,15 @@
 
 import React, { useState } from 'react'
 import { http, createConfig, WagmiProvider } from 'wagmi'
-import { metisSepolia } from 'wagmi/chains'
 import { injected } from 'wagmi/connectors'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { goatTestnet3 } from '@/lib/chain'
 
 export const config = createConfig({
-  chains: [metisSepolia],
+  chains: [goatTestnet3],
   connectors: [injected()],
   transports: {
-    [metisSepolia.id]: http(),
+    [goatTestnet3.id]: http(),
   },
 })
 
