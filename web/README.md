@@ -8,7 +8,7 @@ Production-oriented invoicing and settlement for independent work.
 - Mandatory review of generated title, scope, amount, due date, and client wallet before publishing
 - Persistent SQLite invoice storage (Next.js API routes, `node:sqlite`)
 - Shareable client payment links
-- Direct USDC transfer on Metis Sepolia
+- Direct USDC transfer on GOAT Testnet3
 - Server-side transaction verification: token, recipient, amount, and receipt status
 - Automatic invoice settlement and ERC-8004 reputation recording
 - Live dashboard totals, outstanding balance, invoice activity, and copyable links

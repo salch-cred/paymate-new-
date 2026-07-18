@@ -87,7 +87,7 @@ export function createInvoice(input: {
     description: input.description.trim(),
     amountUsd: Math.round(input.amountUsd * 100) / 100,
     status: "pending",
-    chain: "metis-sepolia",
+    chain: "goat-testnet3",
     dueDate: input.dueDate || null,
     txHash: null,
     createdAt: Date.now(),
