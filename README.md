@@ -156,9 +156,24 @@ contracts/   Hardhat project — PayMateReputation.sol, deploy + registration sc
 
 - [x] Stage 1: Agents launched, GitHub repo public, landing page + product
       live, deployed to GOAT Testnet3
-- [ ] Reputation contract deployed on GOAT Testnet3 (pending faucet funding)
-- [ ] ERC-8004 agent identity + x402 merchant registration confirmed
-      on-chain
+- [x] `PayMateReputation` deployed on GOAT Testnet3 —
+      [`0xc2072cc0007cA8fcB84bdA09cFE20014559285BD`](https://explorer.testnet3.goat.network/address/0xc2072cc0007cA8fcB84bdA09cFE20014559285BD)
+- [x] Test settlement token (`TestUSDC`) deployed on GOAT Testnet3 —
+      [`0xeF9Ea814f011289E28f1c87FE8E0C0F68Aa82446`](https://explorer.testnet3.goat.network/address/0xeF9Ea814f011289E28f1c87FE8E0C0F68Aa82446)
+      (no official Circle USDC exists on this testnet yet)
+- [ ] ERC-8004 agent identity registration — blocked: the ERC-8004 identity
+      registry is only deployed on **GOAT mainnet**
+      (`0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`), not Testnet3, so this
+      requires funded mainnet gas and an explicit go-ahead before broadcasting
+- [ ] x402 merchant registration — blocked: requires creating a merchant
+      account on the x402 Merchant Portal (email/password + wallet signature)
+      and manual GOAT team approval via Telegram; not something automatable
+- [ ] Persistent invoice storage in production — the app's SQLite storage
+      works locally but Vercel's serverless filesystem has no persistent
+      writable disk, so invoices don't survive between requests in
+      production yet. Needs a serverless-compatible database (Turso, Neon,
+      Vercel Postgres, etc.) — provisioning one is a deliberate choice left
+      to the team, not automated here
 
 ## License
 
