@@ -42,6 +42,8 @@
 @media(max-width:620px){.top-note{justify-content:flex-start;padding:0 16px;white-space:nowrap;overflow:hidden}.top-note a{display:none}.nav-wrap{top:41px}.hero{padding-top:150px}.nav-actions{display:none}.nav-wrap .brand small{display:none}.site-footer{margin:0;border-radius:0;padding:52px 22px 24px}.footer-main{padding-bottom:52px}.footer-brand h3{font-size:36px}.footer-links{grid-template-columns:1fr 1fr;row-gap:42px}.footer-orbit{height:100px}.footer-orbit>span{font-size:72px}.footer-orbit>div{display:none}.footer-bottom{align-items:flex-start;gap:16px;flex-direction:column}.footer-bottom>div{gap:15px;flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.scroll-progress,.network-live i,.footer-orbit>span,.footer-orbit i{animation:none!important}.hero-visual *{translate:0 0!important}}
 
+.wallet-connect-menu{position:relative;display:inline-flex}.payment-card .wallet-connect-menu{display:flex;width:100%}.payment-card .wallet-connect-menu>button{width:100%}.wallet-connect-dropdown{position:absolute;z-index:60;top:calc(100% + 8px);right:0;min-width:240px;border-radius:14px;padding:8px;display:flex;flex-direction:column;gap:2px}.wallet-connect-dropdown button{height:42px;padding:0 12px;border:0;background:transparent;border-radius:9px;display:flex;align-items:center;gap:10px;font-size:11px;font-weight:650;color:var(--ink);text-align:left}.wallet-connect-dropdown button:hover{background:rgba(23,24,19,.06)}
+
 /* Footer overflow hardening */
 .site-footer{background:radial-gradient(circle at 100% 0%,rgba(255,103,53,.2),transparent 28%),#171814;contain:paint}.site-footer:before{display:none}.footer-orbit>span{font-size:clamp(82px,10vw,142px)}
 

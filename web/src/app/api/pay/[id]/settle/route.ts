@@ -25,12 +25,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const updated = markPaid(id, txHash)
-  if (updated) {
-    try {
-      await mintReputation(updated.freelancer, updated.amountUsd)
-    } catch (error) {
-      console.log(`Reputation recording queued/failed: ${error}`)
-    }
+  if (!updated) {
+    return Response.json(
+      { detail: "This transaction has already been used to settle a different invoice, or this invoice is no longer pending." },
+      { status: 402 }
+    )
+  }
+  try {
+    await mintReputation(updated.freelancer, updated.amountUsd)
+  } catch (error) {
+    console.log(`Reputation recording queued/failed: ${error}`)
   }
   return Response.json({ ok: true, invoice: updated, txHash })
 }

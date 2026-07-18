@@ -125,8 +125,12 @@ export function listInvoices(freelancer: string, limit = 50): Invoice[] {
 }
 
 export function markPaid(id: string, txHash: string): Invoice | null {
-  getDb()
+  const db = getDb()
+  const reusedElsewhere = db.prepare("SELECT 1 FROM invoices WHERE tx_hash = ? AND id != ?").get(txHash, id)
+  if (reusedElsewhere) return null
+  const result = db
     .prepare("UPDATE invoices SET status='paid', tx_hash=?, paid_at=? WHERE id=? AND status='pending'")
     .run(txHash, Date.now(), id)
+  if (result.changes === 0) return null
   return getInvoice(id)
 }
