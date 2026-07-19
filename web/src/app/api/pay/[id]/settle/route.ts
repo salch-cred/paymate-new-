@@ -3,7 +3,7 @@ import { paymentRequirements, verifyTransfer, mintReputation, PaymentError } fro
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const invoice = getInvoice(id)
+  const invoice = await getInvoice(id)
   if (!invoice) return Response.json({ detail: "Invoice not found" }, { status: 404 })
   if (invoice.status === "paid") return Response.json({ ok: true, invoice, alreadySettled: true })
 
@@ -24,7 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     throw error
   }
 
-  const updated = markPaid(id, txHash)
+  const updated = await markPaid(id, txHash)
   if (!updated) {
     return Response.json(
       { detail: "This transaction has already been used to settle a different invoice, or this invoice is no longer pending." },

@@ -86,7 +86,7 @@ read/write reputation.
 | Frontend | Next.js 16, React 19 |
 | Chain access | wagmi 3 + viem 2 (client), viem (server) |
 | Backend | Next.js Route Handlers (`web/src/app/api/**`) |
-| Storage | SQLite via Node's built-in `node:sqlite` |
+| Storage | Postgres (Neon), via `@neondatabase/serverless` |
 | Contracts | Solidity 0.8.24, Hardhat 3 |
 | Network | GOAT Testnet3 — chain id `48816`, RPC `rpc.testnet3.goat.network` |
 | Payments | x402 protocol, direct ERC-20 transfer |
@@ -114,7 +114,7 @@ there's nothing else to start.
 | `USDC_TOKEN` | Settlement token address on GOAT Testnet3 |
 | `REPUTATION_CONTRACT` | Deployed `PayMateReputation` address |
 | `PRIVATE_KEY` | Reputation contract issuer key (must match the deployer — `recordJob` is `onlyIssuer`) |
-| `PAYMATE_DB_PATH` | Optional override for the SQLite file location |
+| `DATABASE_URL` | Postgres connection string for invoice storage |
 
 ## Smart contract
 
@@ -148,7 +148,7 @@ REGISTRY_CONTRACT=0x... AGENT_NAME=paymate AGENT_URI=https://... \
 ## Project layout
 
 ```
-web/         Next.js app — UI, API routes, SQLite storage
+web/         Next.js app — UI, API routes, Postgres storage
 contracts/   Hardhat project — PayMateReputation.sol, deploy + registration scripts
 ```
 
@@ -168,12 +168,8 @@ contracts/   Hardhat project — PayMateReputation.sol, deploy + registration sc
 - [ ] x402 merchant registration — blocked: requires creating a merchant
       account on the x402 Merchant Portal (email/password + wallet signature)
       and manual GOAT team approval via Telegram; not something automatable
-- [ ] Persistent invoice storage in production — the app's SQLite storage
-      works locally but Vercel's serverless filesystem has no persistent
-      writable disk, so invoices don't survive between requests in
-      production yet. Needs a serverless-compatible database (Turso, Neon,
-      Vercel Postgres, etc.) — provisioning one is a deliberate choice left
-      to the team, not automated here
+- [x] Persistent invoice storage — migrated from SQLite-on-serverless-disk
+      (which didn't persist between requests) to Postgres on Neon
 
 ## License
 

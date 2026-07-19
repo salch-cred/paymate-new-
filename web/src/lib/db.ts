@@ -1,5 +1,4 @@
-import { DatabaseSync } from "node:sqlite"
-import path from "node:path"
+import { neon } from "@neondatabase/serverless"
 import crypto from "node:crypto"
 
 export type InvoiceStatus = "pending" | "paid" | "cancelled"
@@ -30,28 +29,34 @@ interface InvoiceRow {
   chain: string
   due_date: string | null
   tx_hash: string | null
-  created_at: number
-  paid_at: number | null
+  created_at: string
+  paid_at: string | null
 }
 
 declare global {
-  var __paymateDb: DatabaseSync | undefined
+  var __paymateSchemaReady: Promise<void> | undefined
 }
 
-function getDb(): DatabaseSync {
-  if (!globalThis.__paymateDb) {
-    const dbPath = process.env.PAYMATE_DB_PATH || path.join(process.cwd(), "paymate.db")
-    const db = new DatabaseSync(dbPath)
-    db.exec(`CREATE TABLE IF NOT EXISTS invoices (
-      id TEXT PRIMARY KEY, freelancer TEXT NOT NULL, client TEXT NOT NULL,
-      title TEXT NOT NULL, description TEXT NOT NULL, amount_usd REAL NOT NULL,
-      status TEXT NOT NULL, chain TEXT NOT NULL, due_date TEXT, tx_hash TEXT,
-      created_at INTEGER NOT NULL, paid_at INTEGER
-    )`)
-    db.exec("CREATE INDEX IF NOT EXISTS idx_invoices_freelancer ON invoices(freelancer, created_at DESC)")
-    globalThis.__paymateDb = db
+function getSql() {
+  const url = process.env.DATABASE_URL
+  if (!url) throw new Error("DATABASE_URL is not configured")
+  return neon(url)
+}
+
+async function ready(): Promise<void> {
+  if (!globalThis.__paymateSchemaReady) {
+    const sql = getSql()
+    globalThis.__paymateSchemaReady = (async () => {
+      await sql`CREATE TABLE IF NOT EXISTS invoices (
+        id TEXT PRIMARY KEY, freelancer TEXT NOT NULL, client TEXT NOT NULL,
+        title TEXT NOT NULL, description TEXT NOT NULL, amount_usd DOUBLE PRECISION NOT NULL,
+        status TEXT NOT NULL, chain TEXT NOT NULL, due_date TEXT, tx_hash TEXT,
+        created_at BIGINT NOT NULL, paid_at BIGINT
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_invoices_freelancer ON invoices(freelancer, created_at DESC)`
+    })()
   }
-  return globalThis.__paymateDb
+  return globalThis.__paymateSchemaReady
 }
 
 function rowToInvoice(row: InvoiceRow): Invoice {
@@ -61,24 +66,26 @@ function rowToInvoice(row: InvoiceRow): Invoice {
     client: row.client,
     title: row.title,
     description: row.description,
-    amountUsd: row.amount_usd,
+    amountUsd: Number(row.amount_usd),
     status: row.status as InvoiceStatus,
     chain: row.chain,
     dueDate: row.due_date,
     txHash: row.tx_hash,
-    createdAt: row.created_at,
-    paidAt: row.paid_at,
+    createdAt: Number(row.created_at),
+    paidAt: row.paid_at === null ? null : Number(row.paid_at),
   }
 }
 
-export function createInvoice(input: {
+export async function createInvoice(input: {
   freelancer: string
   client: string
   title: string
   description: string
   amountUsd: number
   dueDate?: string | null
-}): Invoice {
+}): Promise<Invoice> {
+  await ready()
+  const sql = getSql()
   const invoice: Invoice = {
     id: crypto.randomUUID(),
     freelancer: input.freelancer,
@@ -93,44 +100,41 @@ export function createInvoice(input: {
     createdAt: Date.now(),
     paidAt: null,
   }
-  getDb()
-    .prepare("INSERT INTO invoices VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
-    .run(
-      invoice.id,
-      invoice.freelancer,
-      invoice.client,
-      invoice.title,
-      invoice.description,
-      invoice.amountUsd,
-      invoice.status,
-      invoice.chain,
-      invoice.dueDate,
-      invoice.txHash,
-      invoice.createdAt,
-      invoice.paidAt
-    )
+  await sql`INSERT INTO invoices VALUES (
+    ${invoice.id}, ${invoice.freelancer}, ${invoice.client}, ${invoice.title}, ${invoice.description},
+    ${invoice.amountUsd}, ${invoice.status}, ${invoice.chain}, ${invoice.dueDate}, ${invoice.txHash},
+    ${invoice.createdAt}, ${invoice.paidAt}
+  )`
   return invoice
 }
 
-export function getInvoice(id: string): Invoice | null {
-  const row = getDb().prepare("SELECT * FROM invoices WHERE id = ?").get(id) as unknown as InvoiceRow | undefined
-  return row ? rowToInvoice(row) : null
+export async function getInvoice(id: string): Promise<Invoice | null> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`SELECT * FROM invoices WHERE id = ${id}`) as unknown as InvoiceRow[]
+  return rows[0] ? rowToInvoice(rows[0]) : null
 }
 
-export function listInvoices(freelancer: string, limit = 50): Invoice[] {
-  const rows = getDb()
-    .prepare("SELECT * FROM invoices WHERE lower(freelancer) = lower(?) ORDER BY created_at DESC LIMIT ?")
-    .all(freelancer, Math.min(limit, 100)) as unknown as InvoiceRow[]
+export async function listInvoices(freelancer: string, limit = 50): Promise<Invoice[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM invoices WHERE lower(freelancer) = lower(${freelancer})
+    ORDER BY created_at DESC LIMIT ${Math.min(limit, 100)}
+  `) as unknown as InvoiceRow[]
   return rows.map(rowToInvoice)
 }
 
-export function markPaid(id: string, txHash: string): Invoice | null {
-  const db = getDb()
-  const reusedElsewhere = db.prepare("SELECT 1 FROM invoices WHERE tx_hash = ? AND id != ?").get(txHash, id)
-  if (reusedElsewhere) return null
-  const result = db
-    .prepare("UPDATE invoices SET status='paid', tx_hash=?, paid_at=? WHERE id=? AND status='pending'")
-    .run(txHash, Date.now(), id)
-  if (result.changes === 0) return null
+export async function markPaid(id: string, txHash: string): Promise<Invoice | null> {
+  await ready()
+  const sql = getSql()
+  const reusedElsewhere = await sql`SELECT 1 FROM invoices WHERE tx_hash = ${txHash} AND id != ${id}`
+  if (reusedElsewhere.length > 0) return null
+  const updated = (await sql`
+    UPDATE invoices SET status='paid', tx_hash=${txHash}, paid_at=${Date.now()}
+    WHERE id=${id} AND status='pending'
+    RETURNING id
+  `) as unknown as { id: string }[]
+  if (updated.length === 0) return null
   return getInvoice(id)
 }

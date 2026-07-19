@@ -6,7 +6,7 @@ Production-oriented invoicing and settlement for independent work.
 
 - Intelligent natural-language invoice drafting with AI and a deterministic no-key fallback
 - Mandatory review of generated title, scope, amount, due date, and client wallet before publishing
-- Persistent SQLite invoice storage (Next.js API routes, `node:sqlite`)
+- Persistent invoice storage on Postgres (Neon), via Next.js API routes
 - Shareable client payment links
 - Direct USDC transfer on GOAT Testnet3
 - Server-side transaction verification: token, recipient, amount, and receipt status

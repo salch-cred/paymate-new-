@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   if (!freelancer || !isAddress(freelancer)) {
     return Response.json({ detail: "Invalid wallet address" }, { status: 422 })
   }
-  return Response.json({ invoices: listInvoices(freelancer, limit) })
+  return Response.json({ invoices: await listInvoices(freelancer, limit) })
 }
 
 export async function POST(request: Request) {
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     return Response.json({ detail: "amountUsd must be a positive number" }, { status: 422 })
   }
 
-  const invoice = createInvoice({
+  const invoice = await createInvoice({
     freelancer: getAddress(freelancer),
     client: getAddress(client),
     title,
