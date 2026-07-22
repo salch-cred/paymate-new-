@@ -1,0 +1,6 @@
+{
+  "name": "paymate",
+  "description": "PayMate — on-chain invoicing and settlement for independent workers. Creates invoices, collects direct wallet-to-wallet USDC payments via x402, and verifies settlement on-chain.",
+  "url": "https://paymates.vercel.app",
+  "wallet": "0xE04B689d0081163B0FbB0EF4E7023c0AA10246C6"
+}

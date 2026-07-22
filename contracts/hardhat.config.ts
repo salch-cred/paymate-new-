@@ -12,6 +12,12 @@ const config: HardhatUserConfig = {
       chainId: 48816,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
+    goat: {
+      type: "http",
+      url: process.env.RPC_GOAT_MAINNET || "https://rpc.goat.network",
+      chainId: 2345,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+    },
   },
 }
 export default config
