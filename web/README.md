@@ -32,6 +32,7 @@ The frontend and API are a single Next.js app — there's no separate backend pr
 - `/dashboard` — intelligent drafting, live invoices, analytics, and reputation workspace
 - `/pay/[invoice-id]` — live wallet checkout
 - `/docs` — searchable protocol, API, settlement, reputation, contract, and security documentation
-- `/api/*` — invoice, settlement, and reputation routes (full list in `/docs`)
+- `/growth` — live growth metrics (invoices, settlement rate, seed-user feedback) read from Postgres
+- `/api/*` — invoice, settlement, reputation, and feedback routes (full list in `/docs`)
 
 No demo mode, mocked settlement, or fake API fallback is included.

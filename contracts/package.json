@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "register:erc8004": "hardhat run scripts/register-erc8004.ts --network goatTestnet3"
+    "register:erc8004": "hardhat run scripts/register-erc8004.ts --network goat"
   },
   "keywords": [],
   "author": "",
