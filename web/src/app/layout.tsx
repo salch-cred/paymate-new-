@@ -12,6 +12,31 @@ export const metadata: Metadata = {
   description: "Create intelligent invoices, collect on-chain payments, and build portable ERC-8004 reputation.",
 }
 
+const softwareApplicationSchema = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "PayMate",
+  applicationCategory: "FinanceApplication",
+  operatingSystem: "Web",
+  description:
+    "On-chain invoicing and settlement for independent workers. Create invoices, collect direct wallet-to-wallet USDC payments via the x402 protocol, and build a portable ERC-8004 reputation credential on GOAT Network.",
+  url: "https://paymates.vercel.app",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  featureList: [
+    "Intelligent natural-language invoice drafting",
+    "Direct non-custodial USDC settlement via x402",
+    "Server-side on-chain transaction verification",
+    "Portable ERC-8004 reputation on GOAT Network",
+  ],
+}
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" className={`${manrope.variable} ${display.variable} ${editorial.variable}`}><body><Providers>{children}</Providers></body></html>
+  return (
+    <html lang="en" className={`${manrope.variable} ${display.variable} ${editorial.variable}`}>
+      <head>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationSchema) }} />
+      </head>
+      <body><Providers>{children}</Providers></body>
+    </html>
+  )
 }
