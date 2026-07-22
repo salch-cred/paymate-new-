@@ -18,6 +18,30 @@ export interface Invoice {
   paidAt: number | null
 }
 
+export type FeedbackRole = "freelancer" | "client" | "other"
+
+export interface Feedback {
+  id: string
+  role: FeedbackRole
+  name: string
+  contact: string | null
+  rating: number
+  comment: string
+  invoiceId: string | null
+  createdAt: number
+}
+
+interface FeedbackRow {
+  id: string
+  role: string
+  name: string
+  contact: string | null
+  rating: number
+  comment: string
+  invoice_id: string | null
+  created_at: string
+}
+
 interface InvoiceRow {
   id: string
   freelancer: string
@@ -54,6 +78,11 @@ async function ready(): Promise<void> {
         created_at BIGINT NOT NULL, paid_at BIGINT
       )`
       await sql`CREATE INDEX IF NOT EXISTS idx_invoices_freelancer ON invoices(freelancer, created_at DESC)`
+      await sql`CREATE TABLE IF NOT EXISTS feedback (
+        id TEXT PRIMARY KEY, role TEXT NOT NULL, name TEXT NOT NULL, contact TEXT,
+        rating INTEGER NOT NULL, comment TEXT NOT NULL, invoice_id TEXT,
+        created_at BIGINT NOT NULL
+      )`
     })()
   }
   return globalThis.__paymateSchemaReady
@@ -137,4 +166,118 @@ export async function markPaid(id: string, txHash: string): Promise<Invoice | nu
   `) as unknown as { id: string }[]
   if (updated.length === 0) return null
   return getInvoice(id)
+}
+
+function rowToFeedback(row: FeedbackRow): Feedback {
+  return {
+    id: row.id,
+    role: row.role as FeedbackRole,
+    name: row.name,
+    contact: row.contact,
+    rating: row.rating,
+    comment: row.comment,
+    invoiceId: row.invoice_id,
+    createdAt: Number(row.created_at),
+  }
+}
+
+export async function createFeedback(input: {
+  role: FeedbackRole
+  name: string
+  contact?: string | null
+  rating: number
+  comment: string
+  invoiceId?: string | null
+}): Promise<Feedback> {
+  await ready()
+  const sql = getSql()
+  const feedback: Feedback = {
+    id: crypto.randomUUID(),
+    role: input.role,
+    name: input.name.trim(),
+    contact: input.contact?.trim() || null,
+    rating: Math.min(5, Math.max(1, Math.round(input.rating))),
+    comment: input.comment.trim(),
+    invoiceId: input.invoiceId || null,
+    createdAt: Date.now(),
+  }
+  await sql`INSERT INTO feedback VALUES (
+    ${feedback.id}, ${feedback.role}, ${feedback.name}, ${feedback.contact},
+    ${feedback.rating}, ${feedback.comment}, ${feedback.invoiceId}, ${feedback.createdAt}
+  )`
+  return feedback
+}
+
+export async function listFeedback(limit = 50): Promise<Feedback[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM feedback ORDER BY created_at DESC LIMIT ${Math.min(limit, 100)}
+  `) as unknown as FeedbackRow[]
+  return rows.map(rowToFeedback)
+}
+
+export interface GrowthStats {
+  totalInvoices: number
+  paidInvoices: number
+  pendingInvoices: number
+  settlementRate: number
+  totalVolumeSettled: number
+  outstandingVolume: number
+  uniqueFreelancers: number
+  uniqueClients: number
+  feedbackCount: number
+  averageRating: number
+  feedbackByRole: { role: string; count: number }[]
+  firstInvoiceAt: number | null
+  lastInvoiceAt: number | null
+}
+
+export async function getGrowthStats(): Promise<GrowthStats> {
+  await ready()
+  const sql = getSql()
+
+  const invoiceRows = (await sql`
+    SELECT
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE status='paid')::int AS paid,
+      COUNT(*) FILTER (WHERE status='pending')::int AS pending,
+      COALESCE(SUM(amount_usd) FILTER (WHERE status='paid'), 0)::float AS settled_volume,
+      COALESCE(SUM(amount_usd) FILTER (WHERE status='pending'), 0)::float AS outstanding_volume,
+      COUNT(DISTINCT lower(freelancer))::int AS unique_freelancers,
+      COUNT(DISTINCT lower(client))::int AS unique_clients,
+      MIN(created_at) AS first_at,
+      MAX(created_at) AS last_at
+    FROM invoices
+  `) as unknown as {
+    total: number; paid: number; pending: number; settled_volume: number; outstanding_volume: number
+    unique_freelancers: number; unique_clients: number; first_at: string | null; last_at: string | null
+  }[]
+  const inv = invoiceRows[0]
+
+  const feedbackRows = (await sql`
+    SELECT COUNT(*)::int AS total, COALESCE(AVG(rating), 0)::float AS avg_rating
+    FROM feedback
+  `) as unknown as { total: number; avg_rating: number }[]
+  const fb = feedbackRows[0]
+
+  const byRoleRows = (await sql`
+    SELECT role, COUNT(*)::int AS count FROM feedback GROUP BY role
+  `) as unknown as { role: string; count: number }[]
+
+  return {
+    totalInvoices: inv.total,
+    paidInvoices: inv.paid,
+    pendingInvoices: inv.pending,
+    settlementRate: inv.total > 0 ? Math.round((inv.paid / inv.total) * 100) : 0,
+    totalVolumeSettled: inv.settled_volume,
+    outstandingVolume: inv.outstanding_volume,
+    uniqueFreelancers: inv.unique_freelancers,
+    uniqueClients: inv.unique_clients,
+    feedbackCount: fb.total,
+    averageRating: Math.round(fb.avg_rating * 10) / 10,
+    feedbackByRole: byRoleRows,
+    firstInvoiceAt: inv.first_at ? Number(inv.first_at) : null,
+    lastInvoiceAt: inv.last_at ? Number(inv.last_at) : null,
+  }
 }

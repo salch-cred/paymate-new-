@@ -13,6 +13,34 @@ const sections = [
   { id: "frontend", label: "Frontend routes" },
   { id: "contract", label: "Reputation contract" },
   { id: "deploy", label: "Deployment" },
+  { id: "faq", label: "FAQ" },
+]
+
+const faqs = [
+  {
+    q: "What is PayMate?",
+    a: "PayMate is on-chain invoicing and settlement software for independent workers. It creates payment requests, collects payment as a direct wallet-to-wallet USDC transfer via the x402 protocol, verifies that transfer on-chain, and records a portable ERC-8004 reputation credential for the freelancer.",
+  },
+  {
+    q: "How is PayMate different from Stripe, PayPal, or a plain crypto payment link?",
+    a: "Stripe and PayPal custody the funds and settle to a bank account days later; PayMate never touches the money — payment is a direct wallet-to-wallet transfer the client's own wallet signs. A plain crypto payment link proves a transfer happened but leaves no durable record of trust; PayMate turns every verified settlement into a portable, on-chain reputation credential (ERC-8004) that follows the freelancer across platforms.",
+  },
+  {
+    q: "What is x402 and why does PayMate use it?",
+    a: "x402 is a protocol built on the HTTP 402 Payment Required status code: a server can describe exactly what payment it needs (token, amount, recipient) and a client can fulfill it programmatically, after which the server verifies the on-chain result. PayMate's settlement endpoint returns a 402 with those requirements, then verifies the resulting transaction's token, recipient, amount, and receipt status before marking an invoice paid.",
+  },
+  {
+    q: "What is ERC-8004 reputation and why does it matter?",
+    a: "ERC-8004 is an on-chain identity/reputation standard. PayMate's registry contract records a freelancer's completed job count, total settled volume, and trust score on every verified payment — a credential the freelancer owns and can carry to any other application, instead of a review buried in one platform's database.",
+  },
+  {
+    q: "Is PayMate custodial?",
+    a: "No. PayMate cannot move a client's funds. Every payment is a direct wallet-to-wallet USDC transfer that the client's own wallet signs; PayMate only verifies that the transfer already happened correctly.",
+  },
+  {
+    q: "What network does PayMate run on?",
+    a: "GOAT Network (Testnet3, chain ID 48816) for the current build. Settlement uses a 6-decimal test USDC token; the reputation registry is deployed on the same network.",
+  },
 ]
 
 export default function DocsPage(){
@@ -31,7 +59,9 @@ export default function DocsPage(){
    <section className="doc-section" id="frontend"><div className="doc-index">05</div><div><span className="doc-label">FRONTEND ROUTES</span><h2>Application pages</h2><div className="route-table frontend-routes"><div><b>PAGE</b><code>/</code><span>Product landing page</span></div><div><b>PAGE</b><code>/dashboard</code><span>Invoice and reputation workspace</span></div><div><b>PAGE</b><code>/pay/{`{invoice-id}`}</code><span>Client wallet checkout</span></div><div><b>PAGE</b><code>/docs</code><span>Project documentation</span></div></div></div></section>
    <section className="doc-section" id="contract"><div className="doc-index">06</div><div><span className="doc-label">REPUTATION CONTRACT</span><h2>PayMateReputation.sol</h2><p>The issuer records a completed job only after verified payment. Anyone can read a freelancer’s completed jobs, total settled value, and score.</p><pre><code>{`recordJob(address freelancer, uint256 amountUsd)\ngetReputation(address freelancer) returns (Rep)`}</code></pre><p>Deploy from the <code>contracts/</code> directory with the configured GOAT Testnet3 RPC and issuer key.</p><div className="property-table"><div><b>Contract</b><b>Address</b></div><div><code>PayMateReputation</code><span>0xc2072cc0007cA8fcB84bdA09cFE20014559285BD</span></div><div><code>TestUSDC</code><span>0xeF9Ea814f011289E28f1c87FE8E0C0F68Aa82446</span></div></div><p>No official Circle USDC exists on GOAT Testnet3 yet, so <code>USDC_TOKEN</code> currently points at a self-deployed 6-decimal test ERC-20 (<code>contracts/contracts/TestUSDC.sol</code>) with an open <code>faucet()</code> for testing.</p></div></section>
    <section className="doc-section" id="deploy"><div className="doc-index">07</div><div><span className="doc-label">DEPLOYMENT</span><h2>Production checklist</h2><ul className="deploy-list"><li><Icon name="check"/>Reputation contract deployed on GOAT Testnet3.</li><li><Icon name="check"/>Test settlement token deployed (no official USDC on this testnet yet).</li><li><Icon name="check"/>Persistent invoice storage on Postgres (Neon) — replaced the earlier SQLite-on-serverless-disk approach, which didn&apos;t persist between requests.</li><li><Icon name="close"/>ERC-8004 agent identity registration — the registry only exists on GOAT mainnet, not Testnet3.</li></ul></div></section>
+   <section className="doc-section" id="faq"><div className="doc-index">08</div><div><span className="doc-label">FAQ</span><h2>Frequently asked questions</h2><div className="doc-faq">{faqs.map(f=><div key={f.q} className="doc-faq-item"><b>{f.q}</b><p>{f.a}</p></div>)}</div></div></section>
    <footer className="docs-footer"><div><span className="brand-mark small"><span/></span><b>PayMate project documentation</b></div><Link href="/dashboard">Open workspace <Icon name="arrow"/></Link></footer>
+   <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify({"@context":"https://schema.org","@type":"FAQPage","mainEntity":faqs.map(f=>({"@type":"Question",name:f.q,acceptedAnswer:{"@type":"Answer",text:f.a}}))})}}/>
   </article>
   <aside className="docs-toc"><span>PROJECT DETAILS</span>{sections.map(s=><a key={s.id} href={`#${s.id}`}>{s.label}</a>)}<div className="toc-status"><i/><b>GOAT Testnet3</b><small>Configured through environment</small></div></aside>
  </main>

@@ -1,0 +1,36 @@
+# PayMate
+
+> PayMate is on-chain invoicing and settlement software for independent workers. It creates payment requests (invoices), collects payment as a direct wallet-to-wallet USDC transfer using the x402 protocol, verifies that transfer on-chain before marking the invoice paid, and records a portable, on-chain reputation credential (ERC-8004) for the freelancer on successful settlement.
+
+## What PayMate does
+
+- Freelancers describe completed work in plain language; PayMate drafts an invoice (title, scope, amount, due date) using a deterministic parser, with optional OpenAI-assisted drafting.
+- Every draft requires human review of the amount, scope, due date, and client wallet before a payment link is created — nothing is auto-published.
+- Clients pay by connecting a Web3 wallet (MetaMask, Coinbase Wallet, WalletConnect, or any injected EIP-1193 wallet) and sending USDC directly to the freelancer's wallet. PayMate never holds funds.
+- The server verifies the on-chain transaction (correct token, correct recipient, correct amount, successful receipt) via the x402 payment-required (HTTP 402) flow before marking an invoice settled.
+- On verified settlement, PayMate calls `recordJob` on an ERC-8004-style reputation contract, incrementing the freelancer's on-chain job count, total earned volume, and trust score — a credential that is portable across platforms, not locked into PayMate.
+
+## Who it's for
+
+Independent workers (freelancers, contractors, small studios) who want direct, non-custodial payment collection and a portable proof-of-work history, instead of scattered invoices, screenshots, and platform-locked reviews.
+
+## Technical facts (verifiable on-chain)
+
+- Network: GOAT Network (Testnet3, chain ID 48816)
+- Payment protocol: x402 (HTTP 402 Payment Required, `scheme: "exact"`)
+- Identity/reputation standard: ERC-8004
+- Settlement token: USDC (ERC-20, 6 decimals)
+- Frontend/API: Next.js 16 (App Router + Route Handlers), wagmi + viem for wallet/chain interaction
+- Storage: Postgres (Neon, serverless)
+- Source: https://github.com/salch-cred/paymate-new-
+
+## Key pages
+
+- [Landing page](https://paymates.vercel.app/): product overview
+- [Dashboard](https://paymates.vercel.app/dashboard): create invoices, view settlement activity and reputation
+- [Documentation](https://paymates.vercel.app/docs): architecture, API routes, settlement verification, and FAQ
+
+## What PayMate is not
+
+- Not custodial: PayMate cannot move a client's funds; every payment is a direct wallet transfer the client's own wallet signs.
+- Not a demo: there is no mocked settlement or fake API fallback. Settlement verification runs against the real chain.
