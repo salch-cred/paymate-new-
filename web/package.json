@@ -9,7 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@neondatabase/serverless": "^1.1.0",
+    "@privy-io/react-auth": "^3.35.1",
+    "@privy-io/wagmi": "^4.0.14",
     "@tanstack/react-query": "^5.101.2",
     "next": "16.2.10",
     "openai": "^6.48.0",

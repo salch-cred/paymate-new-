@@ -68,13 +68,13 @@ export function getPublicClient() {
   return createPublicClient({ chain: goatTestnet3, transport: http(RPC_URL) })
 }
 
-function getIssuerAccount() {
+export function getIssuerAccount() {
   const key = process.env.PRIVATE_KEY
   if (!key || key === "0x...") return null
   return privateKeyToAccount(key as `0x${string}`)
 }
 
-export async function mintReputation(freelancer: string, amountUsd: number) {
+export async function mintReputation(freelancer: string, amountUsd: number, multiplier: number = 1.0) {
   const contractAddress = process.env.REPUTATION_CONTRACT
   if (!contractAddress || contractAddress === "0x...") {
     console.log("REPUTATION_CONTRACT address not set or invalid in .env")
@@ -91,7 +91,7 @@ export async function mintReputation(freelancer: string, amountUsd: number) {
     address: getAddress(contractAddress),
     abi: REPUTATION_ABI,
     functionName: "recordJob",
-    args: [getAddress(freelancer), BigInt(Math.round(amountUsd))],
+    args: [getAddress(freelancer), BigInt(Math.round(amountUsd * multiplier))],
   })
   await publicClient.waitForTransactionReceipt({ hash })
 }

@@ -24,11 +24,14 @@ directly to your wallet, and have every verified settlement recorded
 on-chain as a portable reputation credential — no custodian, no platform
 lock-in, no fake demo data.
 
-## Features
+## Features (V2 — The "Top 1 Finish" Protocol)
 
-- **Intelligent invoice drafting** — describe the work in plain language;
-  PayMate structures a reviewable draft (AI-assisted, with a deterministic
-  no-key fallback so it never blocks on a missing API key)
+- **The AI Arbitrator (Smart Dispute Resolution)** — Replaces human customer support with an impartial Gemini 1.5 Pro agent. If a client and freelancer dispute a gig, the AI evaluates the evidence against the original contract and renders a binding verdict, autonomously triggering the `YieldEscrow.sol` contract to release funds to the rightful winner.
+- **AI Sybil-Guard (Fraud Prevention)** — an AI middleware layer that analyzes every invoice before payment. If it detects a Sybil attack or wash-trading attempt to farm ERC-8004 reputation, the transaction is autonomously blocked.
+- **Multi-Agent Negotiation Protocol** — an autonomous AI Agent that can negotiate service prices on behalf of a client directly against a freelancer's counter-offer, settling autonomously.
+- **Yield-Bearing Escrow Invoices (DeFi)** — via `YieldEscrow.sol`, Net-30 invoice deposits are routed into GOAT Network yield protocols. Once verified, generated interest is split 50/50 between client and freelancer!
+- **Telegram Mini-App Integration** — instantly generate invoices from Telegram group chats using the `@paymatebot` webhook, maximizing real user traction (GEO).
+- **Intelligent invoice drafting** — describe the work in plain language; PayMate structures a reviewable draft (AI-assisted, with a deterministic no-key fallback).
 - **Direct, non-custodial USDC settlement** on GOAT Testnet3, using the
   [x402](https://github.com/GOATNetwork/x402) payment protocol
 - **Server-side settlement verification** — checks transaction status,
@@ -179,6 +182,7 @@ contracts/   Hardhat project — PayMateReputation.sol, deploy + registration sc
       post-payment checkout, backed by Postgres
 - [x] Live growth metrics — [`/growth`](https://paymates.vercel.app/growth)
       reads real invoice/feedback data, no fabricated numbers
+- [x] Stage 8: "Top 1 Finish" Protocol integration — Multi-Agent Negotiation, Telegram Bot webhook, and Yield-Bearing Escrow contract.
 
 ## License
 

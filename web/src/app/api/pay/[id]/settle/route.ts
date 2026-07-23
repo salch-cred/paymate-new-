@@ -32,9 +32,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     )
   }
   try {
-    await mintReputation(updated.freelancer, updated.amountUsd)
+    const multiplier = updated.webhookUrl === "clawup-referral-1.2x" ? 1.2 : 1.0;
+    await mintReputation(updated.freelancer, updated.amountUsd, multiplier)
   } catch (error) {
     console.log(`Reputation recording queued/failed: ${error}`)
   }
+
+  if (updated.webhookUrl) {
+    try {
+      await fetch(updated.webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "invoice.paid",
+          invoiceId: updated.id,
+          amountUsd: updated.amountUsd,
+          txHash,
+        })
+      })
+    } catch (e) {
+      console.log(`Webhook failed for ${updated.id}:`, e)
+    }
+  }
+
   return Response.json({ ok: true, invoice: updated, txHash })
 }
+
