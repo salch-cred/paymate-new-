@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   if (!body) return Response.json({ detail: "Invalid request body" }, { status: 422 })
 
-  const { freelancer, client, title, description, amountUsd, dueDate } = body
+  const { freelancer, client, title, description, amountUsd, dueDate, webhookUrl } = body
   if (typeof freelancer !== "string" || !isAddress(freelancer) || typeof client !== "string" || !isAddress(client)) {
     return Response.json({ detail: "Invalid wallet address" }, { status: 422 })
   }
@@ -39,6 +39,7 @@ export async function POST(request: Request) {
     description,
     amountUsd: amount,
     dueDate: dueDate || null,
+    webhookUrl: webhookUrl || null,
   })
   return Response.json({ invoice, payUrl: `/pay/${invoice.id}` }, { status: 201 })
 }

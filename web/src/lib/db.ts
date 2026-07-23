@@ -16,6 +16,8 @@ export interface Invoice {
   txHash: string | null
   createdAt: number
   paidAt: number | null
+  webhookUrl: string | null
+  signature: string | null
 }
 
 export type FeedbackRole = "freelancer" | "client" | "other"
@@ -55,6 +57,8 @@ interface InvoiceRow {
   tx_hash: string | null
   created_at: string
   paid_at: string | null
+  webhook_url: string | null
+  signature: string | null
 }
 
 declare global {
@@ -75,8 +79,11 @@ async function ready(): Promise<void> {
         id TEXT PRIMARY KEY, freelancer TEXT NOT NULL, client TEXT NOT NULL,
         title TEXT NOT NULL, description TEXT NOT NULL, amount_usd DOUBLE PRECISION NOT NULL,
         status TEXT NOT NULL, chain TEXT NOT NULL, due_date TEXT, tx_hash TEXT,
-        created_at BIGINT NOT NULL, paid_at BIGINT
+        created_at BIGINT NOT NULL, paid_at BIGINT, webhook_url TEXT, signature TEXT
       )`
+      // Try adding the columns if the table already existed
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS webhook_url TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS signature TEXT`.catch(()=>null)
       await sql`CREATE INDEX IF NOT EXISTS idx_invoices_freelancer ON invoices(freelancer, created_at DESC)`
       await sql`CREATE TABLE IF NOT EXISTS feedback (
         id TEXT PRIMARY KEY, role TEXT NOT NULL, name TEXT NOT NULL, contact TEXT,
@@ -102,6 +109,8 @@ function rowToInvoice(row: InvoiceRow): Invoice {
     txHash: row.tx_hash,
     createdAt: Number(row.created_at),
     paidAt: row.paid_at === null ? null : Number(row.paid_at),
+    webhookUrl: row.webhook_url || null,
+    signature: row.signature || null,
   }
 }
 
@@ -112,6 +121,8 @@ export async function createInvoice(input: {
   description: string
   amountUsd: number
   dueDate?: string | null
+  webhookUrl?: string | null
+  signature?: string | null
 }): Promise<Invoice> {
   await ready()
   const sql = getSql()
@@ -128,11 +139,13 @@ export async function createInvoice(input: {
     txHash: null,
     createdAt: Date.now(),
     paidAt: null,
+    webhookUrl: input.webhookUrl || null,
+    signature: input.signature || null,
   }
   await sql`INSERT INTO invoices VALUES (
     ${invoice.id}, ${invoice.freelancer}, ${invoice.client}, ${invoice.title}, ${invoice.description},
     ${invoice.amountUsd}, ${invoice.status}, ${invoice.chain}, ${invoice.dueDate}, ${invoice.txHash},
-    ${invoice.createdAt}, ${invoice.paidAt}
+    ${invoice.createdAt}, ${invoice.paidAt}, ${invoice.webhookUrl}, ${invoice.signature}
   )`
   return invoice
 }
@@ -162,6 +175,18 @@ export async function markPaid(id: string, txHash: string): Promise<Invoice | nu
   const updated = (await sql`
     UPDATE invoices SET status='paid', tx_hash=${txHash}, paid_at=${Date.now()}
     WHERE id=${id} AND status='pending'
+    RETURNING id
+  `) as unknown as { id: string }[]
+  if (updated.length === 0) return null
+  return getInvoice(id)
+}
+
+export async function cancelInvoice(id: string, freelancer: string): Promise<Invoice | null> {
+  await ready()
+  const sql = getSql()
+  const updated = (await sql`
+    UPDATE invoices SET status='cancelled'
+    WHERE id=${id} AND lower(freelancer)=lower(${freelancer}) AND status='pending'
     RETURNING id
   `) as unknown as { id: string }[]
   if (updated.length === 0) return null
