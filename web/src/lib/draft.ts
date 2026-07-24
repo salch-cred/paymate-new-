@@ -49,42 +49,41 @@ function fallbackDraft(prompt: string): DraftResult {
 }
 
 export async function draftInvoice(prompt: string): Promise<DraftResult> {
-  const apiKey = process.env.MISTRAL_API_KEY
+  const apiKey = process.env.GEMINI_API_KEY || process.env.MISTRAL_API_KEY
   if (!apiKey) return fallbackDraft(prompt)
 
   try {
-    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "mistral-small-latest",
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are an autonomous AI negotiator and invoice structurer. Return JSON only with: " +
-              "title (concise string), description (clear professional scope with explicitly outlined deliverables), " +
-              "amountUsd (number; 0 if not explicitly provided), dueDate (YYYY-MM-DD or null), " +
-              "lineItems (array of {description, amountUsd}), paymentTerms (string), " +
-              "confidence (0 to 1). If the user's prompt is vague or omits terms, automatically suggest protective payment milestones (e.g. 50% upfront) and a 5% late fee penalty clause in the paymentTerms. Never invent a base price, but actively suggest terms to protect the freelancer.",
-          },
-          { role: "user", content: prompt },
+        system_instruction: {
+          parts: {
+            text: "You are an autonomous AI negotiator and invoice structurer. Return JSON only with: title (concise string), description (clear professional scope with explicitly outlined deliverables), amountUsd (number; 0 if not explicitly provided), dueDate (YYYY-MM-DD or null), lineItems (array of {description, amountUsd}), paymentTerms (string), confidence (0 to 1). If the user's prompt is vague or omits terms, automatically suggest protective payment milestones (e.g. 50% upfront) and a 5% late fee penalty clause in the paymentTerms. Never invent a base price, but actively suggest terms to protect the freelancer. Return valid JSON only, without markdown formatting."
+          }
+        },
+        contents: [
+          { parts: [{ text: prompt }] }
         ],
+        generationConfig: {
+          temperature: 0.2,
+          responseMimeType: "application/json"
+        }
       }),
     })
 
     const data = await response.json()
-    const content = data.choices?.[0]?.message?.content
+    let content = data.candidates?.[0]?.content?.parts?.[0]?.text
+    
     if (!content) return fallbackDraft(prompt)
+    
+    content = content.replace(/```json/g, "").replace(/```/g, "").trim();
     const draft = JSON.parse(content) as DraftResult
     draft.amountUsd = Number(draft.amountUsd || 0)
     draft.confidence = Math.min(1, Math.max(0, Number(draft.confidence || 0)))
-    draft.source = "ai"
+    draft.source = "ai-gemini"
     return draft
   } catch (error) {
     const fallback = fallbackDraft(prompt)
