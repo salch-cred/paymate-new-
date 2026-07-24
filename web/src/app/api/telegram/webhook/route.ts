@@ -30,21 +30,32 @@ export async function POST(request: Request) {
       return new Response("OK");
     }
 
-    const aiResponse = await fetch("https://api.mistral.ai/v1/chat/completions", {
+    const agentId = process.env.MISTRAL_AGENT_ID;
+
+    const requestBody: any = {
+      temperature: 0.1,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: "You are the PayMate Telegram AI Agent. You are a helpful, friendly, and intelligent assistant. If the user greets you or asks a general question, reply to them naturally in a friendly tone in the 'reply' field. Your primary goal is to securely help the user create an invoice. To create an invoice, you need 3 things from the user: 1) Wallet address (MUST be exactly a 42-character 0x hex address for security), 2) Amount in USD (must be a positive number), 3) Description of the work. Return ONLY a JSON object. If the user provided an address which is already parsed as '" + (freelancerAddress || "missing") + "' and also provided the amount and description, return {\"ready\": true, \"amountUsd\": number, \"description\": \"clear scope\", \"title\": \"short title\"}. If they want to create an invoice but info is missing, return {\"ready\": false, \"reply\": \"Friendly message asking the user to provide ALL missing details in ONE SINGLE MESSAGE (e.g. 'Please reply with your 42-character 0x wallet address, the amount, and description all in one message'). NEVER ask them to provide just one thing at a time, because you do not have conversational memory.\"} If they are just chatting, return {\"ready\": false, \"reply\": \"Your conversational response here.\"}"
+        },
+        { role: "user", content: text }
+      ]
+    };
+
+    let endpoint = "https://api.mistral.ai/v1/chat/completions";
+    if (agentId) {
+      requestBody.agent_id = agentId;
+      endpoint = "https://api.mistral.ai/v1/agents/completions";
+    } else {
+      requestBody.model = "mistral-small-latest";
+    }
+
+    const aiResponse = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "mistral-small-latest",
-        temperature: 0.1,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content: "You are the PayMate Telegram AI Agent. You are a helpful, friendly, and intelligent assistant. If the user greets you or asks a general question, reply to them naturally in a friendly tone in the 'reply' field. Your primary goal is to securely help the user create an invoice. To create an invoice, you need 3 things from the user: 1) Wallet address (MUST be exactly a 42-character 0x hex address for security), 2) Amount in USD (must be a positive number), 3) Description of the work. Return ONLY a JSON object. If the user provided an address which is already parsed as '" + (freelancerAddress || "missing") + "' and also provided the amount and description, return {\"ready\": true, \"amountUsd\": number, \"description\": \"clear scope\", \"title\": \"short title\"}. If they want to create an invoice but info is missing, return {\"ready\": false, \"reply\": \"Friendly message asking the user to provide ALL missing details in ONE SINGLE MESSAGE (e.g. 'Please reply with your 42-character 0x wallet address, the amount, and description all in one message'). NEVER ask them to provide just one thing at a time, because you do not have conversational memory.\"} If they are just chatting, return {\"ready\": false, \"reply\": \"Your conversational response here.\"}"
-          },
-          { role: "user", content: text }
-        ]
-      })
+      body: JSON.stringify(requestBody)
     });
 
     const data = await aiResponse.json();
