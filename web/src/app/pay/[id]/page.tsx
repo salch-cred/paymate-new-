@@ -13,10 +13,11 @@ type Invoice={id:string;freelancer:string;client:string;title?:string;descriptio
 
 export default function PayPage({params}:{params:Promise<{id:string}>}){
   const {id}=use(params);const [invoice,setInvoice]=useState<Invoice|null>(null);const [status,setStatus]=useState<"idle"|"paying"|"paid"|"error">("idle");const [error,setError]=useState<string|null>(null);const [loading,setLoading]=useState(true);const {address,isConnected,chain}=useAccount();const {data:walletClient}=useWalletClient();const {switchChainAsync}=useSwitchChain()
-  const [isCrossChain,setIsCrossChain]=useState(false);const [ccStage,setCcStage]=useState(0)
+  const [isCrossChain,setIsCrossChain]=useState(false);const [isFiat,setIsFiat]=useState(false);const [ccStage,setCcStage]=useState(0)
   useEffect(()=>{fetch(`/api/invoices/${id}`).then(r=>{if(!r.ok)throw new Error("Invoice not found");return r.json()}).then(setInvoice).catch(e=>setError(e.message||"Could not load invoice")).finally(()=>setLoading(false))},[id])
- async function handlePay(){if(!isConnected||!address||!walletClient)return;setStatus("paying");setError(null);try{if(chain?.id!==goatTestnet3.id)await switchChainAsync({chainId:goatTestnet3.id});const res=await fetch(`/api/pay/${id}/settle`,{method:"POST"});if(res.status!==402){if(res.ok){setStatus("paid");return}throw new Error(`Unexpected settlement status: ${res.status}`)}const requirements=await res.json();if(!requirements.accepts||requirements.accepts.length===0)throw new Error("No valid payment options returned.");const txHashes=[];for(const option of requirements.accepts){const hash=await walletClient.writeContract({address:(option.token||"0x228B00") as `0x${string}`,abi:[{inputs:[{name:"recipient",type:"address"},{name:"amount",type:"uint256"}],name:"transfer",outputs:[{name:"",type:"bool"}],stateMutability:"nonpayable",type:"function"}],functionName:"transfer",args:[option.payTo as `0x${string}`,parseUnits(option.price.replace("$",""),6)],account:address,chain:goatTestnet3});txHashes.push(hash);}const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":txHashes.join(",")}});if(!settle.ok)throw new Error("Payment verification failed.");setStatus("paid");setInvoice(v=>v?{...v,status:"paid"}:v)}catch(e){setStatus("error");setError(e instanceof Error?e.message:"Payment failed")}}
- async function handleCrossChainPay(){if(!isConnected)return;setStatus("paying");setIsCrossChain(true);setError(null);setCcStage(1);await new Promise(r=>setTimeout(r,2500));setCcStage(2);await new Promise(r=>setTimeout(r,2500));setCcStage(3);try{await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":"mock_ccip_intent_tx"}});setStatus("paid");setInvoice(v=>v?{...v,status:"paid"}:v)}catch(e){setStatus("error");setError("Cross-chain simulation failed")}}
+ async function handlePay(){if(!isConnected||!address||!walletClient)return;setStatus("paying");setIsFiat(false);setIsCrossChain(false);setError(null);try{if(chain?.id!==goatTestnet3.id)await switchChainAsync({chainId:goatTestnet3.id});const res=await fetch(`/api/pay/${id}/settle`,{method:"POST"});if(res.status!==402){if(res.ok){setStatus("paid");return}throw new Error(`Unexpected settlement status: ${res.status}`)}const requirements=await res.json();if(!requirements.accepts||requirements.accepts.length===0)throw new Error("No valid payment options returned.");const txHashes=[];for(const option of requirements.accepts){const hash=await walletClient.writeContract({address:(option.token||"0x228B00") as `0x${string}`,abi:[{inputs:[{name:"recipient",type:"address"},{name:"amount",type:"uint256"}],name:"transfer",outputs:[{name:"",type:"bool"}],stateMutability:"nonpayable",type:"function"}],functionName:"transfer",args:[option.payTo as `0x${string}`,parseUnits(option.price.replace("$",""),6)],account:address,chain:goatTestnet3});txHashes.push(hash);}const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":txHashes.join(",")}});if(!settle.ok)throw new Error("Payment verification failed.");setStatus("paid");setInvoice(v=>v?{...v,status:"paid"}:v)}catch(e){setStatus("error");setError(e instanceof Error?e.message:"Payment failed")}}
+ async function handleCrossChainPay(){if(!isConnected)return;setStatus("paying");setIsCrossChain(true);setIsFiat(false);setError(null);setCcStage(1);await new Promise(r=>setTimeout(r,2500));setCcStage(2);await new Promise(r=>setTimeout(r,2500));setCcStage(3);try{await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":"mock_ccip_intent_tx"}});setStatus("paid");setInvoice(v=>v?{...v,status:"paid"}:v)}catch(e){setStatus("error");setError("Cross-chain simulation failed")}}
+ async function handleFiatPay(){setStatus("paying");setIsFiat(true);setIsCrossChain(false);setError(null);setCcStage(1);await new Promise(r=>setTimeout(r,2500));setCcStage(2);await new Promise(r=>setTimeout(r,2500));setCcStage(3);try{await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":"mock_fiat_onramp_tx"}});setStatus("paid");setInvoice(v=>v?{...v,status:"paid"}:v)}catch(e){setStatus("error");setError("Fiat processing failed")}}
  if(loading)return <main className="loading-page"><div className="loader"/></main>
  if(!invoice)return <main className="loading-page"><div style={{textAlign:"center"}}><h1 style={{fontFamily:"var(--font-display)"}}>Invoice unavailable</h1><p>{error}</p><Link className="button button-dark" href="/">Return home</Link></div></main>
  const paid=invoice.status==="paid"||status==="paid"
@@ -68,6 +69,12 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
                     <div style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'12px',fontWeight:600,color:ccStage>=2?'#111':'#888'}}><span className="draft-spinner" style={{opacity:ccStage===2?1:0}}/> 2. Swapping USDC & Bridging to GOAT...</div>
                     <div style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'12px',fontWeight:600,color:ccStage>=3?'#111':'#888'}}><span className="draft-spinner" style={{opacity:ccStage===3?1:0}}/> 3. Settling on-chain...</div>
                   </>
+                ) : isFiat ? (
+                  <>
+                    <div style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'12px',fontWeight:600,color:ccStage>=1?'#111':'#888'}}><span className="draft-spinner" style={{opacity:ccStage===1?1:0}}/> 1. Processing Credit Card (Transak 0% Demo)</div>
+                    <div style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'12px',fontWeight:600,color:ccStage>=2?'#111':'#888'}}><span className="draft-spinner" style={{opacity:ccStage===2?1:0}}/> 2. Purchasing USDC on GOAT Network...</div>
+                    <div style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'12px',fontWeight:600,color:ccStage>=3?'#111':'#888'}}><span className="draft-spinner" style={{opacity:ccStage===3?1:0}}/> 3. Settling Invoice to Freelancer...</div>
+                  </>
                 ) : (
                   <button className="button button-primary pay-btn" disabled><span className="draft-spinner"/>Settling on-chain…</button>
                 )}
@@ -77,9 +84,14 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
                 <button className="button button-primary pay-btn" onClick={handlePay}>
                   Pay ${invoice.amountUsd.toLocaleString()} USDC <Icon name="arrow" size={18}/>
                 </button>
-                <button className="button" style={{background:'transparent',border:'1px dashed var(--line)',color:'var(--text-muted)'}} onClick={handleCrossChainPay}>
-                  <Icon name="network" size={16}/> Pay from another chain (Base/OP)
-                </button>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>
+                  <button className="button" style={{background:'transparent',border:'1px dashed var(--line)',color:'var(--text-muted)'}} onClick={handleCrossChainPay}>
+                    <Icon name="network" size={16}/> Any Crypto
+                  </button>
+                  <button className="button" style={{background:'transparent',border:'1px dashed var(--line)',color:'var(--text-muted)'}} onClick={handleFiatPay}>
+                    <Icon name="wallet" size={16}/> Credit Card
+                  </button>
+                </div>
               </div>
             )}
           </div>
