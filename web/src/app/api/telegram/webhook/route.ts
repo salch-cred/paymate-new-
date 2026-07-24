@@ -1,4 +1,4 @@
-import { createInvoice } from "@/lib/db";
+import { createInvoice, getChatState, saveChatState, clearChatState } from "@/lib/db";
 import { getAddress } from "viem";
 
 const TELEGRAM_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
@@ -14,52 +14,35 @@ export async function POST(request: Request) {
       return new Response("OK");
     }
 
-    const chatId = update.message.chat.id;
-    const text = update.message.text.trim();
+    const state = await getChatState(chatId.toString());
+    const aiPrompt = `You are the PayMate Telegram AI Agent. You are a helpful, friendly, and intelligent assistant. 
+If the user greets you or asks a general question, reply to them naturally in a friendly tone in the 'reply' field. 
 
-    // Conversational AI Invoice Agent
-    const addressMatch = text.match(/(0x[a-fA-F0-9]{40})/);
-    const freelancerAddress = addressMatch ? addressMatch[1] : null;
+Your primary goal is to securely help the user create an invoice. To create an invoice, you need 3 things from the user.
+Here is what we currently know about the user's request:
+- Wallet address: ${state.address || "Missing"}
+- Amount in USD: ${state.amountUsd || "Missing"}
+- Description: ${state.description || "Missing"}
 
-    const apiKey = process.env.MISTRAL_API_KEY;
-    if (!apiKey) {
-      await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text: "AI drafting is currently offline. Use exact format: `/invoice 0xYourWalletAddress $500 for landing page`" })
-      });
-      return new Response("OK");
-    }
+Look at the user's latest message and extract any of the missing information (if present).
+A wallet address is a 42-character 0x hex address.
+An amount is a positive number (e.g. 50).
+A description is the scope of work (e.g. 'landing page').
 
-    const agentId = process.env.MISTRAL_AGENT_ID;
+Return a JSON object with the UPDATED information:
+{
+  "ready": <true if ALL THREE are now known, false if ANY are still missing>,
+  "address": "<the known or newly provided wallet address, or null>",
+  "amountUsd": "<the known or newly provided amount as a number, or null>",
+  "description": "<the known or newly provided description, or null>",
+  "title": "<short title if ready, or null>",
+  "reply": "<if ready is false, ask the user naturally for whichever details are STILL missing. If ready is true, leave this null.>"
+}`;
 
     const requestBody: any = {
       response_format: { type: "json_object" },
       messages: [
-        {
-          role: "system",
-          content: `You are the PayMate Telegram AI Agent. You are a helpful, friendly, and intelligent assistant. 
-If the user greets you or asks a general question, reply to them naturally in a friendly tone in the 'reply' field. 
-
-Your primary goal is to securely help the user create an invoice. To create an invoice, you need 3 things from the user in their message:
-1) Wallet address (a 42-character 0x hex address)
-2) Amount in USD (any positive number, e.g., 0.05, 50, 100)
-3) Description of the work (e.g., 'landing page', 'development')
-
-CRITICAL INSTRUCTION:
-If the user's message contains ALL THREE of these things (an address like '${freelancerAddress || "missing"}', an amount like 0.05, and a description like 'landing page'), you MUST return:
-{
-  "ready": true,
-  "amountUsd": <the number, e.g. 0.05>,
-  "description": "<the exact description of work>",
-  "title": "<generate a short title for the invoice>"
-}
-
-If ANY of the 3 required pieces of info are missing, return:
-{
-  "ready": false,
-  "reply": "Please provide your 42-character 0x wallet address, the amount in USD, and a description of the work ALL IN ONE MESSAGE."
-}`
-        },
+        { role: "system", content: aiPrompt },
         { role: "user", content: text }
       ]
     };
@@ -94,17 +77,26 @@ If ANY of the 3 required pieces of info are missing, return:
       
       console.log("Parsed AI result:", result);
       
-      if (result.ready && freelancerAddress && result.amountUsd && result.description) {
+      // Update state
+      state.address = result.address || state.address;
+      state.amountUsd = result.amountUsd || state.amountUsd;
+      state.description = result.description || state.description;
+      state.updatedAt = Date.now();
+      await saveChatState(state);
+      
+      if (result.ready && state.address && state.amountUsd && state.description) {
         // We have everything, generate the invoice!
         const invoice = await createInvoice({
-          freelancer: getAddress(freelancerAddress),
+          freelancer: getAddress(state.address),
           client: getAddress("0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"), // dummy client
           title: result.title || "PayMate Invoice",
-          description: result.description,
-          amountUsd: Number(result.amountUsd),
+          description: state.description,
+          amountUsd: Number(state.amountUsd),
           webhookUrl: "telegram-bot",
           signature: "0xtelegram_signature_placeholder",
         });
+
+        await clearChatState(state.chatId);
 
         const payUrl = `https://paymates.vercel.app/pay/${invoice.id}`;
 
@@ -112,7 +104,7 @@ If ANY of the 3 required pieces of info are missing, return:
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: chatId,
-            text: `✅ **Invoice Generated Successfully by AI!**\n\nFreelancer: \`${freelancerAddress}\`\nTitle: ${result.title}\nScope: ${result.description}\nAmount: $${result.amountUsd} USDC\n\n**Client Payment Link:**\n${payUrl}\n\n*Log in to your PayMate dashboard with your wallet to track this payment in real-time!*`,
+            text: `✅ **Invoice Generated Successfully by AI!**\n\nFreelancer: \`${state.address}\`\nTitle: ${invoice.title}\nScope: ${invoice.description}\nAmount: $${invoice.amountUsd} USDC\n\n**Client Payment Link:**\n${payUrl}\n\n*Log in to your PayMate dashboard with your wallet to track this payment in real-time!*`,
             parse_mode: "Markdown"
           })
         });
