@@ -16,20 +16,19 @@ export async function POST(request: Request) {
     const chatId = update.message.chat.id;
     const text = update.message.text.trim();
 
-    // Command: /invoice $amount for [description]
-    // Example: /invoice $500 for landing page design
+    // Command: /invoice 0xWalletAddress $amount for [description]
+    // Example: /invoice 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 $500 for landing page design
     if (text.startsWith("/invoice")) {
-      const match = text.match(/^\/invoice\s+(?:\$|USDC\s*)?([\d,]+(?:\.\d{1,2})?)\s+(?:for\s+)?(.*)/i);
+      const match = text.match(/^\/invoice\s+(0x[a-fA-F0-9]{40})\s+(?:\$|USDC\s*)?([\d,]+(?:\.\d{1,2})?)\s+(?:for\s+)?(.*)/i);
       
       if (match) {
-        const amountUsd = parseFloat(match[1].replace(/,/g, ""));
-        const description = match[2].trim();
+        const freelancerAddress = getAddress(match[1]);
+        const amountUsd = parseFloat(match[2].replace(/,/g, ""));
+        const description = match[3].trim();
 
-        // Generate the invoice using a dummy freelancer address for the demo
-        // In production, we map the Telegram User ID to their wallet address
         const invoice = await createInvoice({
-          freelancer: getAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
-          client: getAddress("0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"),
+          freelancer: freelancerAddress,
+          client: getAddress("0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"), // dummy client for demo
           title: "Telegram Quick-Invoice",
           description: description,
           amountUsd: amountUsd,
@@ -45,7 +44,7 @@ export async function POST(request: Request) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: chatId,
-            text: `✅ **Invoice Generated!**\n\nAmount: $${amountUsd} USDC\nScope: ${description}\n\nClient can pay securely via GOAT Network here:\n${payUrl}`,
+            text: `✅ **Invoice Generated!**\n\nFreelancer: \`${freelancerAddress}\`\nAmount: $${amountUsd} USDC\nScope: ${description}\n\nLink to Pay:\n${payUrl}\n\n*This invoice will now appear in your PayMate dashboard when you connect your wallet!*`,
             parse_mode: "Markdown"
           })
         });
@@ -58,7 +57,7 @@ export async function POST(request: Request) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: chatId,
-            text: "❌ Invalid format. Use: `/invoice $500 for landing page`",
+            text: "❌ Invalid format. Use: `/invoice 0xYourWalletAddress $500 for landing page`",
             parse_mode: "Markdown"
           })
         });
