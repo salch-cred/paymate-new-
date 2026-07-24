@@ -20,7 +20,7 @@
 @keyframes clayDrift{0%,100%{transform:rotate(13deg) scale(1)}50%{transform:rotate(17deg) scale(1.035)}}
 @keyframes railMove{to{transform:translateX(-18%)}}
 @keyframes sheen{0%{transform:translateX(-140%) skewX(-18deg)}100%{transform:translateX(420%) skewX(-18deg)}}
-@keyframes navRise{from{opacity:0;transform:translate(-50%,22px)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes navRise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
 @keyframes previewRise{from{opacity:0;transform:translateY(26px) rotate(1.5deg)}to{opacity:1;transform:rotate(1.5deg)}}
 @keyframes previewFloat{0%,100%{transform:rotate(1.5deg)}50%{transform:translateY(-10px) rotate(2.1deg)}}
 @keyframes clayDriftB{0%,100%{transform:rotate(-14deg)}50%{transform:translateY(-9px) rotate(-10deg) scale(1.03)}}
