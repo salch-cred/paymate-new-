@@ -110,7 +110,23 @@ export default function DashboardPage(){
  </section><section className="panel panel-pad feature-list"><h2>Built into every link</h2><p><Icon name="lock"/>Direct, non-custodial payment</p><p><Icon name="network"/>On-chain transaction verification</p><p><Icon name="shield"/>Automatic reputation recording</p></section><div id="feedback"><FeedbackForm role="freelancer"/></div>
  <div className="panel panel-pad" style={{marginTop:'16px'}}>
    <div className="panel-heading"><div><h2>Web3 Inbox</h2><p>Push Protocol</p></div><Icon name="spark"/></div>
-   <div style={{fontSize:'12px', color:'var(--text-muted)'}}>No new notifications. When your invoices settle, Push Protocol will alert your wallet.</div>
+   {paid.length > 0 ? (
+     <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
+       {paid.slice(0, 3).map((inv, i) => (
+         <div key={i} style={{padding:'12px', background:'rgba(255,255,255,0.6)', borderRadius:'12px', border:'1px solid var(--line)', display:'flex', gap:'12px', alignItems:'flex-start'}}>
+           <div style={{width:'32px', height:'32px', borderRadius:'8px', background:'#dd44b9', color:'white', display:'grid', placeItems:'center', flexShrink:0}}>
+             <Icon name="bolt" size={16}/>
+           </div>
+           <div>
+             <div style={{fontSize:'12px', fontWeight:700, marginBottom:'4px'}}>Payment Verified on GOAT</div>
+             <div style={{fontSize:'11px', color:'var(--text-muted)', lineHeight:1.5}}>Invoice {inv.id.split('-')[0]} for ${inv.amountUsd.toLocaleString()} USDC was successfully settled. Reputation updated.</div>
+           </div>
+         </div>
+       ))}
+     </div>
+   ) : (
+     <div style={{fontSize:'12px', color:'var(--text-muted)'}}>No new notifications. When your invoices settle, Push Protocol will alert your wallet.</div>
+   )}
  </div>
   </aside></div></motion.div>}</section></div></main>
 }
