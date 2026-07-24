@@ -33,7 +33,6 @@ export async function POST(request: Request) {
     const agentId = process.env.MISTRAL_AGENT_ID;
 
     const requestBody: any = {
-      temperature: 0.1,
       response_format: { type: "json_object" },
       messages: [
         {
@@ -71,6 +70,7 @@ If ANY of the 3 required pieces of info are missing, return:
       endpoint = "https://api.mistral.ai/v1/agents/completions";
     } else {
       requestBody.model = "mistral-small-latest";
+      requestBody.temperature = 0.1;
     }
 
     const aiResponse = await fetch(endpoint, {
