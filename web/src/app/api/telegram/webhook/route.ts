@@ -43,14 +43,16 @@ A wallet address is a 42-character 0x hex address.
 An amount is a positive number (e.g. 50).
 A description is the scope of work (e.g. 'landing page').
 
+If the user is asking a question about the current details (e.g. "what wallet address did I use?"), answer them naturally in the 'reply' field.
+
 Return a JSON object with the UPDATED information:
 {
-  "ready": <true if ALL THREE are now known, false if ANY are still missing>,
-  "address": "<the known or newly provided wallet address, or null>",
-  "amountUsd": "<the known or newly provided amount as a number, or null>",
-  "description": "<the known or newly provided description, or null>",
+  "ready": <true ONLY if all 3 fields are known AND the user is confirming/requesting to generate the invoice right now. If they are just asking a question, set to false>,
+  "address": "<the known or newly provided wallet address, or null if changing it>",
+  "amountUsd": "<the known or newly provided amount as a number, or null if changing it>",
+  "description": "<the known or newly provided description, or null if changing it>",
   "title": "<short title if ready, or null>",
-  "reply": "<if ready is false, ask the user naturally for whichever details are STILL missing. If ready is true, leave this null.>"
+  "reply": "<Your natural text reply to the user. If ready is false, ask for missing details or answer their question. If ready is true, leave this null.>"
 }`;
 
     const requestBody: any = {
@@ -91,15 +93,15 @@ Return a JSON object with the UPDATED information:
       
       console.log("Parsed AI result:", result);
       
-      // Update state
-      state.address = result.address || state.address;
-      state.amountUsd = result.amountUsd || state.amountUsd;
-      state.description = result.description || state.description;
+      // Update state if AI returned explicit values, otherwise keep existing state
+      if (result.address !== undefined) state.address = result.address;
+      if (result.amountUsd !== undefined) state.amountUsd = result.amountUsd;
+      if (result.description !== undefined) state.description = result.description;
       state.updatedAt = Date.now();
       await saveChatState(state);
       
-      if (state.address && state.amountUsd && state.description) {
-        // We have everything, generate the invoice!
+      if (result.ready === true && state.address && state.amountUsd && state.description) {
+        // We have everything and AI confirms readiness, generate the invoice!
         const invoice = await createInvoice({
           freelancer: getAddress(state.address),
           client: getAddress("0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"), // dummy client
@@ -110,7 +112,8 @@ Return a JSON object with the UPDATED information:
           signature: "0xtelegram_signature_placeholder",
         });
 
-        await clearChatState(state.chatId);
+        // Do not clear the state, so the AI can answer questions about the generated invoice later.
+        // Instead, we just let the AI rely on the user's next message to decide what to do.
 
         const payUrl = `https://www.paymateagent.xyz/pay/${invoice.id}`;
 
