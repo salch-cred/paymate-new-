@@ -138,7 +138,7 @@
 
 
 /* Custom Logo Override */
-.brand-mark { background-image: url(/logo.png) !important; background-size: contain !important; background-position: center !important; background-repeat: no-repeat !important; background-color: transparent !important; border-radius: 0 !important; width: 32px !important; height: 32px !important; display: inline-block; }
+.brand-mark { background-image: url(/logo.png) !important; background-size: 106% !important; background-position: center !important; background-repeat: no-repeat !important; background-color: transparent !important; border-radius: 26% !important; width: 32px !important; height: 32px !important; display: inline-block; }
 .brand-mark span { display: none !important; }
 .brand-mark.giant { width: 80px !important; height: 80px !important; }
 .brand-mark.small { width: 24px !important; height: 24px !important; }
