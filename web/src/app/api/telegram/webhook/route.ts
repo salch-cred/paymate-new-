@@ -1,7 +1,8 @@
 import { createInvoice } from "@/lib/db";
 import { getAddress } from "viem";
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
+
 
 // A lightweight webhook to handle incoming messages from Telegram
 export async function POST(request: Request) {
