@@ -47,10 +47,19 @@ export async function POST(request: Request) {
     });
 
     const data = await aiResponse.json();
+    console.log("Mistral response:", data);
     const aiContent = data.choices?.[0]?.message?.content;
     
     if (aiContent) {
-      const result = JSON.parse(aiContent);
+      let result;
+      try {
+        result = JSON.parse(aiContent);
+      } catch(e) {
+        // Strip markdown backticks if Mistral included them
+        result = JSON.parse(aiContent.replace(/```json/g, '').replace(/```/g, '').trim());
+      }
+      
+      console.log("Parsed AI result:", result);
       
       if (result.ready && freelancerAddress && result.amountUsd && result.description) {
         // We have everything, generate the invoice!
@@ -66,7 +75,7 @@ export async function POST(request: Request) {
 
         const payUrl = `https://paymates.vercel.app/pay/${invoice.id}`;
 
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+        const tgRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: chatId,
@@ -74,15 +83,17 @@ export async function POST(request: Request) {
             parse_mode: "Markdown"
           })
         });
+        console.log("TG Send status:", tgRes.status);
       } else {
         // Need more info
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+        const tgRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: chatId,
             text: result.reply || "I need your wallet address, the amount, and a description to create the invoice."
           })
         });
+        console.log("TG Send status:", tgRes.status);
       }
     }
 
