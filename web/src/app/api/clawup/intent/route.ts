@@ -51,13 +51,14 @@ export async function POST(request: Request) {
       });
 
       // 1. Create Invoice with ClawUp flag for the referral multiplier
+      const referralCode = process.env.CLAWUP_REFERRAL_ID || "clawup-referral-1.2x";
       const invoice = await createInvoice({
         freelancer: getAddress(freelancer),
         client: dummyClient.address, // Enforce client is the signer
         title: "ClawUp Automated Gig",
         description: "Task autonomously assigned and executed by ClawUp Network",
         amountUsd: Number(amountUsd),
-        webhookUrl: "clawup-referral-1.2x", 
+        webhookUrl: referralCode, 
         signature
       });
 

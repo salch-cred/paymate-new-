@@ -6,7 +6,7 @@ export function WalletConnectMenu({ triggerClassName, triggerLabel }: { triggerC
   const { login } = usePrivy()
 
   return (
-    <button className={triggerClassName} onClick={() => login()}>
+    <button type="button" className={triggerClassName} onClick={() => login()}>
       {triggerLabel}
     </button>
   )

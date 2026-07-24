@@ -12,3 +12,5 @@ venv/
 # Superseded by web/src/app/api/** (Next.js route handlers). Left on disk
 # for reference; not tracked so the repo reflects the current architecture.
 /agent/
+.vercel
+.env*

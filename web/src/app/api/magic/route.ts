@@ -1,5 +1,3 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
 export async function POST(request: Request) {
   try {
     const { prompt } = await request.json();
@@ -8,13 +6,10 @@ export async function POST(request: Request) {
       return Response.json({ error: "Missing prompt" }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.MISTRAL_API_KEY;
     if (!apiKey) {
-      return Response.json({ error: "Gemini API key not configured" }, { status: 500 });
+      return Response.json({ error: "Mistral API key not configured" }, { status: 500 });
     }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const systemPrompt = `You are an AI assistant that extracts invoice details from natural language.
     Given a prompt, extract:
@@ -27,8 +22,22 @@ export async function POST(request: Request) {
     Respond ONLY with a valid JSON object matching this schema. Do not include markdown blocks or any other text.
     Example: {"freelancer":"0x123...","client":"0x456...","title":"Web Dev","description":"Built a landing page","amountUsd":500}`;
 
-    const result = await model.generateContent(`${systemPrompt}\n\nUser Prompt: ${prompt}`);
-    const text = result.response.text();
+    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "mistral-small-latest",
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: `${systemPrompt}\n\nUser Prompt: ${prompt}` }],
+      }),
+    });
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content;
     
     let parsed;
     try {
@@ -36,7 +45,7 @@ export async function POST(request: Request) {
       const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
       parsed = JSON.parse(cleaned);
     } catch (e) {
-      console.error("Failed to parse Gemini output:", text);
+      console.error("Failed to parse output:", text);
       return Response.json({ error: "Failed to understand the invoice request" }, { status: 400 });
     }
 
