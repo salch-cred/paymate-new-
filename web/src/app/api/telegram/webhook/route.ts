@@ -16,49 +16,71 @@ export async function POST(request: Request) {
     const chatId = update.message.chat.id;
     const text = update.message.text.trim();
 
-    // Command: /invoice 0xWalletAddress $amount for [description]
-    // Example: /invoice 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 $500 for landing page design
-    if (text.startsWith("/invoice")) {
-      const match = text.match(/^\/invoice\s+(0x[a-fA-F0-9]{40})\s+(?:\$|USDC\s*)?([\d,]+(?:\.\d{1,2})?)\s+(?:for\s+)?(.*)/i);
-      
-      if (match) {
-        const freelancerAddress = getAddress(match[1]);
-        const amountUsd = parseFloat(match[2].replace(/,/g, ""));
-        const description = match[3].trim();
+    // Conversational AI Invoice Agent
+    const addressMatch = text.match(/(0x[a-fA-F0-9]{40})/);
+    const freelancerAddress = addressMatch ? addressMatch[1] : null;
 
+    const apiKey = process.env.MISTRAL_API_KEY;
+    if (!apiKey) {
+      await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text: "AI drafting is currently offline. Use exact format: `/invoice 0xYourWalletAddress $500 for landing page`" })
+      });
+      return new Response("OK");
+    }
+
+    const aiResponse = await fetch("https://api.mistral.ai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: "mistral-small-latest",
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: "You are the PayMate Telegram AI Agent. Your goal is to help the user create an invoice. You need 3 things from the user: 1) Wallet address (must be a 42-character 0x address), 2) Amount in USD, 3) Description of the work. Return ONLY a JSON object. If all 3 are present (or if the user provided an address which is already parsed as '" + (freelancerAddress || "missing") + "'), return {\"ready\": true, \"amountUsd\": number, \"description\": \"clear scope\", \"title\": \"short title\"}. If any info is missing, return {\"ready\": false, \"reply\": \"Friendly message asking the user for the missing wallet address, amount, or description\"}."
+          },
+          { role: "user", content: text }
+        ]
+      })
+    });
+
+    const data = await aiResponse.json();
+    const aiContent = data.choices?.[0]?.message?.content;
+    
+    if (aiContent) {
+      const result = JSON.parse(aiContent);
+      
+      if (result.ready && freelancerAddress && result.amountUsd && result.description) {
+        // We have everything, generate the invoice!
         const invoice = await createInvoice({
-          freelancer: freelancerAddress,
-          client: getAddress("0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"), // dummy client for demo
-          title: "Telegram Quick-Invoice",
-          description: description,
-          amountUsd: amountUsd,
+          freelancer: getAddress(freelancerAddress),
+          client: getAddress("0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"), // dummy client
+          title: result.title || "PayMate Invoice",
+          description: result.description,
+          amountUsd: Number(result.amountUsd),
           webhookUrl: "telegram-bot",
           signature: "0xtelegram_signature_placeholder",
         });
 
         const payUrl = `https://paymates.vercel.app/pay/${invoice.id}`;
 
-        // Send the response back to the Telegram chat
         await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: chatId,
-            text: `✅ **Invoice Generated!**\n\nFreelancer: \`${freelancerAddress}\`\nAmount: $${amountUsd} USDC\nScope: ${description}\n\nLink to Pay:\n${payUrl}\n\n*This invoice will now appear in your PayMate dashboard when you connect your wallet!*`,
+            text: `✅ **Invoice Generated Successfully by AI!**\n\nFreelancer: \`${freelancerAddress}\`\nTitle: ${result.title}\nScope: ${result.description}\nAmount: $${result.amountUsd} USDC\n\n**Client Payment Link:**\n${payUrl}\n\n*Log in to your PayMate dashboard with your wallet to track this payment in real-time!*`,
             parse_mode: "Markdown"
           })
         });
-
-        return new Response("OK");
       } else {
-        // Send error back
+        // Need more info
         await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: chatId,
-            text: "❌ Invalid format. Use: `/invoice 0xYourWalletAddress $500 for landing page`",
-            parse_mode: "Markdown"
+            text: result.reply || "I need your wallet address, the amount, and a description to create the invoice."
           })
         });
       }
