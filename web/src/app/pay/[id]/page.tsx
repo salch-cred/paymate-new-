@@ -41,7 +41,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
               <span><Icon name="users" size={14}/>{invoice.freelancer.slice(0,6)}…{invoice.freelancer.slice(-4)}</span>
               {invoice.dueDate && <span><Icon name="invoice" size={14}/>Due {invoice.dueDate}</span>}
             </div>
-            <button onClick={()=>window.print()} style={{background:'transparent',border:0,cursor:'pointer',fontSize:'11px',fontWeight:700,display:'flex',alignItems:'center',gap:'4px',color:'var(--text-muted)'}}><Icon name="document" size={14}/> Export PDF</button>
+            <button onClick={()=>window.print()} style={{background:'transparent',border:0,cursor:'pointer',fontSize:'11px',fontWeight:700,display:'flex',alignItems:'center',gap:'4px',color:'var(--text-muted)'}}><Icon name="receipt" size={14}/> Export PDF</button>
           </div>
           <h2>{invoice.title}</h2>
           <p className="pay-desc">{invoice.description}</p>
