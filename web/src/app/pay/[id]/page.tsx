@@ -36,9 +36,12 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
     ) : (
       <>
         <div className="pay-details">
-          <div className="pay-meta">
-            <span><Icon name="users" size={14}/>{invoice.freelancer.slice(0,6)}…{invoice.freelancer.slice(-4)}</span>
-            {invoice.dueDate && <span><Icon name="invoice" size={14}/>Due {invoice.dueDate}</span>}
+          <div className="pay-meta" style={{display:'flex',justifyContent:'space-between',width:'100%'}}>
+            <div style={{display:'flex',gap:'12px'}}>
+              <span><Icon name="users" size={14}/>{invoice.freelancer.slice(0,6)}…{invoice.freelancer.slice(-4)}</span>
+              {invoice.dueDate && <span><Icon name="invoice" size={14}/>Due {invoice.dueDate}</span>}
+            </div>
+            <button onClick={()=>window.print()} style={{background:'transparent',border:0,cursor:'pointer',fontSize:'11px',fontWeight:700,display:'flex',alignItems:'center',gap:'4px',color:'var(--text-muted)'}}><Icon name="document" size={14}/> Export PDF</button>
           </div>
           <h2>{invoice.title}</h2>
           <p className="pay-desc">{invoice.description}</p>
@@ -48,6 +51,21 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
             <span>TOTAL DUE</span>
             <strong>${invoice.amountUsd.toLocaleString()} <i>USDC</i></strong>
           </div>
+          {invoice.splits && invoice.splits.length > 0 && (
+            <div style={{marginTop:'12px', padding:'12px', background:'rgba(255,255,255,0.5)', borderRadius:'8px', fontSize:'11px'}}>
+              <div style={{fontWeight:800, marginBottom:'8px', color:'var(--ink)', display:'flex', alignItems:'center', gap:'4px'}}><Icon name="network" size={12}/> Smart Contract Settlement Routing:</div>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:'4px',color:'var(--text-muted)'}}>
+                <span>Freelancer ({invoice.freelancer.slice(0,6)}...)</span>
+                <span>${(invoice.amountUsd - invoice.splits.reduce((sum,s)=>sum+s.amountUsd,0)).toLocaleString()} USDC</span>
+              </div>
+              {invoice.splits.map((split, i) => (
+                <div key={i} style={{display:'flex',justifyContent:'space-between',marginBottom:'4px',color:'var(--text-muted)'}}>
+                  <span>Teammate ({split.address.slice(0,6)}...)</span>
+                  <span>${split.amountUsd.toLocaleString()} USDC</span>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{display:'flex', alignItems:'center', gap:'6px', margin:'12px 0', fontSize:'11px', color:'var(--text-muted)', background:'rgba(255,255,255,0.4)', padding:'6px 10px', borderRadius:'6px', border:'1px solid var(--line)'}}>
             <Icon name="spark" size={14}/>
             <b>ERC-4337 Paymaster Active:</b> Transaction gas fees are fully sponsored by PayMate.
