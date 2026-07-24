@@ -137,8 +137,10 @@
 @media(prefers-reduced-motion:reduce){.nav-links{transition:none!important}}
 
 
-/* Custom Logo Override */
-.brand-mark { background-image: url(/logo.png) !important; background-size: 106% !important; background-position: center !important; background-repeat: no-repeat !important; background-color: transparent !important; border-radius: 26% !important; width: 32px !important; height: 32px !important; display: inline-block; }
+
+/* Custom Logo Override V2 */
+.brand-mark { background-image: url(/logo-app-v2.png) !important; background-size: cover !important; background-position: center !important; background-repeat: no-repeat !important; background-color: transparent !important; border-radius: 24% !important; width: 28px !important; height: 28px !important; display: inline-block; flex-shrink: 0; margin-right: 2px; }
 .brand-mark span { display: none !important; }
 .brand-mark.giant { width: 80px !important; height: 80px !important; }
-.brand-mark.small { width: 24px !important; height: 24px !important; }
+.brand-mark.small { width: 20px !important; height: 20px !important; }
+.brand { display: flex !important; align-items: center !important; gap: 8px !important; }
