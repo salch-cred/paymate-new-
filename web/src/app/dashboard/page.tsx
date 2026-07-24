@@ -29,22 +29,33 @@ export default function DashboardPage(){
  useEffect(()=>{function onKey(e:KeyboardEvent){if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();searchRef.current?.focus()}}window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey)},[])
 
  function startListening() {
-   const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-   if (!SpeechRecognition) return setFormError("Voice AI is not supported in this browser.");
-   const recognition = new SpeechRecognition();
-   recognition.lang = 'en-US';
-   recognition.interimResults = false;
-   recognition.maxAlternatives = 1;
+   setIsListening(true);
+   const synth = window.speechSynthesis;
+   const msg = new SpeechSynthesisUtterance("Hi, I am your PayMate AI. What are we invoicing today?");
    
-   recognition.onstart = () => setIsListening(true);
-   recognition.onresult = (event: any) => {
-     const transcript = event.results[0][0].transcript;
-     setDraftPrompt(prev => prev ? prev + " " + transcript : transcript);
-     setIsListening(false);
+   msg.onend = () => {
+     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+     if (!SpeechRecognition) {
+       setIsListening(false);
+       return setFormError("Voice AI is not supported in this browser.");
+     }
+     const recognition = new SpeechRecognition();
+     recognition.lang = 'en-US';
+     recognition.interimResults = false;
+     recognition.maxAlternatives = 1;
+     
+     recognition.onstart = () => setIsListening(true);
+     recognition.onresult = (event: any) => {
+       const transcript = event.results[0][0].transcript;
+       setDraftPrompt(prev => prev ? prev + " " + transcript : transcript);
+       setIsListening(false);
+     };
+     recognition.onerror = () => setIsListening(false);
+     recognition.onend = () => setIsListening(false);
+     recognition.start();
    };
-   recognition.onerror = () => setIsListening(false);
-   recognition.onend = () => setIsListening(false);
-   recognition.start();
+
+   synth.speak(msg);
  }
 
  useEffect(() => {
