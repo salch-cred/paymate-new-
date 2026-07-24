@@ -14,6 +14,20 @@ export async function POST(request: Request) {
       return new Response("OK");
     }
 
+    const chatId = update.message.chat.id;
+    const text = update.message.text.trim();
+
+    const apiKey = process.env.MISTRAL_API_KEY;
+    if (!apiKey) {
+      await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text: "AI drafting is currently offline. Use exact format: `/invoice 0xYourWalletAddress $500 for landing page`" })
+      });
+      return new Response("OK");
+    }
+
+    const agentId = process.env.MISTRAL_AGENT_ID;
+
     const state = await getChatState(chatId.toString());
     const aiPrompt = `You are the PayMate Telegram AI Agent. You are a helpful, friendly, and intelligent assistant. 
 If the user greets you or asks a general question, reply to them naturally in a friendly tone in the 'reply' field. 
