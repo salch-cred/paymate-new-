@@ -1,19 +1,12 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
 export async function POST(request: Request) {
   try {
     const { clientOffer, freelancerCounter, history } = await request.json();
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.MISTRAL_API_KEY;
     if (!apiKey) {
-      return Response.json({ error: "Gemini API key not configured" }, { status: 500 });
+      return Response.json({ error: "Mistral API key not configured" }, { status: 500 });
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    
-    // The Agentic Client LLM
-    const clientAgent = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    
     const systemPrompt = `You are an Autonomous AI Agent representing a client. 
     Your goal is to negotiate a fair price for a freelance service.
     The freelancer's current counter-offer is $${freelancerCounter}. 
@@ -24,8 +17,22 @@ export async function POST(request: Request) {
     Respond ONLY with a valid JSON object matching this schema:
     {"decision": "ACCEPT" | "REJECT" | "COUNTER", "amount": number, "reasoning": "string"}`;
 
-    const result = await clientAgent.generateContent(systemPrompt);
-    const text = result.response.text();
+    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "mistral-small-latest",
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: systemPrompt }],
+      }),
+    });
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content;
     
     let parsed;
     try {

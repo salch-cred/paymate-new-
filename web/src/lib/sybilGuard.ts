@@ -1,5 +1,3 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
 export interface SybilAnalysis {
   isFraud: boolean;
   probability: number;
@@ -13,18 +11,15 @@ export async function analyzeInvoiceFraud(
   description: string,
   amountUsd: number
 ): Promise<SybilAnalysis> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.MISTRAL_API_KEY;
   if (!apiKey) {
     // If no API key is provided, fail open (allow payment) for demo purposes,
     // but log the warning.
-    console.warn("No GEMINI_API_KEY provided. Sybil-Guard disabled.");
+    console.warn("No MISTRAL_API_KEY provided. Sybil-Guard disabled.");
     return { isFraud: false, probability: 0, reasoning: "AI Sybil-Guard disabled (no key)" };
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
     const systemPrompt = `You are the AI Sybil-Guard for an ERC-8004 Reputation protocol. 
 Your job is to detect wash-trading and fraud. Bad actors create fake invoices to farm reputation scores.
 
@@ -44,8 +39,22 @@ Output ONLY a valid JSON object matching this exact schema:
 {"probability": number (0 to 100), "reasoning": "string"}
 Do not include markdown or backticks.`;
 
-    const result = await model.generateContent(systemPrompt);
-    const text = result.response.text();
+    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "mistral-small-latest",
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: systemPrompt }],
+      }),
+    });
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content;
     
     const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(cleaned);

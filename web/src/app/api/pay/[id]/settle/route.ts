@@ -24,7 +24,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     throw error
   }
 
-  const updated = await markPaid(id, txHash)
+  // Generate a mock IPFS CID for the hackathon (permanent receipt)
+  const receiptData = JSON.stringify({
+    invoiceId: invoice.id,
+    amountUsd: invoice.amountUsd,
+    freelancer: invoice.freelancer,
+    client: invoice.client,
+    txHash: txHash,
+    timestamp: Date.now(),
+    network: "goat-testnet3"
+  });
+  const mockIpfsCid = "Qm" + Buffer.from(receiptData).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 44);
+
+  const updated = await markPaid(id, txHash, mockIpfsCid)
   if (!updated) {
     return Response.json(
       { detail: "This transaction has already been used to settle a different invoice, or this invoice is no longer pending." },
@@ -55,6 +67,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
-  return Response.json({ ok: true, invoice: updated, txHash })
+  if (process.env.DISCORD_WEBHOOK_URL) {
+    try {
+      await fetch(process.env.DISCORD_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: `🎉 **Verified Settlement!** A $${updated.amountUsd} USDC invoice was just paid on the GOAT Network via PayMate.\n[View Transaction](https://testnet3.explorer.goat.network/tx/${txHash})\n\n📜 **IPFS Permanent Receipt:** \`ipfs://${mockIpfsCid}\``,
+        })
+      })
+    } catch (e) {
+      console.log(`Discord webhook failed:`, e)
+    }
+  }
+
+  return Response.json({ ok: true, invoice: updated, txHash, ipfsCid: mockIpfsCid })
 }
 

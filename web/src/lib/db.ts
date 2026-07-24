@@ -3,6 +3,11 @@ import crypto from "node:crypto"
 
 export type InvoiceStatus = "pending" | "paid" | "cancelled"
 
+export interface InvoiceSplit {
+  address: string
+  amountUsd: number
+}
+
 export interface Invoice {
   id: string
   freelancer: string
@@ -18,6 +23,8 @@ export interface Invoice {
   paidAt: number | null
   webhookUrl: string | null
   signature: string | null
+  ipfsReceipt: string | null
+  splits: InvoiceSplit[] | null
 }
 
 export type FeedbackRole = "freelancer" | "client" | "other"
@@ -59,6 +66,8 @@ interface InvoiceRow {
   paid_at: string | null
   webhook_url: string | null
   signature: string | null
+  ipfs_receipt: string | null
+  splits: string | null
 }
 
 declare global {
@@ -84,6 +93,8 @@ async function ready(): Promise<void> {
       // Try adding the columns if the table already existed
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS webhook_url TEXT`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS signature TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ipfs_receipt TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS splits TEXT`.catch(()=>null)
       await sql`CREATE INDEX IF NOT EXISTS idx_invoices_freelancer ON invoices(freelancer, created_at DESC)`
       await sql`CREATE TABLE IF NOT EXISTS feedback (
         id TEXT PRIMARY KEY, role TEXT NOT NULL, name TEXT NOT NULL, contact TEXT,
@@ -111,6 +122,8 @@ function rowToInvoice(row: InvoiceRow): Invoice {
     paidAt: row.paid_at === null ? null : Number(row.paid_at),
     webhookUrl: row.webhook_url || null,
     signature: row.signature || null,
+    ipfsReceipt: row.ipfs_receipt || null,
+    splits: row.splits ? JSON.parse(row.splits) : null,
   }
 }
 
@@ -123,6 +136,7 @@ export async function createInvoice(input: {
   dueDate?: string | null
   webhookUrl?: string | null
   signature?: string | null
+  splits?: InvoiceSplit[] | null
 }): Promise<Invoice> {
   await ready()
   const sql = getSql()
@@ -141,11 +155,16 @@ export async function createInvoice(input: {
     paidAt: null,
     webhookUrl: input.webhookUrl || null,
     signature: input.signature || null,
+    ipfsReceipt: null,
+    splits: input.splits || null,
   }
+  
+  const splitsJson = invoice.splits ? JSON.stringify(invoice.splits) : null
+
   await sql`INSERT INTO invoices VALUES (
     ${invoice.id}, ${invoice.freelancer}, ${invoice.client}, ${invoice.title}, ${invoice.description},
     ${invoice.amountUsd}, ${invoice.status}, ${invoice.chain}, ${invoice.dueDate}, ${invoice.txHash},
-    ${invoice.createdAt}, ${invoice.paidAt}, ${invoice.webhookUrl}, ${invoice.signature}
+    ${invoice.createdAt}, ${invoice.paidAt}, ${invoice.webhookUrl}, ${invoice.signature}, ${splitsJson}
   )`
   return invoice
 }
@@ -167,13 +186,13 @@ export async function listInvoices(freelancer: string, limit = 50): Promise<Invo
   return rows.map(rowToInvoice)
 }
 
-export async function markPaid(id: string, txHash: string): Promise<Invoice | null> {
+export async function markPaid(id: string, txHash: string, ipfsCid: string | null = null): Promise<Invoice | null> {
   await ready()
   const sql = getSql()
   const reusedElsewhere = await sql`SELECT 1 FROM invoices WHERE tx_hash = ${txHash} AND id != ${id}`
   if (reusedElsewhere.length > 0) return null
   const updated = (await sql`
-    UPDATE invoices SET status='paid', tx_hash=${txHash}, paid_at=${Date.now()}
+    UPDATE invoices SET status='paid', tx_hash=${txHash}, paid_at=${Date.now()}, ipfs_receipt=${ipfsCid}
     WHERE id=${id} AND status='pending'
     RETURNING id
   `) as unknown as { id: string }[]

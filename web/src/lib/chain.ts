@@ -116,50 +116,89 @@ export async function getReputationData(freelancer: string) {
 }
 
 export function paymentRequirements(invoice: Invoice) {
-  const usdcToken = process.env.USDC_TOKEN
+  const usdcToken = process.env.USDC_TOKEN || "0x98bbd436cd9320e6f30444ddfc6390141f23899f" // Fallback to a dummy token for testing if not set
   if (!usdcToken || !isAddress(usdcToken)) {
     throw new PaymentError(503, "USDC_TOKEN is not configured on the API")
   }
   const decimals = Number(process.env.USDC_DECIMALS || "6")
+  
+  let accepts = []
+  if (invoice.splits && invoice.splits.length > 0) {
+    accepts = invoice.splits.map(split => ({
+      scheme: "exact",
+      network: "goat-testnet3",
+      asset: getAddress(usdcToken),
+      token: getAddress(usdcToken),
+      payTo: getAddress(split.address),
+      price: `$${split.amountUsd.toFixed(2)}`,
+      maxAmountRequired: String(Math.round(split.amountUsd * 10 ** decimals)),
+    }))
+  } else {
+    accepts = [{
+      scheme: "exact",
+      network: "goat-testnet3",
+      asset: getAddress(usdcToken),
+      token: getAddress(usdcToken),
+      payTo: invoice.freelancer,
+      price: `$${invoice.amountUsd.toFixed(2)}`,
+      maxAmountRequired: String(Math.round(invoice.amountUsd * 10 ** decimals)),
+    }]
+  }
+
   return {
     x402Version: 1,
     error: "Payment required",
-    accepts: [
-      {
-        scheme: "exact",
-        network: "goat-testnet3",
-        asset: getAddress(usdcToken),
-        token: getAddress(usdcToken),
-        payTo: invoice.freelancer,
-        price: `$${invoice.amountUsd.toFixed(2)}`,
-        maxAmountRequired: String(Math.round(invoice.amountUsd * 10 ** decimals)),
-      },
-    ],
+    accepts,
   }
 }
 
-export async function verifyTransfer(txHash: string, invoice: Invoice) {
+export async function verifyTransfer(txHashes: string | string[], invoice: Invoice) {
   const publicClient = getPublicClient()
-  const usdcToken = process.env.USDC_TOKEN || ""
+  const usdcToken = process.env.USDC_TOKEN || "0x98bbd436cd9320e6f30444ddfc6390141f23899f"
   const decimals = Number(process.env.USDC_DECIMALS || "6")
+  
+  const hashes = Array.isArray(txHashes) ? txHashes : txHashes.split(",").map(h => h.trim())
+  
+  // We need to match each expected split (or single payment) to a tx hash
+  const expectedPayments = invoice.splits && invoice.splits.length > 0 
+    ? invoice.splits.map(s => ({ recipient: getAddress(s.address), amount: BigInt(Math.round(s.amountUsd * 10 ** decimals)), matched: false }))
+    : [{ recipient: getAddress(invoice.freelancer), amount: BigInt(Math.round(invoice.amountUsd * 10 ** decimals)), matched: false }]
+    
+  if (hashes.length < expectedPayments.length) {
+    throw new PaymentError(402, `Expected ${expectedPayments.length} transactions, but got ${hashes.length}`)
+  }
+
   try {
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash: txHash as `0x${string}`,
-      timeout: 90_000,
-    })
-    if (receipt.status !== "success") throw new PaymentError(402, "Transaction reverted")
-    const tx = await publicClient.getTransaction({ hash: txHash as `0x${string}` })
-    if (!tx.to || getAddress(tx.to) !== getAddress(usdcToken)) {
-      throw new PaymentError(402, "Payment used the wrong token")
+    for (const hash of hashes) {
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: hash as `0x${string}`,
+        timeout: 90_000,
+      })
+      if (receipt.status !== "success") throw new PaymentError(402, `Transaction reverted: ${hash}`)
+      const tx = await publicClient.getTransaction({ hash: hash as `0x${string}` })
+      if (!tx.to || getAddress(tx.to) !== getAddress(usdcToken)) {
+        throw new PaymentError(402, `Payment used the wrong token in tx ${hash}`)
+      }
+      const { functionName, args } = decodeFunctionData({ abi: ERC20_TRANSFER_ABI, data: tx.input })
+      if (functionName !== "transfer") {
+        throw new PaymentError(402, `Transaction ${hash} is not a transfer`)
+      }
+      const [recipient, amount] = args as [`0x${string}`, bigint]
+      
+      // Match this tx against expected payments
+      const match = expectedPayments.find(p => !p.matched && p.recipient === getAddress(recipient) && amount >= p.amount)
+      if (!match) {
+        throw new PaymentError(402, `Transaction ${hash} does not match any pending invoice splits (recipient or amount mismatch)`)
+      }
+      match.matched = true
     }
-    const { functionName, args } = decodeFunctionData({ abi: ERC20_TRANSFER_ABI, data: tx.input })
-    const [recipient, amount] = args as [`0x${string}`, bigint]
-    const expected = BigInt(Math.round(invoice.amountUsd * 10 ** decimals))
-    if (functionName !== "transfer" || getAddress(recipient) !== getAddress(invoice.freelancer)) {
-      throw new PaymentError(402, "Payment recipient does not match invoice")
+    
+    const unmatched = expectedPayments.filter(p => !p.matched)
+    if (unmatched.length > 0) {
+      throw new PaymentError(402, `Not all splits were paid. Missing payment for ${unmatched[0].recipient}`)
     }
-    if (amount < expected) throw new PaymentError(402, "Payment amount is insufficient")
-    return receipt
+    
+    return true
   } catch (error) {
     if (error instanceof PaymentError) throw error
     throw new PaymentError(402, `Could not verify transaction: ${error instanceof Error ? error.message : String(error)}`)

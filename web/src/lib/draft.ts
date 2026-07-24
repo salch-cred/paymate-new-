@@ -49,30 +49,37 @@ function fallbackDraft(prompt: string): DraftResult {
 }
 
 export async function draftInvoice(prompt: string): Promise<DraftResult> {
-  const apiKey = process.env.OPENAI_API_KEY
+  const apiKey = process.env.MISTRAL_API_KEY
   if (!apiKey) return fallbackDraft(prompt)
 
   try {
-    const { default: OpenAI } = await import("openai")
-    const client = new OpenAI({ apiKey })
-    const response = await client.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content:
-            "You structure freelancer invoice drafts. Return JSON only with: " +
-            "title (concise string), description (clear professional scope), " +
-            "amountUsd (number; 0 if not explicitly provided), dueDate (YYYY-MM-DD or null), " +
-            "lineItems (array of {description, amountUsd}), paymentTerms (string), " +
-            "confidence (0 to 1). Never invent a price. Preserve the user's stated total.",
-        },
-        { role: "user", content: prompt },
-      ],
+    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "mistral-small-latest",
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an autonomous AI negotiator and invoice structurer. Return JSON only with: " +
+              "title (concise string), description (clear professional scope with explicitly outlined deliverables), " +
+              "amountUsd (number; 0 if not explicitly provided), dueDate (YYYY-MM-DD or null), " +
+              "lineItems (array of {description, amountUsd}), paymentTerms (string), " +
+              "confidence (0 to 1). If the user's prompt is vague or omits terms, automatically suggest protective payment milestones (e.g. 50% upfront) and a 5% late fee penalty clause in the paymentTerms. Never invent a base price, but actively suggest terms to protect the freelancer.",
+          },
+          { role: "user", content: prompt },
+        ],
+      }),
     })
-    const content = response.choices[0]?.message?.content
+
+    const data = await response.json()
+    const content = data.choices?.[0]?.message?.content
     if (!content) return fallbackDraft(prompt)
     const draft = JSON.parse(content) as DraftResult
     draft.amountUsd = Number(draft.amountUsd || 0)
@@ -82,7 +89,7 @@ export async function draftInvoice(prompt: string): Promise<DraftResult> {
   } catch (error) {
     const fallback = fallbackDraft(prompt)
     fallback.warning = `AI drafting unavailable; used safe parser: ${
-      error instanceof Error ? error.constructor.name : "Error"
+      error instanceof Error ? error.message : "Error"
     }`
     return fallback
   }

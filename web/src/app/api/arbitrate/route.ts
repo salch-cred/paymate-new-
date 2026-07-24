@@ -1,18 +1,11 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
 export async function POST(request: Request) {
   try {
     const { invoiceId, originalContract, freelancerEvidence, clientComplaint } = await request.json();
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.MISTRAL_API_KEY;
     if (!apiKey) {
-      return Response.json({ error: "Gemini API key not configured for arbitration." }, { status: 500 });
+      return Response.json({ error: "Mistral API key not configured for arbitration." }, { status: 500 });
     }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    
-    // Using Gemini 1.5 Pro for complex reasoning and dispute resolution
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
 
     const systemPrompt = `You are the Supreme AI Arbitrator for the PayMate smart contract protocol.
 A dispute has been raised on an escrowed invoice. You must act as an impartial judge and determine who should receive the locked funds.
@@ -33,12 +26,25 @@ Output ONLY a valid JSON object matching this schema:
 {
   "verdict": "PAY_FREELANCER" | "REFUND_CLIENT" | "SPLIT_50_50",
   "reasoning": "Detailed legal/technical explanation of your decision."
-}
-Do not include any markdown or backticks.`;
+}`;
 
-    const result = await model.generateContent(systemPrompt);
-    const text = result.response.text();
-    
+    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "mistral-large-latest",
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: systemPrompt }],
+      }),
+    });
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content;
+
     let parsed;
     try {
       const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
