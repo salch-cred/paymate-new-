@@ -112,7 +112,7 @@ Return a JSON object with the UPDATED information:
 
         await clearChatState(state.chatId);
 
-        const payUrl = `https://paymates.vercel.app/pay/${invoice.id}`;
+        const payUrl = `https://www.paymateagent.xyz/pay/${invoice.id}`;
 
         const tgRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
           method: "POST", headers: { "Content-Type": "application/json" },
