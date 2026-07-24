@@ -98,7 +98,7 @@ Return a JSON object with the UPDATED information:
       state.updatedAt = Date.now();
       await saveChatState(state);
       
-      if (result.ready && state.address && state.amountUsd && state.description) {
+      if (state.address && state.amountUsd && state.description) {
         // We have everything, generate the invoice!
         const invoice = await createInvoice({
           freelancer: getAddress(state.address),
