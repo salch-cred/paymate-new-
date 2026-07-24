@@ -101,6 +101,13 @@ async function ready(): Promise<void> {
         rating INTEGER NOT NULL, comment TEXT NOT NULL, invoice_id TEXT,
         created_at BIGINT NOT NULL
       )`
+      await sql`CREATE TABLE IF NOT EXISTS chat_states (
+        chat_id TEXT PRIMARY KEY,
+        address TEXT,
+        amount_usd TEXT,
+        description TEXT,
+        updated_at BIGINT NOT NULL
+      )`
     })()
   }
   return globalThis.__paymateSchemaReady
@@ -324,4 +331,50 @@ export async function getGrowthStats(): Promise<GrowthStats> {
     firstInvoiceAt: inv.first_at ? Number(inv.first_at) : null,
     lastInvoiceAt: inv.last_at ? Number(inv.last_at) : null,
   }
+}
+
+export interface ChatState {
+  chatId: string
+  address: string | null
+  amountUsd: string | null
+  description: string | null
+  updatedAt: number
+}
+
+export async function getChatState(chatId: string): Promise<ChatState> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`SELECT * FROM chat_states WHERE chat_id = ${chatId}`) as unknown as {
+    chat_id: string; address: string | null; amount_usd: string | null; description: string | null; updated_at: string
+  }[]
+  if (rows.length === 0) {
+    return { chatId, address: null, amountUsd: null, description: null, updatedAt: Date.now() }
+  }
+  return {
+    chatId: rows[0].chat_id,
+    address: rows[0].address,
+    amountUsd: rows[0].amount_usd,
+    description: rows[0].description,
+    updatedAt: Number(rows[0].updated_at)
+  }
+}
+
+export async function saveChatState(state: ChatState): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`
+    INSERT INTO chat_states (chat_id, address, amount_usd, description, updated_at)
+    VALUES (${state.chatId}, ${state.address}, ${state.amountUsd}, ${state.description}, ${state.updatedAt})
+    ON CONFLICT (chat_id) DO UPDATE SET
+      address = EXCLUDED.address,
+      amount_usd = EXCLUDED.amount_usd,
+      description = EXCLUDED.description,
+      updated_at = EXCLUDED.updated_at
+  `
+}
+
+export async function clearChatState(chatId: string): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`DELETE FROM chat_states WHERE chat_id = ${chatId}`
 }
