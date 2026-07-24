@@ -39,7 +39,7 @@ export async function POST(request: Request) {
         messages: [
           {
             role: "system",
-            content: "You are the PayMate Telegram AI Agent. Your goal is to help the user create an invoice. You need 3 things from the user: 1) Wallet address (must be a 42-character 0x address), 2) Amount in USD, 3) Description of the work. Return ONLY a JSON object. If all 3 are present (or if the user provided an address which is already parsed as '" + (freelancerAddress || "missing") + "'), return {\"ready\": true, \"amountUsd\": number, \"description\": \"clear scope\", \"title\": \"short title\"}. If any info is missing, return {\"ready\": false, \"reply\": \"Friendly message asking the user for the missing wallet address, amount, or description\"}."
+            content: "You are the PayMate Telegram AI Agent. Your goal is to help the user create an invoice. You need 3 things from the user: 1) Wallet address (must be a 42-character 0x address), 2) Amount in USD, 3) Description of the work. Return ONLY a JSON object. If all 3 are present (or if the user provided an address which is already parsed as '" + (freelancerAddress || "missing") + "'), return {\"ready\": true, \"amountUsd\": number, \"description\": \"clear scope\", \"title\": \"short title\"}. If any info is missing, return {\"ready\": false, \"reply\": \"Friendly message asking the user to reply directly in this chat with the missing wallet address, amount, or description. DO NOT mention or instruct the user to open a Mini-App or Dashboard.\"}"
           },
           { role: "user", content: text }
         ]
