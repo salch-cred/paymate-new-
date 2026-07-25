@@ -22,6 +22,7 @@ export default function DashboardPage(){
  const [client,setClient]=useState("");const [title,setTitle]=useState("");const [description,setDescription]=useState("");const [amount,setAmount]=useState("");const [dueDate,setDueDate]=useState("")
  const [splits,setSplits]=useState<{address:string,amountUsd:string}[]>([])
  const [milestones,setMilestones]=useState<{id:string,title:string,amountUsd:string}[]>([])
+ const [privacyMode,setPrivacyMode]=useState(false);const [autoYield,setAutoYield]=useState(false)
  const [draftPrompt,setDraftPrompt]=useState("");const [draftMeta,setDraftMeta]=useState<{source:string;confidence:number;paymentTerms?:string}|null>(null)
  const [isListening, setIsListening] = useState(false);
  const [formError,setFormError]=useState<string|null>(null);const [copied,setCopied]=useState<string|null>(null)
@@ -115,6 +116,22 @@ export default function DashboardPage(){
     </div>
   ))}
  </div>}
+ </div>
+ <div style={{marginTop:'12px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px'}}>
+   <label className="field" style={{flexDirection:'row',alignItems:'center',gap:'8px',padding:'12px',background:'rgba(255,255,255,0.4)',borderRadius:'8px',border:'1px solid var(--line)',cursor:'pointer'}}>
+     <input type="checkbox" checked={privacyMode} onChange={e=>setPrivacyMode(e.target.checked)} style={{width:'auto'}}/>
+     <div style={{display:'flex',flexDirection:'column'}}>
+       <span style={{fontWeight:800,fontSize:'12px',display:'flex',alignItems:'center',gap:'4px'}}><Icon name="lock" size={12}/> ZK Privacy Mode</span>
+       <span style={{fontSize:'10px',color:'var(--muted)'}}>Shield payment details on-chain</span>
+     </div>
+   </label>
+   <label className="field" style={{flexDirection:'row',alignItems:'center',gap:'8px',padding:'12px',background:'rgba(255,255,255,0.4)',borderRadius:'8px',border:'1px solid var(--line)',cursor:'pointer'}}>
+     <input type="checkbox" checked={autoYield} onChange={e=>setAutoYield(e.target.checked)} style={{width:'auto'}}/>
+     <div style={{display:'flex',flexDirection:'column'}}>
+       <span style={{fontWeight:800,fontSize:'12px',display:'flex',alignItems:'center',gap:'4px'}}><Icon name="spark" size={12}/> Auto-Yield (Aave)</span>
+       <span style={{fontSize:'10px',color:'var(--muted)'}}>Earn ~5% APY immediately on payment</span>
+     </div>
+   </label>
  </div>
  {error&&<div className="error-box">{error}</div>}<div className="composer-footer"><span className="hint"><Icon name="shield" size={15}/>Payment goes directly to your wallet.</span><button className="button button-primary" disabled={createInvoiceMutation.isPending}>{createInvoiceMutation.isPending?"Creating…":"Create payment link"}<Icon name="arrow" size={17}/></button></div></form></section>
  <section className="panel activity-panel" id="activity"><div className="panel-heading"><div><h2>Invoice activity</h2><p>Live status from creation to verified settlement.</p></div><span className="activity-count">{filteredInvoices.length}</span></div>{invoices.length===0?<div className="activity-empty">Your first invoice will appear here.</div>:filteredInvoices.length===0?<div className="activity-empty">No invoices match &quot;{search}&quot;.</div>:<div className="invoice-table">{filteredInvoices.map(inv=><div className="invoice-row" key={inv.id}><span className={`status-dot ${inv.status}`}/><div className="invoice-row-main"><b>{inv.title}</b><small>{new Date(inv.createdAt).toLocaleDateString()} · {inv.id.slice(0,8)}</small></div><strong>${inv.amountUsd.toLocaleString()}</strong><span className={`status-label ${inv.status}`}>{inv.status}</span>{inv.status==="pending"&&<button onClick={()=>cancelInvoiceMutation.mutate(inv.id)} aria-label="Cancel invoice"><Icon name="close" size={16}/></button>}<button onClick={()=>copyInvoice(inv)} aria-label="Copy payment link"><Icon name={copied===inv.id?"check":"copy"} size={16}/></button></div>)}</div>}</section></div>

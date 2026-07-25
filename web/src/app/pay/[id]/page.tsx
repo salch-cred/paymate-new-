@@ -132,6 +132,9 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
               <button className="pay-action" onClick={()=>handlePay()}>
                 Pay ${invoice.amountUsd.toLocaleString()} USDC <Icon name="arrow" size={18}/>
               </button>
+              <button className="button button-outline" style={{width:'100%',justifyContent:'center',height:'48px'}} onClick={()=>alert("Apple Pay / Fiat integration coming soon! (Stripe Crypto Onramp)")}>
+                Pay with Credit Card / Apple Pay
+              </button>
             </div>
           )}
         </div>
