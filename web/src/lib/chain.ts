@@ -1,17 +1,11 @@
-import { createPublicClient, createWalletClient, http, getAddress, isAddress, decodeFunctionData, defineChain } from "viem"
+import { createPublicClient, createWalletClient, http, getAddress, isAddress, decodeFunctionData } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import type { Invoice } from "./db"
+import { goat } from "viem/chains"
 
-export const goatTestnet3 = defineChain({
-  id: 48816,
-  name: "GOAT Testnet3",
-  nativeCurrency: { name: "Bitcoin", symbol: "BTC", decimals: 18 },
-  rpcUrls: { default: { http: ["https://rpc.testnet3.goat.network"] } },
-  blockExplorers: { default: { name: "GOAT Explorer", url: "https://explorer.testnet3.goat.network" } },
-  testnet: true,
-})
+export const goatChain = goat
 
-const RPC_URL = process.env.RPC_GOAT_TESTNET || goatTestnet3.rpcUrls.default.http[0]
+const RPC_URL = process.env.RPC_GOAT_MAINNET || goatChain.rpcUrls.default.http[0]
 
 const REPUTATION_ABI = [
   {
@@ -65,7 +59,7 @@ export class PaymentError extends Error {
 }
 
 export function getPublicClient() {
-  return createPublicClient({ chain: goatTestnet3, transport: http(RPC_URL) })
+  return createPublicClient({ chain: goatChain, transport: http(RPC_URL) })
 }
 
 export function getIssuerAccount() {
@@ -86,7 +80,7 @@ export async function mintReputation(freelancer: string, amountUsd: number, mult
     return
   }
   const publicClient = getPublicClient()
-  const walletClient = createWalletClient({ account, chain: goatTestnet3, transport: http(RPC_URL) })
+  const walletClient = createWalletClient({ account, chain: goatChain, transport: http(RPC_URL) })
   const hash = await walletClient.writeContract({
     address: getAddress(contractAddress),
     abi: REPUTATION_ABI,
@@ -126,7 +120,7 @@ export function paymentRequirements(invoice: Invoice) {
   if (invoice.splits && invoice.splits.length > 0) {
     accepts = invoice.splits.map(split => ({
       scheme: "exact",
-      network: "goat-testnet3",
+      network: "goat",
       asset: getAddress(usdcToken),
       token: getAddress(usdcToken),
       payTo: getAddress(split.address),
@@ -136,7 +130,7 @@ export function paymentRequirements(invoice: Invoice) {
   } else {
     accepts = [{
       scheme: "exact",
-      network: "goat-testnet3",
+      network: "goat",
       asset: getAddress(usdcToken),
       token: getAddress(usdcToken),
       payTo: invoice.freelancer,

@@ -3,7 +3,7 @@ import { verifyTypedData, getAddress } from "viem";
 export const DOMAIN = {
   name: "PayMate",
   version: "1",
-  chainId: 48816, // GOAT Testnet3
+  chainId: 234, // GOAT Network
   verifyingContract: "0x0000000000000000000000000000000000000000" as `0x${string}`,
 };
 
