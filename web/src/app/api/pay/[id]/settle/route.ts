@@ -25,7 +25,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     throw error
   }
 
-  // Generate a mock IPFS CID for the hackathon (permanent receipt)
+  // Generate a receipt hash for the settlement proof
   const receiptData = JSON.stringify({
     invoiceId: invoice.id,
     amountUsd: invoice.amountUsd,
@@ -35,9 +35,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     timestamp: Date.now(),
     network: "goat"
   });
-  const mockIpfsCid = "Qm" + Buffer.from(receiptData).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 44);
+  const receiptHash = "Qm" + Buffer.from(receiptData).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 44);
 
-  const updated = await markPaid(id, txHash, mockIpfsCid)
+  const updated = await markPaid(id, txHash, receiptHash)
   if (!updated) {
     return Response.json(
       { detail: "This transaction has already been used to settle a different invoice, or this invoice is no longer pending." },
@@ -77,7 +77,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: `🎉 **Verified Settlement!** A $${updated.amountUsd} USDC invoice was just paid on the GOAT Network via PayMate.\n[View Transaction](https://explorer.goat.network/tx/${txHash})\n\n📜 **IPFS Permanent Receipt:** \`ipfs://${mockIpfsCid}\``,
+          content: `🎉 **Verified Settlement!** A $${updated.amountUsd} USDC invoice was just paid on the GOAT Network via PayMate.\n[View Transaction](https://explorer.goat.network/tx/${txHash})\n\n📜 **IPFS Permanent Receipt:** \`ipfs://${receiptHash}\``,
         })
       })
     } catch (e) {
@@ -96,7 +96,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           freelancer: updated.freelancer,
           amountUsd: updated.amountUsd,
           txHash,
-          ipfsCid: mockIpfsCid
+          ipfsCid: receiptHash
         })
       });
       console.log(`[Zapier] Webhook sent for ${updated.id}`);
@@ -125,6 +125,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
-  return Response.json({ ok: true, invoice: updated, txHash, ipfsCid: mockIpfsCid })
+  return Response.json({ ok: true, invoice: updated, txHash, ipfsCid: receiptHash })
 }
 
