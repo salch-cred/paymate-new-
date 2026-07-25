@@ -1,5 +1,6 @@
 import { getInvoice, markPaid } from "@/lib/db"
 import { paymentRequirements, verifyTransfer, mintReputation, PaymentError } from "@/lib/chain"
+import { sendReceipt } from "@/lib/email"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -32,7 +33,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     client: invoice.client,
     txHash: txHash,
     timestamp: Date.now(),
-    network: "goat-testnet3"
+    network: "goat"
   });
   const mockIpfsCid = "Qm" + Buffer.from(receiptData).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 44);
 
@@ -49,6 +50,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } catch (error) {
     console.log(`Reputation recording queued/failed: ${error}`)
   }
+
+  // Trigger Email Receipt
+  await sendReceipt("hello@paymateagent.xyz", updated.id, updated.amountUsd);
 
   if (updated.webhookUrl) {
     try {
@@ -73,7 +77,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: `🎉 **Verified Settlement!** A $${updated.amountUsd} USDC invoice was just paid on the GOAT Network via PayMate.\n[View Transaction](https://testnet3.explorer.goat.network/tx/${txHash})\n\n📜 **IPFS Permanent Receipt:** \`ipfs://${mockIpfsCid}\``,
+          content: `🎉 **Verified Settlement!** A $${updated.amountUsd} USDC invoice was just paid on the GOAT Network via PayMate.\n[View Transaction](https://explorer.goat.network/tx/${txHash})\n\n📜 **IPFS Permanent Receipt:** \`ipfs://${mockIpfsCid}\``,
         })
       })
     } catch (e) {
