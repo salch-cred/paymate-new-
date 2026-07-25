@@ -9,10 +9,10 @@ import { Icon } from "@/components/icons"
 import { WalletConnectMenu } from "@/components/wallet-connect-menu"
 import { FeedbackForm } from "@/components/feedback-form"
 
-type Invoice={id:string;freelancer:string;client:string;title?:string;description:string;amountUsd:number;status:"pending"|"paid";chain:string;dueDate?:string;txHash?:string;splits?:{address:string;amountUsd:number}[]}
+type Invoice={id:string;freelancer:string;client:string;title?:string;description:string;amountUsd:number;status:"pending"|"paid";chain:string;dueDate?:string;txHash?:string;splits?:{address:string;amountUsd:number}[];milestones?:{id:string;title:string;amountUsd:number;status:"pending"|"paid";txHash?:string;paidAt?:number}[]}
 
 export default function PayPage({params}:{params:Promise<{id:string}>}){
-  const {id}=use(params);const [invoice,setInvoice]=useState<Invoice|null>(null);const [status,setStatus]=useState<"idle"|"paying"|"paid"|"error">("idle");const [error,setError]=useState<string|null>(null);const [loading,setLoading]=useState(true);const {address,isConnected,chain}=useAccount();const {data:walletClient}=useWalletClient();const {switchChainAsync}=useSwitchChain()
+  const {id}=use(params);const [invoice,setInvoice]=useState<Invoice|null>(null);const [status,setStatus]=useState<"idle"|"paying"|"paid"|"error">("idle");const [activeMilestone,setActiveMilestone]=useState<string|null>(null);const [error,setError]=useState<string|null>(null);const [loading,setLoading]=useState(true);const {address,isConnected,chain}=useAccount();const {data:walletClient}=useWalletClient();const {switchChainAsync}=useSwitchChain()
   useEffect(()=>{fetch(`/api/invoices/${id}`).then(r=>{if(!r.ok)throw new Error("Invoice not found");return r.json()}).then(setInvoice).catch(e=>setError(e.message||"Could not load invoice")).finally(()=>setLoading(false))},[id])
   async function downloadPDF() {
     try {
@@ -30,7 +30,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
     }
   }
 
- async function handlePay(){if(!isConnected||!address||!walletClient)return;setStatus("paying");setError(null);try{if(chain?.id!==goatChain.id)await switchChainAsync({chainId:goatChain.id});const res=await fetch(`/api/pay/${id}/settle`,{method:"POST"});if(res.status!==402){if(res.ok){setStatus("paid");return}throw new Error(`Unexpected settlement status: ${res.status}`)}const requirements=await res.json();if(!requirements.accepts||requirements.accepts.length===0)throw new Error("No valid payment options returned.");const txHashes=[];for(const option of requirements.accepts){const hash=await walletClient.writeContract({address:(option.token||"0x228B00") as `0x${string}`,abi:[{inputs:[{name:"recipient",type:"address"},{name:"amount",type:"uint256"}],name:"transfer",outputs:[{name:"",type:"bool"}],stateMutability:"nonpayable",type:"function"}],functionName:"transfer",args:[option.payTo as `0x${string}`,parseUnits(option.price.replace("$",""),6)],account:address,chain:goatChain});txHashes.push(hash);}const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":txHashes.join(",")}});if(!settle.ok)throw new Error("Payment verification failed.");setStatus("paid");setInvoice(v=>v?{...v,status:"paid"}:v)}catch(e){setStatus("error");setError(e instanceof Error?e.message:"Payment failed")}}
+ async function handlePay(milestoneId?: string){if(!isConnected||!address||!walletClient)return;setStatus("paying");if(milestoneId)setActiveMilestone(milestoneId);setError(null);try{if(chain?.id!==goatChain.id)await switchChainAsync({chainId:goatChain.id});const res=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({milestoneId})});if(res.status!==402){if(res.ok){setStatus("paid");setActiveMilestone(null);setInvoice(v=>v?{...v,status:"paid"}:v);return}throw new Error(`Unexpected settlement status: ${res.status}`)}const requirements=await res.json();if(!requirements.accepts||requirements.accepts.length===0)throw new Error("No valid payment options returned.");const txHashes=[];for(const option of requirements.accepts){const hash=await walletClient.writeContract({address:(option.token||"0x228B00") as `0x${string}`,abi:[{inputs:[{name:"recipient",type:"address"},{name:"amount",type:"uint256"}],name:"transfer",outputs:[{name:"",type:"bool"}],stateMutability:"nonpayable",type:"function"}],functionName:"transfer",args:[option.payTo as `0x${string}`,parseUnits(option.price.replace("$",""),6)],account:address,chain:goatChain});txHashes.push(hash);}const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":txHashes.join(",")},body:JSON.stringify({milestoneId})});if(!settle.ok)throw new Error("Payment verification failed.");const updatedInvoice=await settle.json();setStatus("idle");setActiveMilestone(null);setInvoice(updatedInvoice.invoice)}catch(e){setStatus("error");setActiveMilestone(null);setError(e instanceof Error?e.message:"Payment failed")}}
  if(loading)return <main className="loading-page"><div className="loader"/></main>
  if(!invoice)return <main className="loading-page"><div style={{textAlign:"center"}}><h1 style={{fontFamily:"var(--font-display)"}}>Invoice unavailable</h1><p>{error}</p><Link className="button button-dark" href="/">Return home</Link></div></main>
  const paid=invoice.status==="paid"||status==="paid"
@@ -65,6 +65,29 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
           <strong>${invoice.amountUsd.toLocaleString()} <small>USDC</small></strong>
         </div>
 
+        {invoice.milestones && invoice.milestones.length > 0 && (
+          <div style={{marginBottom:'24px', display:'flex', flexDirection:'column', gap:'12px'}}>
+            <div className="payment-label">MILESTONE PAYMENTS</div>
+            {invoice.milestones.map((ms, i) => (
+              <div key={ms.id} style={{padding:'16px', background:'rgba(255,255,255,0.6)', borderRadius:'12px', border:'1px solid var(--line)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <div>
+                  <div style={{fontSize:'14px', fontWeight:700, color:'var(--ink)', marginBottom:'4px'}}>{ms.title}</div>
+                  <div style={{fontSize:'12px', color:'var(--muted)'}}>${ms.amountUsd.toLocaleString()} USDC</div>
+                </div>
+                {ms.status === "paid" ? (
+                  <div style={{display:'flex', alignItems:'center', gap:'4px', color:'#317454', fontSize:'12px', fontWeight:700}}><Icon name="check" size={14}/> PAID</div>
+                ) : !isConnected ? (
+                   <button className="button button-outline" disabled style={{opacity:0.5}}>Connect to Pay</button>
+                ) : status === "paying" && activeMilestone === ms.id ? (
+                   <button className="button button-primary" disabled><span className="draft-spinner" style={{borderColor:'white',borderTopColor:'transparent',width:'14px',height:'14px',marginRight:'6px'}}/> Settling</button>
+                ) : (
+                   <button className="button button-primary" disabled={status==="paying"} onClick={()=>handlePay(ms.id)}>Pay ${(ms.amountUsd).toLocaleString()}</button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {invoice.splits && invoice.splits.length > 0 && (
           <div style={{marginBottom:'24px', padding:'12px', background:'rgba(255,255,255,0.5)', borderRadius:'8px', fontSize:'11px'}}>
             <div style={{fontWeight:800, marginBottom:'8px', color:'var(--ink)', display:'flex', alignItems:'center', gap:'4px'}}><Icon name="network" size={12}/> Smart Contract Settlement Routing:</div>
@@ -87,7 +110,9 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
         </div>
 
         <div className="pay-button-wrap">
-          {!isConnected ? (
+          {invoice.milestones && invoice.milestones.length > 0 ? (
+            !isConnected && <div style={{width:'100%'}}><WalletConnectMenu triggerClassName="pay-action" triggerLabel={<><Icon name="wallet" size={18}/>Connect wallet to pay</>} /></div>
+          ) : !isConnected ? (
             <div style={{width:'100%'}}>
               <WalletConnectMenu triggerClassName="pay-action" triggerLabel={<><Icon name="wallet" size={18}/>Connect wallet to pay</>} />
             </div>
@@ -104,7 +129,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
             </div>
           ) : (
             <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
-              <button className="pay-action" onClick={handlePay}>
+              <button className="pay-action" onClick={()=>handlePay()}>
                 Pay ${invoice.amountUsd.toLocaleString()} USDC <Icon name="arrow" size={18}/>
               </button>
             </div>

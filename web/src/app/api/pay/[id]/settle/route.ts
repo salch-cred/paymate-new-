@@ -1,4 +1,4 @@
-import { getInvoice, markPaid } from "@/lib/db"
+import { getInvoice, markPaid, markMilestonePaid } from "@/lib/db"
 import { paymentRequirements, verifyTransfer, mintReputation, PaymentError } from "@/lib/chain"
 import { sendReceipt } from "@/lib/email"
 
@@ -6,12 +6,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params
   const invoice = await getInvoice(id)
   if (!invoice) return Response.json({ detail: "Invoice not found" }, { status: 404 })
+
+  const body = await request.json().catch(() => null);
+  const milestoneId = body?.milestoneId;
+
   if (invoice.status === "paid") return Response.json({ ok: true, invoice, alreadySettled: true })
+  
+  if (milestoneId) {
+    if (!invoice.milestones) return Response.json({ detail: "Invoice has no milestones" }, { status: 400 })
+    const ms = invoice.milestones.find(m => m.id === milestoneId)
+    if (!ms) return Response.json({ detail: "Milestone not found" }, { status: 404 })
+    if (ms.status === "paid") return Response.json({ ok: true, invoice, alreadySettled: true })
+  }
 
   const txHash = request.headers.get("X-PAYMENT")
   if (!txHash) {
     try {
-      return Response.json(paymentRequirements(invoice), { status: 402 })
+      return Response.json(paymentRequirements(invoice, milestoneId), { status: 402 })
     } catch (error) {
       if (error instanceof PaymentError) return Response.json({ detail: error.message }, { status: error.status })
       throw error
@@ -19,16 +30,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    await verifyTransfer(txHash, invoice)
+    await verifyTransfer(txHash, invoice, milestoneId)
   } catch (error) {
     if (error instanceof PaymentError) return Response.json({ detail: error.message }, { status: error.status })
     throw error
   }
 
+  const targetAmountUsd = milestoneId && invoice.milestones ? invoice.milestones.find(m => m.id === milestoneId)?.amountUsd || 0 : invoice.amountUsd;
+
   // Generate a receipt hash for the settlement proof
   const receiptData = JSON.stringify({
     invoiceId: invoice.id,
-    amountUsd: invoice.amountUsd,
+    milestoneId: milestoneId || null,
+    amountUsd: targetAmountUsd,
     freelancer: invoice.freelancer,
     client: invoice.client,
     txHash: txHash,
@@ -37,7 +51,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   });
   const receiptHash = "Qm" + Buffer.from(receiptData).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 44);
 
-  const updated = await markPaid(id, txHash, receiptHash)
+  let updated;
+  if (milestoneId) {
+    updated = await markMilestonePaid(id, milestoneId, txHash, receiptHash)
+  } else {
+    updated = await markPaid(id, txHash, receiptHash)
+  }
+
   if (!updated) {
     return Response.json(
       { detail: "This transaction has already been used to settle a different invoice, or this invoice is no longer pending." },
@@ -46,13 +66,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   try {
     const multiplier = updated.webhookUrl === "clawup-referral-1.2x" ? 1.2 : 1.0;
-    await mintReputation(updated.freelancer, updated.amountUsd, multiplier)
+    await mintReputation(updated.freelancer, targetAmountUsd, multiplier)
   } catch (error) {
     console.log(`Reputation recording queued/failed: ${error}`)
   }
 
   // Trigger Email Receipt
-  await sendReceipt("hello@paymateagent.xyz", updated.id, updated.amountUsd);
+  await sendReceipt("hello@paymateagent.xyz", updated.id, targetAmountUsd);
 
   if (updated.webhookUrl) {
     try {
@@ -60,9 +80,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          event: "invoice.paid",
+          event: milestoneId ? "invoice.milestone.paid" : "invoice.paid",
           invoiceId: updated.id,
-          amountUsd: updated.amountUsd,
+          milestoneId: milestoneId || null,
+          amountUsd: targetAmountUsd,
           txHash,
         })
       })
@@ -77,7 +98,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: `🎉 **Verified Settlement!** A $${updated.amountUsd} USDC invoice was just paid on the GOAT Network via PayMate.\n[View Transaction](https://explorer.goat.network/tx/${txHash})\n\n📜 **IPFS Permanent Receipt:** \`ipfs://${receiptHash}\``,
+          content: `🎉 **Verified Settlement!** A $${targetAmountUsd} USDC payment was just made on the GOAT Network via PayMate.\n[View Transaction](https://explorer.goat.network/tx/${txHash})\n\n📜 **IPFS Permanent Receipt:** \`ipfs://${receiptHash}\``,
         })
       })
     } catch (e) {
@@ -93,8 +114,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: updated.id,
+          milestoneId: milestoneId || null,
           freelancer: updated.freelancer,
-          amountUsd: updated.amountUsd,
+          amountUsd: targetAmountUsd,
           txHash,
           ipfsCid: receiptHash
         })
@@ -117,7 +139,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         body: JSON.stringify({
           recipient: `eip155:48816:${updated.freelancer}`,
           title: "Payment Received",
-          body: `Your PayMate invoice for $${updated.amountUsd} was paid!`,
+          body: `Your PayMate payment for $${targetAmountUsd} was verified on-chain!`,
         })
       });
     } catch (e) {

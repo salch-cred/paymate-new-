@@ -8,6 +8,15 @@ export interface InvoiceSplit {
   amountUsd: number
 }
 
+export interface Milestone {
+  id: string
+  title: string
+  amountUsd: number
+  status: "pending" | "paid"
+  txHash?: string
+  paidAt?: number
+}
+
 export interface Invoice {
   id: string
   freelancer: string
@@ -26,6 +35,7 @@ export interface Invoice {
   ipfsReceipt: string | null
   splits: InvoiceSplit[] | null
   recurring: "weekly" | "monthly" | null
+  milestones: Milestone[] | null
 }
 
 export type FeedbackRole = "freelancer" | "client" | "other"
@@ -70,6 +80,7 @@ interface InvoiceRow {
   ipfs_receipt: string | null
   splits: string | null
   recurring: string | null
+  milestones: string | null
 }
 
 declare global {
@@ -98,6 +109,7 @@ async function ready(): Promise<void> {
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ipfs_receipt TEXT`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS splits TEXT`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS recurring TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS milestones TEXT`.catch(()=>null)
       await sql`CREATE INDEX IF NOT EXISTS idx_invoices_freelancer ON invoices(freelancer, created_at DESC)`
       await sql`CREATE TABLE IF NOT EXISTS feedback (
         id TEXT PRIMARY KEY, role TEXT NOT NULL, name TEXT NOT NULL, contact TEXT,
@@ -135,6 +147,7 @@ function rowToInvoice(row: InvoiceRow): Invoice {
     ipfsReceipt: row.ipfs_receipt || null,
     splits: row.splits ? JSON.parse(row.splits) : null,
     recurring: (row.recurring as "weekly" | "monthly") || null,
+    milestones: row.milestones ? JSON.parse(row.milestones) : null,
   }
 }
 
@@ -149,6 +162,7 @@ export async function createInvoice(input: {
   signature?: string | null
   splits?: InvoiceSplit[] | null
   recurring?: "weekly" | "monthly" | null
+  milestones?: Milestone[] | null
 }): Promise<Invoice> {
   await ready()
   const sql = getSql()
@@ -170,15 +184,17 @@ export async function createInvoice(input: {
     ipfsReceipt: null,
     splits: input.splits || null,
     recurring: input.recurring || null,
+    milestones: input.milestones || null,
   }
   
   const splitsJson = invoice.splits ? JSON.stringify(invoice.splits) : null
+  const milestonesJson = invoice.milestones ? JSON.stringify(invoice.milestones) : null
 
   await sql`INSERT INTO invoices VALUES (
     ${invoice.id}, ${invoice.freelancer}, ${invoice.client}, ${invoice.title}, ${invoice.description},
     ${invoice.amountUsd}, ${invoice.status}, ${invoice.chain}, ${invoice.dueDate}, ${invoice.txHash},
     ${invoice.createdAt}, ${invoice.paidAt}, ${invoice.webhookUrl}, ${invoice.signature}, ${splitsJson},
-    ${invoice.recurring}
+    ${invoice.recurring}, ${milestonesJson}
   )`
   return invoice
 }
@@ -211,6 +227,35 @@ export async function markPaid(id: string, txHash: string, ipfsCid: string | nul
     RETURNING id
   `) as unknown as { id: string }[]
   if (updated.length === 0) return null
+  return getInvoice(id)
+}
+
+export async function markMilestonePaid(id: string, milestoneId: string, txHash: string, ipfsCid: string | null = null): Promise<Invoice | null> {
+  await ready()
+  const sql = getSql()
+  
+  const invoice = await getInvoice(id)
+  if (!invoice || !invoice.milestones) return null
+
+  const msIndex = invoice.milestones.findIndex(m => m.id === milestoneId)
+  if (msIndex === -1 || invoice.milestones[msIndex].status === "paid") return null
+
+  invoice.milestones[msIndex].status = "paid"
+  invoice.milestones[msIndex].txHash = txHash
+  invoice.milestones[msIndex].paidAt = Date.now()
+
+  const allPaid = invoice.milestones.every(m => m.status === "paid")
+  const newStatus = allPaid ? "paid" : "pending"
+  
+  await sql`
+    UPDATE invoices SET 
+      milestones=${JSON.stringify(invoice.milestones)}, 
+      status=${newStatus}, 
+      tx_hash=${allPaid ? txHash : invoice.txHash}, 
+      paid_at=${allPaid ? Date.now() : invoice.paidAt},
+      ipfs_receipt=${allPaid ? ipfsCid : invoice.ipfsReceipt}
+    WHERE id=${id}
+  `
   return getInvoice(id)
 }
 
