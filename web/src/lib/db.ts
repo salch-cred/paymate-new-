@@ -25,6 +25,7 @@ export interface Invoice {
   signature: string | null
   ipfsReceipt: string | null
   splits: InvoiceSplit[] | null
+  recurring: "weekly" | "monthly" | null
 }
 
 export type FeedbackRole = "freelancer" | "client" | "other"
@@ -68,6 +69,7 @@ interface InvoiceRow {
   signature: string | null
   ipfs_receipt: string | null
   splits: string | null
+  recurring: string | null
 }
 
 declare global {
@@ -95,6 +97,7 @@ async function ready(): Promise<void> {
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS signature TEXT`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ipfs_receipt TEXT`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS splits TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS recurring TEXT`.catch(()=>null)
       await sql`CREATE INDEX IF NOT EXISTS idx_invoices_freelancer ON invoices(freelancer, created_at DESC)`
       await sql`CREATE TABLE IF NOT EXISTS feedback (
         id TEXT PRIMARY KEY, role TEXT NOT NULL, name TEXT NOT NULL, contact TEXT,
@@ -131,6 +134,7 @@ function rowToInvoice(row: InvoiceRow): Invoice {
     signature: row.signature || null,
     ipfsReceipt: row.ipfs_receipt || null,
     splits: row.splits ? JSON.parse(row.splits) : null,
+    recurring: (row.recurring as "weekly" | "monthly") || null,
   }
 }
 
@@ -144,6 +148,7 @@ export async function createInvoice(input: {
   webhookUrl?: string | null
   signature?: string | null
   splits?: InvoiceSplit[] | null
+  recurring?: "weekly" | "monthly" | null
 }): Promise<Invoice> {
   await ready()
   const sql = getSql()
@@ -164,6 +169,7 @@ export async function createInvoice(input: {
     signature: input.signature || null,
     ipfsReceipt: null,
     splits: input.splits || null,
+    recurring: input.recurring || null,
   }
   
   const splitsJson = invoice.splits ? JSON.stringify(invoice.splits) : null
@@ -171,7 +177,8 @@ export async function createInvoice(input: {
   await sql`INSERT INTO invoices VALUES (
     ${invoice.id}, ${invoice.freelancer}, ${invoice.client}, ${invoice.title}, ${invoice.description},
     ${invoice.amountUsd}, ${invoice.status}, ${invoice.chain}, ${invoice.dueDate}, ${invoice.txHash},
-    ${invoice.createdAt}, ${invoice.paidAt}, ${invoice.webhookUrl}, ${invoice.signature}, ${splitsJson}
+    ${invoice.createdAt}, ${invoice.paidAt}, ${invoice.webhookUrl}, ${invoice.signature}, ${splitsJson},
+    ${invoice.recurring}
   )`
   return invoice
 }
@@ -331,6 +338,34 @@ export async function getGrowthStats(): Promise<GrowthStats> {
     firstInvoiceAt: inv.first_at ? Number(inv.first_at) : null,
     lastInvoiceAt: inv.last_at ? Number(inv.last_at) : null,
   }
+}
+
+export interface TopFreelancer {
+  freelancer: string
+  totalEarned: number
+  jobsCompleted: number
+}
+
+export async function getTopFreelancers(limit = 10): Promise<TopFreelancer[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT
+      lower(freelancer) as freelancer,
+      COALESCE(SUM(amount_usd), 0)::float as total_earned,
+      COUNT(*)::int as jobs_completed
+    FROM invoices
+    WHERE status = 'paid'
+    GROUP BY lower(freelancer)
+    ORDER BY total_earned DESC
+    LIMIT ${limit}
+  `) as unknown as { freelancer: string; total_earned: number; jobs_completed: number }[]
+
+  return rows.map(r => ({
+    freelancer: r.freelancer,
+    totalEarned: r.total_earned,
+    jobsCompleted: r.jobs_completed
+  }))
 }
 
 export interface ChatState {

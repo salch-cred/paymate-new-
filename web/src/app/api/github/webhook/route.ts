@@ -1,6 +1,7 @@
 import { createInvoice } from "@/lib/db";
 import { getAddress } from "viem";
 import { NextResponse } from "next/server";
+import { Octokit } from "octokit";
 
 export async function POST(request: Request) {
   try {
@@ -44,9 +45,26 @@ export async function POST(request: Request) {
 
     const payUrl = `https://www.paymateagent.xyz/pay/${invoice.id}`;
 
-    // Normally we would use the GitHub API (Octokit) to post a comment back
-    // For now, we mock the success.
-    console.log(`[GitHub Bot] Created invoice for ${title}. Pay here: ${payUrl}`);
+    if (process.env.GITHUB_TOKEN && payload.repository) {
+      try {
+        const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+        const owner = payload.repository.owner.login;
+        const repo = payload.repository.name;
+        const issue_number = item.number;
+
+        await octokit.rest.issues.createComment({
+          owner,
+          repo,
+          issue_number,
+          body: `🤖 **PayMate AI:** A $${amount} bounty payout invoice has been generated for ${wallet}.\n\n💳 **[Pay Invoice via PayMate](${payUrl})**`
+        });
+        console.log(`[GitHub Bot] Posted comment on ${owner}/${repo}#${issue_number}`);
+      } catch (err) {
+        console.log(`[GitHub Bot] Failed to post comment:`, err);
+      }
+    } else {
+      console.log(`[GitHub Bot] Created invoice for ${title}. Pay here: ${payUrl}`);
+    }
 
     return NextResponse.json({ ok: true, invoiceId: invoice.id, payUrl });
   } catch (error) {
