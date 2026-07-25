@@ -13,6 +13,7 @@ type Invoice={id:string;freelancer:string;client:string;title?:string;descriptio
 
 export default function PayPage({params}:{params:Promise<{id:string}>}){
   const {id}=use(params);const [invoice,setInvoice]=useState<Invoice|null>(null);const [status,setStatus]=useState<"idle"|"paying"|"paid"|"error">("idle");const [activeMilestone,setActiveMilestone]=useState<string|null>(null);const [error,setError]=useState<string|null>(null);const [loading,setLoading]=useState(true);const {address,isConnected,chain}=useAccount();const {data:walletClient}=useWalletClient();const {switchChainAsync}=useSwitchChain()
+  const [showDispute,setShowDispute]=useState(false);const [disputeMsg,setDisputeMsg]=useState("");const [disputeLog,setDisputeLog]=useState<{role:string,content:string}[]>([])
   useEffect(()=>{fetch(`/api/invoices/${id}`).then(r=>{if(!r.ok)throw new Error("Invoice not found");return r.json()}).then(setInvoice).catch(e=>setError(e.message||"Could not load invoice")).finally(()=>setLoading(false))},[id])
   async function downloadPDF() {
     try {
@@ -29,6 +30,21 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
       console.error(e);
     }
   }
+
+ async function submitDispute(){
+   if(!disputeMsg.trim())return;
+   const newLog = [...disputeLog, {role:"user",content:disputeMsg}];
+   setDisputeLog(newLog);
+   setDisputeMsg("");
+   try{
+     const res=await fetch("/api/arbitrate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({repo:"salch-cred/paymate-new",prUrl:"https://github.com/salch-cred/paymate-new/pull/42",amountUsd:invoice?.amountUsd,freelancerAddress:invoice?.freelancer,clientAddress:invoice?.client})});
+     const data=await res.json();
+     if(!res.ok) throw new Error(data.detail||"Arbitration failed");
+     setDisputeLog([...newLog, {role:"ai",content:`Decision: ${data.decision.resolution}\nReason: ${data.decision.reasoning}`}]);
+   }catch(e){
+     setDisputeLog([...newLog, {role:"ai",content:`Error: ${e instanceof Error?e.message:"Failed"}`}]);
+   }
+ }
 
  async function handlePay(milestoneId?: string){if(!isConnected||!address||!walletClient)return;setStatus("paying");if(milestoneId)setActiveMilestone(milestoneId);setError(null);try{if(chain?.id!==goatChain.id)await switchChainAsync({chainId:goatChain.id});const res=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({milestoneId})});if(res.status!==402){if(res.ok){setStatus("paid");setActiveMilestone(null);setInvoice(v=>v?{...v,status:"paid"}:v);return}throw new Error(`Unexpected settlement status: ${res.status}`)}const requirements=await res.json();if(!requirements.accepts||requirements.accepts.length===0)throw new Error("No valid payment options returned.");const txHashes=[];for(const option of requirements.accepts){const hash=await walletClient.writeContract({address:(option.token||"0x228B00") as `0x${string}`,abi:[{inputs:[{name:"recipient",type:"address"},{name:"amount",type:"uint256"}],name:"transfer",outputs:[{name:"",type:"bool"}],stateMutability:"nonpayable",type:"function"}],functionName:"transfer",args:[option.payTo as `0x${string}`,parseUnits(option.price.replace("$",""),6)],account:address,chain:goatChain});txHashes.push(hash);}const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":txHashes.join(",")},body:JSON.stringify({milestoneId})});if(!settle.ok)throw new Error("Payment verification failed.");const updatedInvoice=await settle.json();setStatus("idle");setActiveMilestone(null);setInvoice(updatedInvoice.invoice)}catch(e){setStatus("error");setActiveMilestone(null);setError(e instanceof Error?e.message:"Payment failed")}}
  if(loading)return <main className="loading-page"><div className="loader"/></main>
@@ -139,6 +155,34 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
           )}
         </div>
         {error && <div className="error-box" style={{marginTop: '16px'}}>{error}</div>}
+
+        {!paid && (
+          <div style={{marginTop:'24px', borderTop:'1px solid var(--line)', paddingTop:'24px'}}>
+            <button className="button" style={{background:'transparent', color:'var(--muted)', fontSize:'12px', padding:0, textDecoration:'underline'}} onClick={()=>setShowDispute(!showDispute)}>
+              Dispute this invoice
+            </button>
+            {showDispute && (
+              <div style={{marginTop:'16px', padding:'16px', background:'rgba(255,255,255,0.4)', borderRadius:'12px', border:'1px solid var(--line)'}}>
+                <div style={{fontWeight:800, marginBottom:'12px', display:'flex', alignItems:'center', gap:'6px'}}><Icon name="spark" size={14}/> Mistral Escrow Arbitrator</div>
+                <div style={{fontSize:'12px', color:'var(--muted)', marginBottom:'12px'}}>Our AI agent will review the GitHub repository history and make a binding decision on this payment.</div>
+                
+                <div style={{display:'flex',flexDirection:'column',gap:'8px',marginBottom:'12px',maxHeight:'200px',overflowY:'auto'}}>
+                  {disputeLog.map((log,i)=>(
+                    <div key={i} style={{padding:'8px',borderRadius:'8px',background:log.role==="user"?'rgba(0,0,0,0.05)':'rgba(49, 130, 93, 0.1)',color:log.role==="user"?'var(--ink)':'#31825d',fontSize:'12px',fontWeight:log.role==="ai"?800:400,whiteSpace:'pre-wrap'}}>
+                      {log.content}
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{display:'flex',gap:'8px'}}>
+                  <input style={{flex:1}} placeholder="Why are you disputing this?" value={disputeMsg} onChange={e=>setDisputeMsg(e.target.value)} />
+                  <button className="button button-outline" onClick={submitDispute}>Send</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <p className="wallet-note" style={{marginTop: '24px'}}><Icon name="lock" size={12}/>Direct non-custodial transfer on GOAT Network</p>
       </>
     )}
