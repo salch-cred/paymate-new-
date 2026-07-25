@@ -109,7 +109,7 @@ export async function getReputationData(freelancer: string) {
   }
 }
 
-export function paymentRequirements(invoice: Invoice) {
+export function paymentRequirements(invoice: Invoice, milestoneId?: string) {
   const usdcToken = process.env.USDC_TOKEN || "0x98bbd436cd9320e6f30444ddfc6390141f23899f" // Fallback to a dummy token for testing if not set
   if (!usdcToken || !isAddress(usdcToken)) {
     throw new PaymentError(503, "USDC_TOKEN is not configured on the API")
@@ -117,7 +117,19 @@ export function paymentRequirements(invoice: Invoice) {
   const decimals = Number(process.env.USDC_DECIMALS || "6")
   
   let accepts = []
-  if (invoice.splits && invoice.splits.length > 0) {
+  if (milestoneId && invoice.milestones) {
+    const ms = invoice.milestones.find(m => m.id === milestoneId)
+    if (!ms) throw new PaymentError(404, "Milestone not found")
+    accepts = [{
+      scheme: "exact",
+      network: "goat",
+      asset: getAddress(usdcToken),
+      token: getAddress(usdcToken),
+      payTo: invoice.freelancer,
+      price: `$${ms.amountUsd.toFixed(2)}`,
+      maxAmountRequired: String(Math.round(ms.amountUsd * 10 ** decimals)),
+    }]
+  } else if (invoice.splits && invoice.splits.length > 0) {
     accepts = invoice.splits.map(split => ({
       scheme: "exact",
       network: "goat",
@@ -146,7 +158,7 @@ export function paymentRequirements(invoice: Invoice) {
   }
 }
 
-export async function verifyTransfer(txHashes: string | string[], invoice: Invoice) {
+export async function verifyTransfer(txHashes: string | string[], invoice: Invoice, milestoneId?: string) {
   const publicClient = getPublicClient()
   const usdcToken = process.env.USDC_TOKEN || "0x98bbd436cd9320e6f30444ddfc6390141f23899f"
   const decimals = Number(process.env.USDC_DECIMALS || "6")
@@ -154,9 +166,17 @@ export async function verifyTransfer(txHashes: string | string[], invoice: Invoi
   const hashes = Array.isArray(txHashes) ? txHashes : txHashes.split(",").map(h => h.trim())
   
   // We need to match each expected split (or single payment) to a tx hash
-  const expectedPayments = invoice.splits && invoice.splits.length > 0 
-    ? invoice.splits.map(s => ({ recipient: getAddress(s.address), amount: BigInt(Math.round(s.amountUsd * 10 ** decimals)), matched: false }))
-    : [{ recipient: getAddress(invoice.freelancer), amount: BigInt(Math.round(invoice.amountUsd * 10 ** decimals)), matched: false }]
+  let expectedPayments = []
+  
+  if (milestoneId && invoice.milestones) {
+    const ms = invoice.milestones.find(m => m.id === milestoneId)
+    if (!ms) throw new PaymentError(404, "Milestone not found")
+    expectedPayments = [{ recipient: getAddress(invoice.freelancer), amount: BigInt(Math.round(ms.amountUsd * 10 ** decimals)), matched: false }]
+  } else if (invoice.splits && invoice.splits.length > 0) {
+    expectedPayments = invoice.splits.map(s => ({ recipient: getAddress(s.address), amount: BigInt(Math.round(s.amountUsd * 10 ** decimals)), matched: false }))
+  } else {
+    expectedPayments = [{ recipient: getAddress(invoice.freelancer), amount: BigInt(Math.round(invoice.amountUsd * 10 ** decimals)), matched: false }]
+  }
     
   if (hashes.length < expectedPayments.length) {
     throw new PaymentError(402, `Expected ${expectedPayments.length} transactions, but got ${hashes.length}`)
