@@ -1,5 +1,5 @@
 import { createWalletClient, http, getAddress } from "viem"
-import { getPublicClient, goatTestnet3, PaymentError, getIssuerAccount } from "./chain"
+import { getPublicClient, goatChain, PaymentError, getIssuerAccount } from "./chain"
 import { verifyInvoiceSignature } from "./eip712"
 import { analyzeInvoiceFraud } from "./sybilGuard"
 import type { Invoice } from "./db"
@@ -65,7 +65,7 @@ export async function autonomousAgentPay(invoice: Invoice): Promise<string> {
   }
 
   const publicClient = getPublicClient()
-  const walletClient = createWalletClient({ account, chain: goatTestnet3, transport: http() })
+  const walletClient = createWalletClient({ account, chain: goatChain, transport: http() })
 
   const decimals = Number(process.env.USDC_DECIMALS || "6")
   const amountToTransfer = BigInt(Math.round(invoice.amountUsd * 10 ** decimals))

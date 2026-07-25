@@ -4,7 +4,7 @@ import Link from "next/link"
 import { use, useEffect, useState } from "react"
 import { useAccount, useSwitchChain, useWalletClient } from "wagmi"
 import { parseUnits } from "viem"
-import { goatTestnet3 } from "@/lib/chain"
+import { goatChain } from "@/lib/chain"
 import { Icon } from "@/components/icons"
 import { WalletConnectMenu } from "@/components/wallet-connect-menu"
 import { FeedbackForm } from "@/components/feedback-form"
@@ -15,7 +15,23 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
   const {id}=use(params);const [invoice,setInvoice]=useState<Invoice|null>(null);const [status,setStatus]=useState<"idle"|"paying"|"paid"|"error">("idle");const [error,setError]=useState<string|null>(null);const [loading,setLoading]=useState(true);const {address,isConnected,chain}=useAccount();const {data:walletClient}=useWalletClient();const {switchChainAsync}=useSwitchChain()
   const [isCrossChain,setIsCrossChain]=useState(false);const [isFiat,setIsFiat]=useState(false);const [ccStage,setCcStage]=useState(0)
   useEffect(()=>{fetch(`/api/invoices/${id}`).then(r=>{if(!r.ok)throw new Error("Invoice not found");return r.json()}).then(setInvoice).catch(e=>setError(e.message||"Could not load invoice")).finally(()=>setLoading(false))},[id])
- async function handlePay(){if(!isConnected||!address||!walletClient)return;setStatus("paying");setIsFiat(false);setIsCrossChain(false);setError(null);try{if(chain?.id!==goatTestnet3.id)await switchChainAsync({chainId:goatTestnet3.id});const res=await fetch(`/api/pay/${id}/settle`,{method:"POST"});if(res.status!==402){if(res.ok){setStatus("paid");return}throw new Error(`Unexpected settlement status: ${res.status}`)}const requirements=await res.json();if(!requirements.accepts||requirements.accepts.length===0)throw new Error("No valid payment options returned.");const txHashes=[];for(const option of requirements.accepts){const hash=await walletClient.writeContract({address:(option.token||"0x228B00") as `0x${string}`,abi:[{inputs:[{name:"recipient",type:"address"},{name:"amount",type:"uint256"}],name:"transfer",outputs:[{name:"",type:"bool"}],stateMutability:"nonpayable",type:"function"}],functionName:"transfer",args:[option.payTo as `0x${string}`,parseUnits(option.price.replace("$",""),6)],account:address,chain:goatTestnet3});txHashes.push(hash);}const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":txHashes.join(",")}});if(!settle.ok)throw new Error("Payment verification failed.");setStatus("paid");setInvoice(v=>v?{...v,status:"paid"}:v)}catch(e){setStatus("error");setError(e instanceof Error?e.message:"Payment failed")}}
+  async function downloadPDF() {
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+      const element = document.querySelector('.payment-card') as HTMLElement;
+      if (!element) return;
+      const canvas = await html2canvas(element, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [canvas.width / 2, canvas.height / 2] });
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+      pdf.save(`Invoice_${invoice?.id.split('-')[0] || 'Receipt'}.pdf`);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+ async function handlePay(){if(!isConnected||!address||!walletClient)return;setStatus("paying");setIsFiat(false);setIsCrossChain(false);setError(null);try{if(chain?.id!==goatChain.id)await switchChainAsync({chainId:goatChain.id});const res=await fetch(`/api/pay/${id}/settle`,{method:"POST"});if(res.status!==402){if(res.ok){setStatus("paid");return}throw new Error(`Unexpected settlement status: ${res.status}`)}const requirements=await res.json();if(!requirements.accepts||requirements.accepts.length===0)throw new Error("No valid payment options returned.");const txHashes=[];for(const option of requirements.accepts){const hash=await walletClient.writeContract({address:(option.token||"0x228B00") as `0x${string}`,abi:[{inputs:[{name:"recipient",type:"address"},{name:"amount",type:"uint256"}],name:"transfer",outputs:[{name:"",type:"bool"}],stateMutability:"nonpayable",type:"function"}],functionName:"transfer",args:[option.payTo as `0x${string}`,parseUnits(option.price.replace("$",""),6)],account:address,chain:goatChain});txHashes.push(hash);}const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":txHashes.join(",")}});if(!settle.ok)throw new Error("Payment verification failed.");setStatus("paid");setInvoice(v=>v?{...v,status:"paid"}:v)}catch(e){setStatus("error");setError(e instanceof Error?e.message:"Payment failed")}}
  async function handleCrossChainPay(){if(!isConnected)return;setStatus("paying");setIsCrossChain(true);setIsFiat(false);setError(null);setCcStage(1);await new Promise(r=>setTimeout(r,2500));setCcStage(2);await new Promise(r=>setTimeout(r,2500));setCcStage(3);try{await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":"mock_ccip_intent_tx"}});setStatus("paid");setInvoice(v=>v?{...v,status:"paid"}:v)}catch(e){setStatus("error");setError("Cross-chain simulation failed")}}
  async function handleFiatPay(){setStatus("paying");setIsFiat(true);setIsCrossChain(false);setError(null);setCcStage(1);await new Promise(r=>setTimeout(r,2500));setCcStage(2);await new Promise(r=>setTimeout(r,2500));setCcStage(3);try{await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":"mock_fiat_onramp_tx"}});setStatus("paid");setInvoice(v=>v?{...v,status:"paid"}:v)}catch(e){setStatus("error");setError("Fiat processing failed")}}
  if(loading)return <main className="loading-page"><div className="loader"/></main>
@@ -83,6 +99,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
               <Icon name="check" size={18}/>
               <b>Payment Verified</b>
               <a href={`https://testnet3.explorer.goat.network/tx/${invoice.txHash||'0xMockTx'}`} target="_blank" style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:'4px', color:'inherit'}}>View on GOAT <Icon name="arrow" size={14}/></a>
+              <button onClick={downloadPDF} style={{marginLeft:'10px', background:'none', border:'none', color:'#8a8981', cursor:'pointer', display:'flex', alignItems:'center', gap:'4px', fontSize:'12px', fontWeight:600}}><Icon name="arrow" size={14}/> Download PDF</button>
             </div>
           ) : status === "paying" ? (
             <div className="cc-simulation-box" style={{background:'rgba(255,255,255,0.4)',border:'1px solid var(--line)',borderRadius:'12px',padding:'16px',display:'flex',flexDirection:'column',gap:'12px'}}>
