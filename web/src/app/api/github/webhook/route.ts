@@ -1,0 +1,56 @@
+import { createInvoice } from "@/lib/db";
+import { getAddress } from "viem";
+import { NextResponse } from "next/server";
+
+export async function POST(request: Request) {
+  try {
+    const payload = await request.json();
+
+    // Only process pull request or issues events
+    if (!payload.action || (!payload.pull_request && !payload.issue)) {
+      return NextResponse.json({ ok: true, message: "Ignored event type" });
+    }
+
+    if (payload.action !== "closed" && payload.action !== "merged") {
+      return NextResponse.json({ ok: true, message: "Only processing closed/merged events" });
+    }
+
+    const item = payload.pull_request || payload.issue;
+    const body = item.body || "";
+
+    // Look for a wallet address and amount in the PR/Issue body
+    // e.g., "Wallet: 0x123... Amount: $500"
+    const walletMatch = body.match(/0x[a-fA-F0-9]{40}/);
+    const amountMatch = body.match(/\$?(\d+(\.\d{1,2})?)/);
+
+    if (!walletMatch || !amountMatch) {
+      return NextResponse.json({ ok: true, message: "No bounty info found in body" });
+    }
+
+    const wallet = walletMatch[0];
+    const amount = Number(amountMatch[1]);
+    const title = `GitHub Bounty: ${item.title}`;
+    const url = item.html_url;
+
+    const invoice = await createInvoice({
+      freelancer: getAddress(wallet),
+      client: getAddress("0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"), // dummy
+      title: title,
+      description: `Bounty payout for ${url}`,
+      amountUsd: amount,
+      webhookUrl: "github-bot",
+      signature: "0xgithub_signature_placeholder",
+    });
+
+    const payUrl = `https://www.paymateagent.xyz/pay/${invoice.id}`;
+
+    // Normally we would use the GitHub API (Octokit) to post a comment back
+    // For now, we mock the success.
+    console.log(`[GitHub Bot] Created invoice for ${title}. Pay here: ${payUrl}`);
+
+    return NextResponse.json({ ok: true, invoiceId: invoice.id, payUrl });
+  } catch (error) {
+    console.error("GitHub Webhook Error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}

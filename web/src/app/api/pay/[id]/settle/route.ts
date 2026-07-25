@@ -85,6 +85,46 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
+  // Zapier / Make Webhook Integration
+  if (process.env.ZAPIER_WEBHOOK_URL) {
+    try {
+      await fetch(process.env.ZAPIER_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: updated.id,
+          freelancer: updated.freelancer,
+          amountUsd: updated.amountUsd,
+          txHash,
+          ipfsCid: mockIpfsCid
+        })
+      });
+      console.log(`[Zapier] Webhook sent for ${updated.id}`);
+    } catch (e) {
+      console.log(`[Zapier] webhook failed:`, e)
+    }
+  }
+
+  // Push Protocol (Wallet Notification) Mock Implementation
+  // Note: True integration requires @pushprotocol/restapi and ethers
+  if (process.env.PUSH_PROTOCOL_CHANNEL_PK) {
+    try {
+      // Mocking the Push API call directly to avoid massive SDK dependencies on edge runtime
+      console.log(`[Push Protocol] Sending wallet notification to ${updated.freelancer}`);
+      await fetch("https://backend.epns.io/apis/v1/payloads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipient: `eip155:48816:${updated.freelancer}`,
+          title: "Payment Received",
+          body: `Your PayMate invoice for $${updated.amountUsd} was paid!`,
+        })
+      });
+    } catch (e) {
+      console.log(`[Push Protocol] Notification failed:`, e)
+    }
+  }
+
   return Response.json({ ok: true, invoice: updated, txHash, ipfsCid: mockIpfsCid })
 }
 
