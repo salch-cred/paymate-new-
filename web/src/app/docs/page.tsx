@@ -23,7 +23,7 @@ const faqs = [
   },
   {
     q: "What network does PayMate run on?",
-    a: "GOAT Network (Testnet3, chain ID 48816). Settlement uses a test USDC token, and the reputation registry is deployed on the same network.",
+    a: "GOAT Network (Testnet3, chain ID 234). Settlement uses a test USDC token, and the reputation registry is deployed on the same network.",
   },
 ]
 
@@ -35,7 +35,7 @@ export default function DocsPage(){
   <aside className="docs-sidebar"><div className="docs-version"><i/>PayMate v1.0.0</div><nav><span>DOCUMENTATION</span>{visible.map(s=><a key={s.id} href={`#${s.id}`}>{s.label}</a>)}</nav><div className="docs-side-foot"><Link href="/">← Landing page</Link><Link href="/dashboard">Open workspace</Link></div></aside>
   <article className="docs-content project-docs">
    <div className="docs-breadcrumb">PAYMATE <span>/</span> PROJECT DETAILS</div>
-   <section className="docs-hero project-docs-hero" id="overview"><div className="docs-kicker"><span>USE CASES & OVERVIEW</span><i>v1.0.0</i></div><h1>PayMate for AI Agents.</h1><p>PayMate is an intelligent, non-custodial invoicing platform designed for freelancers, DAOs, and AI agents. Create invoices seamlessly through natural language, and settle instantly on the GOAT Network.</p><div className="project-facts"><div><span>NETWORK</span><b>GOAT Testnet3</b></div><div><span>PROTOCOL</span><b>x402 Standards</b></div><div><span>IDENTITY</span><b>ERC-8004 Reputation</b></div></div></section>
+   <section className="docs-hero project-docs-hero" id="overview"><div className="docs-kicker"><span>USE CASES & OVERVIEW</span><i>v1.0.0</i></div><h1>PayMate for AI Agents.</h1><p>PayMate is an intelligent, non-custodial invoicing platform designed for freelancers, DAOs, and AI agents. Create invoices seamlessly through natural language, and settle instantly on the GOAT Network.</p><div className="project-facts"><div><span>NETWORK</span><b>GOAT Network</b></div><div><span>PROTOCOL</span><b>x402 Standards</b></div><div><span>IDENTITY</span><b>ERC-8004 Reputation</b></div></div></section>
    
    <section className="doc-section" id="discord"><div className="doc-index">01</div><div><span className="doc-label">DISCORD INTEGRATION</span><h2>The Discord Bot</h2><p>PayMate deeply integrates into your existing DAO or team Discord server to eliminate friction.</p><div className="doc-callout"><Icon name="shield"/><div><b>Enterprise Security</b><p>The bot is protected by strict timestamp validation to prevent replay attacks, and commands are locked so that only Server Administrators can execute them.</p></div></div><ul className="doc-steps" style={{marginTop: "20px"}}><li><b>Command: `/paymate`</b><p>Instantly launch the PayMate app or share your ClawUp referral link directly with clients inside your server.</p></li><li><b>Command: `/invoice`</b><p>Type `/invoice details: 500 USDC for marketing work` and the AI will draft your invoice instantly. The bot responds with a 100% private, ephemeral message so no one else in the server can see your financial details.</p></li><li><b>Webhooks</b><p>Whenever an invoice is paid on the GOAT network, the backend fires a webhook to announce the verified settlement in your server!</p></li></ul></div></section>
 
@@ -46,6 +46,6 @@ export default function DocsPage(){
    <section className="doc-section" id="faq"><div className="doc-index">04</div><div><span className="doc-label">FAQ</span><h2>Frequently asked questions</h2><div className="doc-faq">{faqs.map(f=><div key={f.q} className="doc-faq-item"><b>{f.q}</b><p>{f.a}</p></div>)}</div></div></section>
    <footer className="docs-footer"><div><span className="brand-mark small"><span/></span><b>PayMate project documentation</b></div><Link href="/dashboard">Open workspace <Icon name="arrow"/></Link></footer>
   </article>
-  <aside className="docs-toc"><span>CONTENTS</span>{sections.map(s=><a key={s.id} href={`#${s.id}`}>{s.label}</a>)}<div className="toc-status"><i/><b>GOAT Testnet3</b><small>Live on chain</small></div></aside>
+  <aside className="docs-toc"><span>CONTENTS</span>{sections.map(s=><a key={s.id} href={`#${s.id}`}>{s.label}</a>)}<div className="toc-status"><i/><b>GOAT Network</b><small>Live on chain</small></div></aside>
  </main>
 }
