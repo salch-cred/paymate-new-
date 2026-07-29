@@ -1,13 +1,17 @@
 
 
 import { createWalletClient, http, getAddress } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
 const API_BASE = process.env.API_BASE || "http://localhost:3000";
 
-// Mock addresses and keys for testing EIP-712
-const FREELANCER = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
-const CLIENT_PRIVATE_KEY = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a";
+// SECURITY (audit fix C-2): a real private key used to be hardcoded here and
+// committed to the public repo, and the same value was copy-pasted into a
+// live production API route. Local/demo scripts must never contain a fixed
+// private key. Provide SIMULATE_CLIENT_PRIVATE_KEY via your local .env
+// (never commit it) or a fresh throwaway key is generated per run.
+const FREELANCER = process.env.SIMULATE_FREELANCER_ADDRESS || "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+const CLIENT_PRIVATE_KEY = (process.env.SIMULATE_CLIENT_PRIVATE_KEY as `0x${string}`) || generatePrivateKey();
 const clientAccount = privateKeyToAccount(CLIENT_PRIVATE_KEY);
 const CLIENT = clientAccount.address;
 

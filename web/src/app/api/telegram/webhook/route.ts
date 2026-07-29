@@ -3,10 +3,23 @@ import { getAddress } from "viem";
 
 const TELEGRAM_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
 
-
 // A lightweight webhook to handle incoming messages from Telegram
 export async function POST(request: Request) {
   try {
+    // SECURITY (audit fix H-1): verify Telegram's secret token so this
+    // endpoint can't be spoofed by an arbitrary POST from the internet.
+    // Set the same value as `secret_token` when calling setWebhook, and
+    // configure TELEGRAM_WEBHOOK_SECRET here.
+    const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    if (!expectedSecret) {
+      console.error("[telegram/webhook] TELEGRAM_WEBHOOK_SECRET is not configured. Refusing request.");
+      return new Response("Server misconfigured", { status: 500 });
+    }
+    const providedSecret = request.headers.get("x-telegram-bot-api-secret-token");
+    if (providedSecret !== expectedSecret) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
     const update = await request.json();
     
     // Ignore updates that aren't messages

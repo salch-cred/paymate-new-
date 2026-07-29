@@ -2,10 +2,31 @@ import { createInvoice } from "@/lib/db";
 import { getAddress } from "viem";
 import { NextResponse } from "next/server";
 import { Octokit } from "octokit";
+import { createHmac, timingSafeEqual } from "crypto";
+
+function isValidGithubSignature(rawBody: string, signatureHeader: string | null, secret: string): boolean {
+  if (!signatureHeader || !signatureHeader.startsWith("sha256=")) return false;
+  const expected = "sha256=" + createHmac("sha256", secret).update(rawBody).digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(signatureHeader);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 export async function POST(request: Request) {
   try {
-    const payload = await request.json();
+    // SECURITY (audit fix H-2): verify GitHub's HMAC signature so this
+    // endpoint can't be spoofed to spawn fake bounty invoices / bot comments.
+    const secret = process.env.GITHUB_WEBHOOK_SECRET;
+    const rawBody = await request.text();
+    if (!secret) {
+      console.error("[github/webhook] GITHUB_WEBHOOK_SECRET is not configured. Refusing request.");
+      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+    }
+    if (!isValidGithubSignature(rawBody, request.headers.get("x-hub-signature-256"), secret)) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+    const payload = JSON.parse(rawBody);
 
     // Only process pull request or issues events
     if (!payload.action || (!payload.pull_request && !payload.issue)) {

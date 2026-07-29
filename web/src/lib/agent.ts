@@ -1,5 +1,5 @@
 import { createWalletClient, http, getAddress } from "viem"
-import { getPublicClient, goatChain, PaymentError, getIssuerAccount } from "./chain"
+import { getPublicClient, goatChain, PaymentError, getIssuerAccount, assertProductionSafeToken } from "./chain"
 import { verifyInvoiceSignature } from "./eip712"
 import { analyzeInvoiceFraud } from "./sybilGuard"
 import type { Invoice } from "./db"
@@ -18,6 +18,8 @@ const ERC20_TRANSFER_ABI = [
 ] as const
 
 export async function autonomousAgentPay(invoice: Invoice): Promise<string> {
+  assertProductionSafeToken()
+
   const account = getIssuerAccount()
   if (!account) {
     throw new Error("Agent identity (PRIVATE_KEY) not configured.")
