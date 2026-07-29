@@ -13,10 +13,13 @@ export async function analyzeInvoiceFraud(
 ): Promise<SybilAnalysis> {
   const apiKey = process.env.MISTRAL_API_KEY;
   if (!apiKey) {
-    // If no API key is provided, fail open (allow payment) for demo purposes,
-    // but log the warning.
-    console.warn("No MISTRAL_API_KEY provided. Sybil-Guard disabled.");
-    return { isFraud: false, probability: 0, reasoning: "AI Sybil-Guard disabled (no key)" };
+    // SECURITY (audit fix): this used to fail OPEN (allow the autonomous
+    // payment) when no API key was configured, which meant the fraud check
+    // was silently a no-op in any environment that forgot to set the key.
+    // For an agent that moves real funds, an unconfigured fraud filter must
+    // fail CLOSED and block autonomous payment until fixed.
+    console.error("No MISTRAL_API_KEY provided. Sybil-Guard cannot run — blocking autonomous payment (fail closed).");
+    return { isFraud: true, probability: 100, reasoning: "AI Sybil-Guard is not configured (missing MISTRAL_API_KEY); autonomous payments are blocked until it is set up." };
   }
 
   try {
@@ -68,7 +71,9 @@ Do not include markdown or backticks.`;
     };
   } catch (error) {
     console.error("Sybil-Guard Error:", error);
-    // Fail open if the AI service goes down, so we don't block legitimate payments
-    return { isFraud: false, probability: 0, reasoning: "Error during AI analysis" };
+    // SECURITY (audit fix): fail CLOSED, not open. A transient AI outage
+    // should pause autonomous payouts for manual review, not silently
+    // disable fraud detection on a path that moves real funds.
+    return { isFraud: true, probability: 100, reasoning: "AI Sybil-Guard errored during analysis; blocking autonomous payment until it can be re-evaluated." };
   }
 }

@@ -49,7 +49,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     timestamp: Date.now(),
     network: "goat"
   });
-  const receiptHash = "Qm" + Buffer.from(receiptData).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 44);
+  // SECURITY / HONESTY (audit fix M-1): this was previously prefixed "Qm" and
+  // called an "IPFS Permanent Receipt" even though nothing is pinned to IPFS
+  // — it's a locally-derived hash with no real content-addressed storage
+  // guarantee. Label it accurately as a local settlement receipt hash unless/
+  // until real IPFS pinning is integrated.
+  const receiptHash = "local-" + Buffer.from(receiptData).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 44);
 
   let updated;
   if (milestoneId) {
@@ -98,7 +103,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: `🎉 **Verified Settlement!** A $${targetAmountUsd} USDC payment was just made on the GOAT Network via PayMate.\n[View Transaction](https://explorer.goat.network/tx/${txHash})\n\n📜 **IPFS Permanent Receipt:** \`ipfs://${receiptHash}\``,
+          content: `🎉 **Verified Settlement!** A $${targetAmountUsd} USDC payment was just made on the GOAT Network via PayMate.\n[View Transaction](https://explorer.goat.network/tx/${txHash})\n\n📜 **Settlement Receipt:** \`${receiptHash}\` (verified against the on-chain transaction above)`,
         })
       })
     } catch (e) {

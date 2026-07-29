@@ -1,12 +1,36 @@
 import { createInvoice, getChatState, saveChatState } from "@/lib/db";
 import { getAddress } from "viem";
 import { NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "crypto";
 
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN || "";
 
+function isValidSlackSignature(rawBody: string, timestamp: string | null, signature: string | null, secret: string): boolean {
+  if (!timestamp || !signature) return false;
+  // Reject requests older than 5 minutes to prevent replay attacks
+  if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 60 * 5) return false;
+  const base = `v0:${timestamp}:${rawBody}`;
+  const expected = "v0=" + createHmac("sha256", secret).update(base).digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(signature);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    // SECURITY (audit fix H-3): verify Slack's request signature so this
+    // endpoint can't be spoofed to create fake invoices.
+    const signingSecret = process.env.SLACK_SIGNING_SECRET;
+    const rawBody = await request.text();
+    if (!signingSecret) {
+      console.error("[slack/events] SLACK_SIGNING_SECRET is not configured. Refusing request.");
+      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+    }
+    if (!isValidSlackSignature(rawBody, request.headers.get("x-slack-request-timestamp"), request.headers.get("x-slack-signature"), signingSecret)) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+    const body = JSON.parse(rawBody);
 
     // 1. Handle Slack URL Verification Challenge
     if (body.type === "url_verification") {
