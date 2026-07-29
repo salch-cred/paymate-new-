@@ -1,26 +1,35 @@
 import { createInvoice } from "@/lib/db";
 import { autonomousAgentPay } from "@/lib/agent";
 import { getAddress, isAddress } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { verifyInvoiceSignature } from "@/lib/eip712";
+import { checkAndConsumeIntentBudget } from "@/lib/rateLimit";
 
-const DOMAIN = {
-  name: "PayMate",
-  version: "1",
-  chainId: 48816,
-  verifyingContract: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-};
-
-const INVOICE_TYPES = {
-  Invoice: [
-    { name: "freelancer", type: "address" },
-    { name: "client", type: "address" },
-    { name: "amountUsd", type: "uint256" },
-  ],
-};
+// SECURITY NOTE (fixed 2026-07-29 audit finding C-1 / C-2):
+// This endpoint used to (a) accept requests with zero authentication, and
+// (b) forge a valid "client" EIP-712 signature server-side using a hardcoded
+// private key, then immediately auto-pay real USDC to an attacker-supplied
+// address. Both of those are removed below:
+//   - A shared secret is now required from the calling platform (ClawUp).
+//   - The client must supply their OWN real EIP-712 signature over the
+//     invoice; we verify it against `client`, never fabricate one.
+//   - A global rolling-window payout budget caps total autonomous spend,
+//     independent of the existing per-invoice MAX_AUTO_PAY in lib/agent.ts.
 
 // Adapter for ClawUp Platform Intents
 export async function POST(request: Request) {
   try {
+    // 1. Require a shared secret from the calling platform. Never process
+    // an unauthenticated request that can trigger a real fund transfer.
+    const sharedSecret = process.env.CLAWUP_SHARED_SECRET;
+    if (!sharedSecret) {
+      console.error("[clawup/intent] CLAWUP_SHARED_SECRET is not configured. Refusing to run.");
+      return Response.json({ detail: "Server misconfigured" }, { status: 500 });
+    }
+    const authHeader = request.headers.get("authorization");
+    if (authHeader !== `Bearer ${sharedSecret}`) {
+      return Response.json({ detail: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json().catch(() => null);
     if (!body || !body.intent) {
       return Response.json({ detail: "Must provide a ClawUp intent" }, { status: 400 });
@@ -28,41 +37,50 @@ export async function POST(request: Request) {
 
     // ClawUp Intent handling
     if (body.intent === "create_and_pay_invoice") {
-      const { freelancer, client, amountUsd } = body.payload;
-      
+      const { freelancer, client, amountUsd, signature } = body.payload;
+
       if (!isAddress(freelancer) || !isAddress(client)) {
          return Response.json({ detail: "Invalid addresses" }, { status: 400 });
       }
+      if (!signature) {
+        return Response.json({ detail: "Missing client EIP-712 signature. The client must sign the invoice themselves; PayMate never signs on a client's behalf." }, { status: 400 });
+      }
 
-      // Generate a real EIP-712 signature for the demo
-      // In production, the ClawUp agent passes this in the payload after client signs
-      const dummyKey = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a";
-      const dummyClient = privateKeyToAccount(dummyKey);
+      // 2. Verify the CLIENT (payer) actually authorized this specific
+      // payment. This is the authorization check that was missing before —
+      // previously the code checked the freelancer's (payee's) signature,
+      // which the attacker could always self-satisfy.
+      const isValid = await verifyInvoiceSignature(
+        getAddress(freelancer),
+        getAddress(client),
+        Number(amountUsd),
+        signature as `0x${string}`,
+        getAddress(client) // expected signer is the PAYER, not the payee
+      );
+      if (!isValid) {
+        return Response.json({ detail: "Invalid or missing client authorization signature" }, { status: 401 });
+      }
 
-      const signature = await dummyClient.signTypedData({
-        domain: DOMAIN,
-        types: INVOICE_TYPES,
-        primaryType: "Invoice",
-        message: {
-          freelancer: getAddress(freelancer),
-          client: dummyClient.address,
-          amountUsd: BigInt(Math.round(Number(amountUsd))),
-        }
-      });
+      // 3. Global payout budget check (independent of the per-invoice cap
+      // already enforced inside autonomousAgentPay).
+      const budgetOk = await checkAndConsumeIntentBudget(Number(amountUsd));
+      if (!budgetOk) {
+        return Response.json({ detail: "Autonomous payout budget exceeded for this window. Manual review required." }, { status: 429 });
+      }
 
-      // 1. Create Invoice with ClawUp flag for the referral multiplier
       const referralCode = process.env.CLAWUP_REFERRAL_ID || "clawup-referral-1.2x";
       const invoice = await createInvoice({
         freelancer: getAddress(freelancer),
-        client: dummyClient.address, // Enforce client is the signer
+        client: getAddress(client),
         title: "ClawUp Automated Gig",
         description: "Task autonomously assigned and executed by ClawUp Network",
         amountUsd: Number(amountUsd),
-        webhookUrl: referralCode, 
+        webhookUrl: referralCode,
         signature
       });
 
-      // 2. Trigger auto-pay
+      // 4. Trigger auto-pay (still subject to the per-invoice MAX_AUTO_PAY
+      // and Sybil-Guard checks in lib/agent.ts)
       const txHash = await autonomousAgentPay(invoice);
 
       return Response.json({

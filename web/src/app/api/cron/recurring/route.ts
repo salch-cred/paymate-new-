@@ -2,11 +2,17 @@ import { getSql, createInvoice } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-  // In production, verify the cron secret
-  // const authHeader = request.headers.get('authorization');
-  // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-  //   return new Response('Unauthorized', { status: 401 });
-  // }
+  // SECURITY: this endpoint mutates the database (creates new invoices) and
+  // MUST be authenticated, otherwise anyone on the internet can spam-generate
+  // duplicate recurring invoices. Require a CRON_SECRET at all times.
+  const authHeader = request.headers.get('authorization');
+  if (!process.env.CRON_SECRET) {
+    console.error("[cron/recurring] CRON_SECRET is not configured. Refusing to run.");
+    return new Response('Server misconfigured: CRON_SECRET not set', { status: 500 });
+  }
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new Response('Unauthorized', { status: 401 });
+  }
 
   try {
     const sql = getSql();

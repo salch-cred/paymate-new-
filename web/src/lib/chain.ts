@@ -62,6 +62,23 @@ export function getPublicClient() {
   return createPublicClient({ chain: goatChain, transport: http(RPC_URL) })
 }
 
+// SECURITY (audit fix C-4): the repo's TestUSDC.sol has a public, unrestricted
+// `faucet()` mint function meant for testnet only. If USDC_TOKEN is ever
+// pointed at that contract (or anything with an open mint function) while
+// running on GOAT mainnet, the "USDC" settled has zero economic value and
+// can be minted infinitely by anyone. Require an explicit operator
+// confirmation before allowing real transfers on mainnet.
+export function assertProductionSafeToken() {
+  const isMainnet = goatChain.id === 2345
+  const confirmed = process.env.USDC_IS_REAL_MAINNET_TOKEN === "true"
+  if (isMainnet && !confirmed) {
+    throw new PaymentError(
+      500,
+      "Refusing to settle on GOAT mainnet: set USDC_IS_REAL_MAINNET_TOKEN=true only after confirming USDC_TOKEN points at the real bridged/Circle USDC contract, not a test token with a public faucet."
+    )
+  }
+}
+
 export function getIssuerAccount() {
   const key = process.env.PRIVATE_KEY
   if (!key || key === "0x...") return null

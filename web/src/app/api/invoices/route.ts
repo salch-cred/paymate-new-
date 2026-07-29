@@ -18,6 +18,14 @@ export async function POST(request: Request) {
   if (!body) return Response.json({ detail: "Invalid request body" }, { status: 422 })
 
   const { freelancer, client, title, description, amountUsd, dueDate, webhookUrl, splits } = body
+
+  // SECURITY (audit fix H-4): the reputation-mint multiplier is granted
+  // based on webhookUrl === "clawup-referral-1.2x". This is a public API —
+  // callers must never be able to self-grant that multiplier by simply
+  // passing the magic string. Only PayMate's own authenticated /api/clawup/
+  // intent route may set this value (server-side, not from request body).
+  const REFERRAL_MULTIPLIER_TAG = "clawup-referral-1.2x"
+  const safeWebhookUrl = webhookUrl === REFERRAL_MULTIPLIER_TAG ? null : webhookUrl
   if (typeof freelancer !== "string" || !isAddress(freelancer) || typeof client !== "string" || !isAddress(client)) {
     return Response.json({ detail: "Invalid wallet address" }, { status: 422 })
   }
@@ -60,7 +68,7 @@ export async function POST(request: Request) {
     description,
     amountUsd: amount,
     dueDate: dueDate || null,
-    webhookUrl: webhookUrl || null,
+    webhookUrl: safeWebhookUrl || null,
     splits: validatedSplits,
   })
   return Response.json({ invoice, payUrl: `/pay/${invoice.id}` }, { status: 201 })
