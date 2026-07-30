@@ -1,6 +1,6 @@
 
 
-import { createWalletClient, http, getAddress } from "viem";
+import { getAddress } from "viem";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
 const API_BASE = process.env.API_BASE || "http://localhost:3000";
@@ -68,14 +68,23 @@ async function simulate() {
     return;
   }
 
-  const { invoice } = await createRes.json() as any;
+  const { invoice } = await createRes.json() as { invoice: { id: string } };
   console.log(`Invoice created! ID: ${invoice.id}`);
 
   // 2. Trigger AI Agent to auto-pay
+  // NOTE (2026-07-30): /api/agent/pay now requires AGENT_PAY_ADMIN_SECRET
+  // (it was previously unauthenticated - see the audit fix in that route).
+  if (!process.env.AGENT_PAY_ADMIN_SECRET) {
+    console.error("Set AGENT_PAY_ADMIN_SECRET in your env to run this demo script.");
+    return;
+  }
   console.log(`2. Triggering AI Agent to settle invoice ${invoice.id}...`);
   const payRes = await fetch(`${API_BASE}/api/agent/pay`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${process.env.AGENT_PAY_ADMIN_SECRET}`,
+    },
     body: JSON.stringify({ invoiceId: invoice.id }),
   });
 
@@ -84,7 +93,7 @@ async function simulate() {
     return;
   }
 
-  const payData = await payRes.json() as any;
+  const payData = await payRes.json() as { agentTxHash: string };
   console.log(`Success! AI Agent settled invoice. TxHash: ${payData.agentTxHash}`);
 }
 

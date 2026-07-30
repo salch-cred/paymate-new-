@@ -84,7 +84,7 @@ export async function POST(req: Request) {
           });
         }
 
-        const detailsOption = body.data.options?.find((opt: any) => opt.name === 'details');
+        const detailsOption = body.data.options?.find((opt: { name: string; value: string }) => opt.name === 'details');
         const prompt = detailsOption ? detailsOption.value : '';
         const encodedPrompt = encodeURIComponent(prompt);
 
