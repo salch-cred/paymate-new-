@@ -116,6 +116,15 @@ async function ready(): Promise<void> {
         rating INTEGER NOT NULL, comment TEXT NOT NULL, invoice_id TEXT,
         created_at BIGINT NOT NULL
       )`
+      await sql`CREATE TABLE IF NOT EXISTS disputes (
+        id TEXT PRIMARY KEY,
+        invoice_id TEXT NOT NULL,
+        complaint TEXT NOT NULL,
+        resolution TEXT,
+        reasoning TEXT,
+        created_at BIGINT NOT NULL
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_disputes_invoice ON disputes(invoice_id, created_at DESC)`
       await sql`CREATE TABLE IF NOT EXISTS chat_states (
         chat_id TEXT PRIMARY KEY,
         address TEXT,
@@ -269,6 +278,78 @@ export async function cancelInvoice(id: string, freelancer: string): Promise<Inv
   `) as unknown as { id: string }[]
   if (updated.length === 0) return null
   return getInvoice(id)
+}
+
+export type DisputeResolution = "PAY_FREELANCER" | "REFUND_CLIENT" | "SPLIT_50_50"
+
+export interface Dispute {
+  id: string
+  invoiceId: string
+  complaint: string
+  resolution: DisputeResolution | null
+  reasoning: string | null
+  createdAt: number
+}
+
+interface DisputeRow {
+  id: string
+  invoice_id: string
+  complaint: string
+  resolution: string | null
+  reasoning: string | null
+  created_at: string
+}
+
+function rowToDispute(row: DisputeRow): Dispute {
+  return {
+    id: row.id,
+    invoiceId: row.invoice_id,
+    complaint: row.complaint,
+    resolution: (row.resolution as DisputeResolution) || null,
+    reasoning: row.reasoning,
+    createdAt: Number(row.created_at),
+  }
+}
+
+/** Raises a dispute and immediately records the AI arbitrator's verdict for it (single round-trip). */
+export async function createDispute(input: {
+  invoiceId: string
+  complaint: string
+  resolution: DisputeResolution
+  reasoning: string
+}): Promise<Dispute> {
+  await ready()
+  const sql = getSql()
+  const dispute: Dispute = {
+    id: crypto.randomUUID(),
+    invoiceId: input.invoiceId,
+    complaint: input.complaint.trim(),
+    resolution: input.resolution,
+    reasoning: input.reasoning,
+    createdAt: Date.now(),
+  }
+  await sql`INSERT INTO disputes VALUES (
+    ${dispute.id}, ${dispute.invoiceId}, ${dispute.complaint},
+    ${dispute.resolution}, ${dispute.reasoning}, ${dispute.createdAt}
+  )`
+  return dispute
+}
+
+export async function listDisputesForInvoice(invoiceId: string, limit = 20): Promise<Dispute[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM disputes WHERE invoice_id = ${invoiceId}
+    ORDER BY created_at ASC LIMIT ${Math.min(limit, 50)}
+  `) as unknown as DisputeRow[]
+  return rows.map(rowToDispute)
+}
+
+export async function countDisputesForInvoice(invoiceId: string): Promise<number> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`SELECT COUNT(*)::int AS n FROM disputes WHERE invoice_id = ${invoiceId}`) as unknown as { n: number }[]
+  return rows[0]?.n || 0
 }
 
 function rowToFeedback(row: FeedbackRow): Feedback {
