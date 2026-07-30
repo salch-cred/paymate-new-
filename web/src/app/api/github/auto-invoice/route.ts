@@ -41,7 +41,7 @@ Output a JSON object with:
     let draft;
     try {
       draft = JSON.parse(aiContent.replace(/```json/g, '').replace(/```/g, '').trim());
-    } catch(e) {
+    } catch {
       draft = { title: "GitHub Bounty", description: `Bounty payout for ${repoUrl}`, amountUsd: 150 };
     }
 

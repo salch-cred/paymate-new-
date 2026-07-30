@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       // Clean up potential markdown formatting if the model still includes it
       const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
       parsed = JSON.parse(cleaned);
-    } catch (e) {
+    } catch {
       console.error("Failed to parse output:", text);
       return Response.json({ error: "Failed to understand the invoice request" }, { status: 400 });
     }

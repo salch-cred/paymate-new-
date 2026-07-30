@@ -1,5 +1,5 @@
 import { createWalletClient, http, getAddress } from "viem"
-import { getPublicClient, goatChain, PaymentError, getIssuerAccount, assertProductionSafeToken } from "./chain"
+import { getPublicClient, goatChain, getIssuerAccount, assertProductionSafeToken } from "./chain"
 import { verifyInvoiceSignature } from "./eip712"
 import { analyzeInvoiceFraud } from "./sybilGuard"
 import type { Invoice } from "./db"

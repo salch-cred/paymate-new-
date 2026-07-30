@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     try {
       const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
       parsed = JSON.parse(cleaned);
-    } catch (e) {
+    } catch {
       return Response.json({ error: "Agent negotiation failed" }, { status: 400 });
     }
 
