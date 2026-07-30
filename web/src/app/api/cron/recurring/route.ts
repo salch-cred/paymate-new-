@@ -29,7 +29,18 @@ export async function GET(request: Request) {
 
     const generated = [];
 
-    for (const row of (rows as any)) {
+    interface RecurringInvoiceRow {
+      freelancer: string
+      client: string
+      title: string
+      description: string
+      amount_usd: number | string
+      webhook_url: string | null
+      splits: string | null
+      recurring: "weekly" | "monthly" | null
+    }
+
+    for (const row of (rows as RecurringInvoiceRow[])) {
       // Check if we already generated a recurring invoice for this one recently
       // To prevent infinite loops in demo, we'd normally check timestamp.
       // For this implementation, we just generate a new pending draft.
