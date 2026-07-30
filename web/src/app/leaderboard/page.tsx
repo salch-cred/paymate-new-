@@ -2,7 +2,8 @@ import { getTopFreelancers } from "@/lib/db"
 import Link from "next/link"
 import { Icon } from "@/components/icons"
 
-export const revalidate = 60 // Revalidate every minute
+export const dynamic = "force-dynamic" // Always fetch fresh leaderboard data per-request;
+// avoids failing `next build`/Vercel builds when DATABASE_URL isn't reachable at build time.
 
 export default async function LeaderboardPage() {
   const topFreelancers = await getTopFreelancers(50)
