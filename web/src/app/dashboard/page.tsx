@@ -15,6 +15,27 @@ import { motion } from "framer-motion"
 type Invoice={id:string;freelancer:string;client:string;title?:string;description:string;amountUsd:number;status:"pending"|"paid"|"cancelled";chain:string;createdAt:string;txHash?:string}
 type Reputation={score:number;jobsCompleted:number;totalEarnedUsd:number}
 
+// Minimal Web Speech API typings (not in the standard TS DOM lib) so we can
+// avoid `any` casts on `window` when wiring up voice dictation below.
+interface SpeechRecognitionResultEvent { results: { [index: number]: { [index: number]: { transcript: string } } } }
+interface SpeechRecognitionInstance {
+  lang: string
+  interimResults: boolean
+  maxAlternatives: number
+  onstart: (() => void) | null
+  onresult: ((event: SpeechRecognitionResultEvent) => void) | null
+  onerror: (() => void) | null
+  onend: (() => void) | null
+  start: () => void
+}
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructor
+    webkitSpeechRecognition?: SpeechRecognitionConstructor
+  }
+}
+
 export default function DashboardPage(){
  const {address,isConnected}=useAccount();const {logout}=usePrivy()
  const {data:ensName}=useEnsName({address:address as `0x${string}`,chainId:mainnet.id})
@@ -23,7 +44,7 @@ export default function DashboardPage(){
  const [splits,setSplits]=useState<{address:string,amountUsd:string}[]>([])
  const [milestones,setMilestones]=useState<{id:string,title:string,amountUsd:string}[]>([])
  const [privacyMode,setPrivacyMode]=useState(false);const [autoYield,setAutoYield]=useState(false)
- const [draftPrompt,setDraftPrompt]=useState("");const [draftMeta,setDraftMeta]=useState<{source:string;confidence:number;paymentTerms?:string}|null>(null)
+ const [draftPrompt,setDraftPrompt]=useState(()=>typeof window!=="undefined"?new URLSearchParams(window.location.search).get("prompt")||"":"");const [draftMeta,setDraftMeta]=useState<{source:string;confidence:number;paymentTerms?:string}|null>(null)
  const [isListening, setIsListening] = useState(false);
  const [formError,setFormError]=useState<string|null>(null);const [copied,setCopied]=useState<string|null>(null)
  const [zkProof,setZkProof]=useState<string|null>(null);const [zkLoading,setZkLoading]=useState(false)
@@ -36,7 +57,7 @@ export default function DashboardPage(){
    const msg = new SpeechSynthesisUtterance("Hi, I am your PayMate AI. What are we invoicing today?");
    
    msg.onend = () => {
-     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
      if (!SpeechRecognition) {
        setIsListening(false);
        return setFormError("Voice AI is not supported in this browser.");
@@ -47,7 +68,7 @@ export default function DashboardPage(){
      recognition.maxAlternatives = 1;
      
      recognition.onstart = () => setIsListening(true);
-     recognition.onresult = (event: any) => {
+     recognition.onresult = (event: SpeechRecognitionResultEvent) => {
        const transcript = event.results[0][0].transcript;
        setDraftPrompt(prev => prev ? prev + " " + transcript : transcript);
        setIsListening(false);
@@ -60,22 +81,24 @@ export default function DashboardPage(){
    synth.speak(msg);
  }
 
+ const draftMutation=useMutation({mutationFn:async(prompt:string)=>{const res=await fetch(`/api/invoices/draft`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});const data=await res.json();if(!res.ok)throw new Error(data.detail||"Draft generation failed");return data.draft},onSuccess:(draft)=>{setTitle(draft.title||"");setDescription(draft.description||draftPrompt);setAmount(draft.amountUsd?String(draft.amountUsd):"");setDueDate(draft.dueDate||"");setDraftMeta({source:draft.source||"ai",confidence:Number(draft.confidence||0),paymentTerms:draft.paymentTerms});setFormError(null)},onError:(e)=>setFormError(e instanceof Error?e.message:"Could not generate draft")})
  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const promptParam = urlParams.get("prompt");
-    if (promptParam && isConnected) {
-      setDraftPrompt(promptParam);
+    // draftPrompt is seeded synchronously from the URL in useState's lazy
+    // initializer above (avoids a setState-in-effect render flash). This
+    // effect only handles side effects: scrolling, cleaning the URL, and
+    // kicking off the AI draft once the wallet is connected.
+    if (draftPrompt && isConnected) {
       document.getElementById('new')?.scrollIntoView({ behavior: 'smooth' });
       window.history.replaceState({}, '', '/dashboard');
-      draftMutation.mutate(promptParam);
+      draftMutation.mutate(draftPrompt);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected]);
 
  const invoicesQuery=useQuery({queryKey:["invoices",address],enabled:isConnected&&!!address,queryFn:async()=>{const res=await fetch(`/api/invoices?freelancer=${address}`);if(!res.ok)throw new Error("Could not reach the PayMate API.");return (await res.json()).invoices as Invoice[]}})
  const reputationQuery=useQuery({queryKey:["reputation",address],enabled:isConnected&&!!address,queryFn:async()=>{const res=await fetch(`/api/reputation/${address}`);if(!res.ok)throw new Error("Could not reach the PayMate API.");return (await res.json()) as Reputation}})
  const invoices=invoicesQuery.data??[];const reputation=reputationQuery.data??null
  const error=formError??((invoicesQuery.isError||reputationQuery.isError)?"Could not reach the PayMate API.":null)
- const draftMutation=useMutation({mutationFn:async(prompt:string)=>{const res=await fetch(`/api/invoices/draft`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});const data=await res.json();if(!res.ok)throw new Error(data.detail||"Draft generation failed");return data.draft},onSuccess:(draft)=>{setTitle(draft.title||"");setDescription(draft.description||draftPrompt);setAmount(draft.amountUsd?String(draft.amountUsd):"");setDueDate(draft.dueDate||"");setDraftMeta({source:draft.source||"ai",confidence:Number(draft.confidence||0),paymentTerms:draft.paymentTerms});setFormError(null)},onError:(e)=>setFormError(e instanceof Error?e.message:"Could not generate draft")})
  const createInvoiceMutation=useMutation({mutationFn:async()=>{const splitsPayload=splits.length>0?splits.map(s=>({address:s.address,amountUsd:Number(s.amountUsd)})):undefined;const msPayload=milestones.length>0?milestones.map(m=>({id:m.id,title:m.title,amountUsd:Number(m.amountUsd),status:"pending"})):undefined;const calculatedAmount=milestones.length>0?milestones.reduce((s,m)=>s+Number(m.amountUsd),0):Number(amount);const res=await fetch(`/api/invoices`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({freelancer:address,client,title,description,amountUsd:calculatedAmount,dueDate:dueDate||null,splits:splitsPayload,milestones:msPayload})});const data=await res.json();if(!res.ok)throw new Error(data.detail||"Invoice creation failed");return {...data.invoice,payUrl:`${location.origin}${data.payUrl}`} as Invoice},onSuccess:(created)=>{queryClient.setQueryData<Invoice[]>(["invoices",address],(prev)=>[created,...(prev??[])]);setClient("");setTitle("");setDescription("");setAmount("");setDueDate("");setSplits([]);setMilestones([]);setFormError(null)},onError:(e)=>setFormError(e instanceof Error?e.message:"Could not create invoice")})
  const cancelInvoiceMutation=useMutation({mutationFn:async(id:string)=>{const res=await fetch(`/api/invoices/${id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"cancelled",freelancer:address})});const data=await res.json();if(!res.ok)throw new Error(data.detail||"Cancel failed");return data},onSuccess:(updated)=>{queryClient.setQueryData<Invoice[]>(["invoices",address],(prev)=>(prev??[]).map(i=>i.id===updated.id?updated:i));},onError:(e)=>setFormError(e instanceof Error?e.message:"Could not cancel invoice")})
  function generateDraft(){if(draftPrompt.trim().length<12)return setFormError("Describe the work, price, and any deadline in a little more detail.");draftMutation.mutate(draftPrompt)}

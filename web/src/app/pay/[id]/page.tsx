@@ -37,7 +37,8 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
    setDisputeLog(newLog);
    setDisputeMsg("");
    try{
-     const res=await fetch("/api/arbitrate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({repo:"salch-cred/paymate-new",prUrl:"https://github.com/salch-cred/paymate-new/pull/42",amountUsd:invoice?.amountUsd,freelancerAddress:invoice?.freelancer,clientAddress:invoice?.client})});
+     const transcript=newLog.map(l=>`${l.role==="user"?"Complainant":"Arbitrator"}: ${l.content}`).join("\n");
+     const res=await fetch("/api/arbitrate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({invoiceId:id,complaint:transcript})});
      const data=await res.json();
      if(!res.ok) throw new Error(data.detail||"Arbitration failed");
      setDisputeLog([...newLog, {role:"ai",content:`Decision: ${data.decision.resolution}\nReason: ${data.decision.reasoning}`}]);
@@ -84,7 +85,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
         {invoice.milestones && invoice.milestones.length > 0 && (
           <div style={{marginBottom:'24px', display:'flex', flexDirection:'column', gap:'12px'}}>
             <div className="payment-label">MILESTONE PAYMENTS</div>
-            {invoice.milestones.map((ms, i) => (
+            {invoice.milestones.map((ms) => (
               <div key={ms.id} style={{padding:'16px', background:'rgba(255,255,255,0.6)', borderRadius:'12px', border:'1px solid var(--line)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                 <div>
                   <div style={{fontSize:'14px', fontWeight:700, color:'var(--ink)', marginBottom:'4px'}}>{ms.title}</div>
@@ -164,7 +165,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
             {showDispute && (
               <div style={{marginTop:'16px', padding:'16px', background:'rgba(255,255,255,0.4)', borderRadius:'12px', border:'1px solid var(--line)'}}>
                 <div style={{fontWeight:800, marginBottom:'12px', display:'flex', alignItems:'center', gap:'6px'}}><Icon name="spark" size={14}/> Mistral Escrow Arbitrator</div>
-                <div style={{fontSize:'12px', color:'var(--muted)', marginBottom:'12px'}}>Our AI agent will review the GitHub repository history and make a binding decision on this payment.</div>
+                <div style={{fontSize:'12px', color:'var(--muted)', marginBottom:'12px'}}>Our AI agent will review the agreed scope of work and your dispute, then render a binding decision on this payment.</div>
                 
                 <div style={{display:'flex',flexDirection:'column',gap:'8px',marginBottom:'12px',maxHeight:'200px',overflowY:'auto'}}>
                   {disputeLog.map((log,i)=>(
@@ -180,6 +181,12 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {paid && (
+          <div style={{marginTop:'24px', borderTop:'1px solid var(--line)', paddingTop:'24px'}}>
+            <FeedbackForm role="client" invoiceId={invoice.id} />
           </div>
         )}
 
