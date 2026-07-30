@@ -55,7 +55,14 @@ Return a JSON object with the UPDATED information:
   "reply": "<Your natural text reply to the user. If ready is false, ask for missing details or answer their question. If ready is true, leave this null.>"
 }`;
 
-    const requestBody: any = {
+    interface MistralRequestBody {
+      response_format: { type: string }
+      messages: { role: string; content: string }[]
+      agent_id?: string
+      model?: string
+      temperature?: number
+    }
+    const requestBody: MistralRequestBody = {
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: aiPrompt },
@@ -85,7 +92,7 @@ Return a JSON object with the UPDATED information:
       let result;
       try {
         result = JSON.parse(aiContent);
-      } catch(e) {
+      } catch {
         result = JSON.parse(aiContent.replace(/```json/g, '').replace(/```/g, '').trim());
       }
       
