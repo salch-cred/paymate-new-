@@ -127,7 +127,12 @@ export async function getReputationData(freelancer: string) {
 }
 
 export function paymentRequirements(invoice: Invoice, milestoneId?: string) {
-  const usdcToken = process.env.USDC_TOKEN || "0x98bbd436cd9320e6f30444ddfc6390141f23899f" // Fallback to a dummy token for testing if not set
+  // SECURITY (2026-07-30, mainnet audit): this used to silently fall back to
+  // a hardcoded dummy token address ("0x98bb...") if USDC_TOKEN wasn't set.
+  // On mainnet that is a real-money hazard: a missing/misconfigured env var
+  // would silently generate live payment requests against an arbitrary
+  // address instead of failing loudly. Fail closed instead.
+  const usdcToken = process.env.USDC_TOKEN
   if (!usdcToken || !isAddress(usdcToken)) {
     throw new PaymentError(503, "USDC_TOKEN is not configured on the API")
   }
@@ -177,7 +182,13 @@ export function paymentRequirements(invoice: Invoice, milestoneId?: string) {
 
 export async function verifyTransfer(txHashes: string | string[], invoice: Invoice, milestoneId?: string) {
   const publicClient = getPublicClient()
-  const usdcToken = process.env.USDC_TOKEN || "0x98bbd436cd9320e6f30444ddfc6390141f23899f"
+  // SECURITY (2026-07-30, mainnet audit): same dummy-token fallback hazard
+  // as paymentRequirements() above - fail closed instead of silently
+  // verifying transfers against an arbitrary fallback address.
+  const usdcToken = process.env.USDC_TOKEN
+  if (!usdcToken || !isAddress(usdcToken)) {
+    throw new PaymentError(503, "USDC_TOKEN is not configured on the API")
+  }
   const decimals = Number(process.env.USDC_DECIMALS || "6")
   
   const hashes = Array.isArray(txHashes) ? txHashes : txHashes.split(",").map(h => h.trim())
