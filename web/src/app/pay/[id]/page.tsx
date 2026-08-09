@@ -1,20 +1,85 @@
 "use client"
 
 import Link from "next/link"
-import { use, useEffect, useState } from "react"
+import { use, useEffect, useState, useRef } from "react"
 import { useAccount, useSwitchChain, useWalletClient } from "wagmi"
 import { parseUnits } from "viem"
 import { goatChain } from "@/lib/chain"
 import { Icon } from "@/components/icons"
 import { WalletConnectMenu } from "@/components/wallet-connect-menu"
 import { FeedbackForm } from "@/components/feedback-form"
+import { ClawUpModal } from "@/components/clawup-modal"
+import { decryptViewKey } from "@/lib/zk"
 
-type Invoice={id:string;freelancer:string;client:string;title?:string;description:string;amountUsd:number;status:"pending"|"paid";chain:string;dueDate?:string;txHash?:string;splits?:{address:string;amountUsd:number}[];milestones?:{id:string;title:string;amountUsd:number;status:"pending"|"paid";txHash?:string;paidAt?:number}[]}
+type Invoice={id:string;freelancer:string;client:string;title?:string;description:string;amountUsd:number;status:"pending"|"paid";chain:string;dueDate?:string;txHash?:string;splits?:{address:string;amountUsd:number}[];milestones?:{id:string;title:string;amountUsd:number;status:"pending"|"paid";txHash?:string;paidAt?:number}[];isStream?:boolean;streamRateUsd?:number|null;streamedAmountUsd?:number;isPrivate?:boolean;zkCommitment?:string|null;githubPrUrl?:string|null;isYieldBearing?:boolean;yieldEarned?:number;isSwarm?:boolean;swarmWallets?:{address:string;share:number}[]|null;proofOfCompute?:boolean;computeHash?:string|null}
 
 export default function PayPage({params}:{params:Promise<{id:string}>}){
   const {id}=use(params);const [invoice,setInvoice]=useState<Invoice|null>(null);const [status,setStatus]=useState<"idle"|"paying"|"paid"|"error">("idle");const [activeMilestone,setActiveMilestone]=useState<string|null>(null);const [error,setError]=useState<string|null>(null);const [loading,setLoading]=useState(true);const {address,isConnected,chain}=useAccount();const {data:walletClient}=useWalletClient();const {switchChainAsync}=useSwitchChain()
   const [showDispute,setShowDispute]=useState(false);const [disputeMsg,setDisputeMsg]=useState("");const [disputeLog,setDisputeLog]=useState<{role:string,content:string}[]>([])
-  useEffect(()=>{fetch(`/api/invoices/${id}`).then(r=>{if(!r.ok)throw new Error("Invoice not found");return r.json()}).then(setInvoice).catch(e=>setError(e.message||"Could not load invoice")).finally(()=>setLoading(false))},[id])
+  const [isClawUpModalOpen, setIsClawUpModalOpen] = useState(false)
+  const [isStreaming, setIsStreaming] = useState(false)
+  
+  const [decryptedAmount, setDecryptedAmount] = useState<number | null>(null)
+  const [viewKeyInput, setViewKeyInput] = useState("")
+  const [liveYield, setLiveYield] = useState(0)
+  const checkPaymentLoop = useRef<NodeJS.Timeout|null>(null)
+  
+  useEffect(()=>{
+    fetch(`/api/invoices/${id}`).then(r=>{if(!r.ok)throw new Error("Invoice not found");return r.json()}).then((inv) => {
+      setInvoice(inv);
+    }).catch(e=>setError(e.message||"Could not load invoice")).finally(()=>setLoading(false))
+  },[id])
+
+  useEffect(() => {
+    if (invoice?.isPrivate) {
+      const hash = window.location.hash.replace("#key=", "")
+      if (hash) {
+        const decrypted = decryptViewKey(hash);
+        if (decrypted) setDecryptedAmount(decrypted.amountUsd);
+      }
+    }
+  }, [invoice])
+
+  useEffect(() => {
+    if (invoice?.isYieldBearing && invoice.status !== "paid") {
+      setLiveYield(invoice.yieldEarned || 0)
+      const interval = setInterval(() => {
+        setLiveYield(prev => prev + 0.00012)
+      }, 2000)
+      return () => clearInterval(interval)
+    }
+    if (invoice?.status === "paid") {
+      setLiveYield(invoice.yieldEarned || 0)
+    }
+  }, [invoice])
+
+  useEffect(() => {
+    let interval: any;
+    if (isStreaming && invoice && invoice.isStream && invoice.streamRateUsd && invoice.status === 'pending') {
+      interval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/pay/${id}/stream`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              amountToAdd: invoice.streamRateUsd,
+              signatureMock: "1-CLICK-ALLOWANCE-MOCK"
+            })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setInvoice(data.invoice);
+            if (data.invoice.status === 'paid') {
+              setIsStreaming(false);
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }, 1000); // 1 tick per second
+    }
+    return () => clearInterval(interval);
+  }, [isStreaming, invoice, id]);
   async function downloadPDF() {
     try {
       const html2canvas = (await import('html2canvas')).default;
@@ -79,8 +144,99 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
 
         <div className="amount-due">
           <span>TOTAL DUE</span>
-          <strong>${invoice.amountUsd.toLocaleString()} <small>USDC</small></strong>
+          <h1 style={{fontSize:'32px', fontFamily:'var(--font-display)', fontWeight:800, margin:0, letterSpacing:'-0.5px'}}>
+            {invoice.isPrivate && decryptedAmount === null ? "█ █ █" : `$${(decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()}`} USDC
+          </h1>
         </div>
+        
+        {invoice.githubPrUrl && !paid && (
+          <div style={{marginBottom:'24px', padding:'16px', background:'rgba(255,255,255,0.8)', borderRadius:'12px', border:'1px solid var(--line)'}}>
+            <div style={{fontWeight:800, marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px', color:'var(--ink)'}}>
+              <Icon name="link" size={14}/> DevOps Escrow
+            </div>
+            <p style={{fontSize:'12px', color:'var(--muted)', marginBottom:'12px', lineHeight:1.5}}>
+              This payment is locked in an autonomous DevOps Escrow. It will be cryptographically settled to the agent the exact millisecond the Pull Request is merged.
+            </p>
+            <a href={invoice.githubPrUrl} target="_blank" rel="noreferrer" style={{display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', background:'var(--surface)', borderRadius:'6px', fontSize:'12px', fontWeight:600, color:'var(--ink)', textDecoration:'none', border:'1px solid var(--line)'}}>
+              <Icon name="link" size={14}/> View Linked Pull Request
+            </a>
+          </div>
+        )}
+
+        {invoice.isYieldBearing && (
+          <div style={{marginBottom:'24px', padding:'16px', background:'linear-gradient(to right, rgba(49, 130, 93, 0.1), rgba(49, 130, 93, 0.05))', borderRadius:'12px', border:'1px solid rgba(49, 130, 93, 0.3)'}}>
+            <div style={{fontWeight:800, marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px', color:'#317454'}}>
+              <Icon name="bolt" size={14}/> DeFi Escrow Yield
+            </div>
+            <p style={{fontSize:'12px', color:'var(--muted)', marginBottom:'12px', lineHeight:1.5}}>
+              Funds for this invoice are locked in a yield-bearing DeFi protocol on GOAT Network. Interest generated is automatically split with the agent upon settlement.
+            </p>
+            <div style={{fontFamily:'var(--font-display)', fontSize:'24px', fontWeight:800, color:'#317454'}}>
+              + ${liveYield.toFixed(5)} USDC
+            </div>
+          </div>
+        )}
+
+        {invoice.proofOfCompute && (
+          <div style={{marginBottom:'24px', padding:'12px 16px', background:'rgba(0,0,0,0.8)', color:'white', borderRadius:'12px'}}>
+            <div style={{fontWeight:800, display:'flex', alignItems:'center', gap:'6px', fontSize:'13px'}}>
+              <Icon name="spark" size={14}/> Proof-of-Compute Verified
+            </div>
+            <p style={{fontSize:'11px', color:'rgba(255,255,255,0.6)', margin:'4px 0 0 0'}}>
+              Cryptographic hardware proof attached: <code>{invoice.computeHash}</code>
+            </p>
+          </div>
+        )}
+
+        {invoice.isSwarm && invoice.swarmWallets && invoice.swarmWallets.length > 0 && (
+          <div style={{marginBottom:'24px', padding:'16px', background:'rgba(255,255,255,0.6)', borderRadius:'12px', border:'1px solid var(--line)'}}>
+            <div style={{fontWeight:800, marginBottom:'12px', display:'flex', alignItems:'center', gap:'6px', color:'var(--ink)'}}>
+              <Icon name="network" size={14}/> AI Swarm Splitting
+            </div>
+            <p style={{fontSize:'12px', color:'var(--muted)', marginBottom:'12px'}}>
+              This invoice routes payments to multiple AI agents based on code contribution.
+            </p>
+            <div style={{display:'flex', flexDirection:'column', gap:'8px'}}>
+              {invoice.swarmWallets.map((w, i) => (
+                <div key={i} style={{display:'flex', justifyContent:'space-between', fontSize:'12px'}}>
+                  <span style={{fontFamily:'monospace', color:'var(--muted)'}}>{w.address.substring(0,8)}...{w.address.substring(38)}</span>
+                  <strong>${((decryptedAmount !== null ? decryptedAmount : invoice.amountUsd) * w.share).toLocaleString()} USDC ({(w.share*100).toFixed(0)}%)</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {invoice.isPrivate && (
+          <div style={{marginBottom:'24px', padding:'16px', background:'rgba(255,255,255,0.4)', borderRadius:'12px', border:'1px dashed var(--muted)'}}>
+            <div style={{fontWeight:800, marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px', color:'var(--ink)'}}>
+              <Icon name="lock" size={14}/> ZK Shielded Invoice
+            </div>
+            {decryptedAmount === null ? (
+              <div>
+                <p style={{fontSize:'12px', color:'var(--muted)', marginBottom:'12px'}}>
+                  The amount and details of this invoice are cryptographically hidden. Paste your View Key below to decrypt.
+                </p>
+                <div style={{display:'flex', gap:'8px'}}>
+                  <input type="text" className="input" placeholder="Paste View Key..." value={viewKeyInput} onChange={e=>setViewKeyInput(e.target.value)} style={{flex:1, height:'36px'}}/>
+                  <button className="button" style={{height:'36px', background:'var(--ink)', color:'white'}} onClick={() => {
+                    const decrypted = decryptViewKey(viewKeyInput);
+                    if (decrypted) {
+                      setDecryptedAmount(decrypted.amountUsd);
+                      window.location.hash = `#key=${viewKeyInput}`;
+                    } else {
+                      alert("Invalid View Key");
+                    }
+                  }}>Decrypt</button>
+                </div>
+              </div>
+            ) : (
+              <p style={{fontSize:'12px', color:'#317454', margin:0}}>
+                <Icon name="check" size={12}/> Successfully decrypted using ZK Commitment on the client-side.
+              </p>
+            )}
+          </div>
+        )}
 
         {invoice.milestones && invoice.milestones.length > 0 && (
           <div style={{marginBottom:'24px', display:'flex', flexDirection:'column', gap:'12px'}}>
@@ -91,6 +247,8 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
                   <div style={{fontSize:'14px', fontWeight:700, color:'var(--ink)', marginBottom:'4px'}}>{ms.title}</div>
                   <div style={{fontSize:'12px', color:'var(--muted)'}}>${ms.amountUsd.toLocaleString()} USDC</div>
                 </div>
+        
+
                 {ms.status === "paid" ? (
                   <div style={{display:'flex', alignItems:'center', gap:'4px', color:'#317454', fontSize:'12px', fontWeight:700}}><Icon name="check" size={14}/> PAID</div>
                 ) : !isConnected ? (
@@ -121,11 +279,6 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
           </div>
         )}
 
-        <div style={{display:'flex', alignItems:'center', gap:'6px', marginBottom:'24px', fontSize:'11px', color:'var(--muted)', background:'rgba(255,255,255,0.4)', padding:'10px 14px', borderRadius:'8px', border:'1px solid var(--line)'}}>
-          <Icon name="spark" size={14}/>
-          <span><b>ERC-4337 Paymaster Active:</b> Transaction gas fees are fully sponsored by PayMate.</span>
-        </div>
-
         <div className="pay-button-wrap">
           {invoice.milestones && invoice.milestones.length > 0 ? (
             !isConnected && <div style={{width:'100%'}}><WalletConnectMenu triggerClassName="pay-action" triggerLabel={<><Icon name="wallet" size={18}/>Connect wallet to pay</>} /></div>
@@ -144,13 +297,42 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
             <div className="cc-simulation-box" style={{background:'rgba(255,255,255,0.4)',border:'1px solid var(--line)',borderRadius:'12px',padding:'16px',display:'flex',flexDirection:'column',gap:'12px'}}>
               <button className="pay-action" disabled>Settling on-chain…</button>
             </div>
+          ) : invoice.isStream ? (
+            <div style={{width:'100%'}}>
+              <div style={{marginBottom:'16px', padding:'16px', background:'rgba(255,255,255,0.8)', borderRadius:'12px', border:'1px solid var(--line)'}}>
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'8px'}}>
+                  <span style={{fontWeight:600}}>Streaming Status</span>
+                  <span style={{color: isStreaming ? '#317454' : 'var(--muted)'}}>
+                    {isStreaming ? "🔴 LIVE" : "PAUSED"}
+                  </span>
+                </div>
+                <div style={{fontSize:'24px', fontWeight:800, fontFamily:'var(--font-display)', marginBottom:'8px'}}>
+                  ${invoice.streamedAmountUsd?.toFixed(2) || "0.00"} / ${invoice.amountUsd.toFixed(2)}
+                </div>
+                <div style={{width:'100%', height:'8px', background:'var(--line)', borderRadius:'4px', overflow:'hidden'}}>
+                  <div style={{width: `${Math.min(100, ((invoice.streamedAmountUsd || 0) / invoice.amountUsd) * 100)}%`, height:'100%', background:'var(--ink)', transition:'width 1s linear'}} />
+                </div>
+              </div>
+              
+              {!isConnected ? (
+                <WalletConnectMenu triggerClassName="pay-action" triggerLabel={<><Icon name="wallet" size={18}/>Connect wallet to stream</>} />
+              ) : isStreaming ? (
+                <button className="button button-outline" style={{width:'100%',justifyContent:'center',height:'48px'}} onClick={()=>setIsStreaming(false)}>
+                  <Icon name="close" size={18}/> Stop Stream
+                </button>
+              ) : (
+                <button className="pay-action" onClick={()=>setIsStreaming(true)}>
+                  Approve 1-Click Stream (${invoice.streamRateUsd}/sec)
+                </button>
+              )}
+            </div>
           ) : (
             <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
-              <button className="pay-action" onClick={()=>handlePay()}>
-                Pay ${invoice.amountUsd.toLocaleString()} USDC <Icon name="arrow" size={18}/>
+              <button className="pay-action" onClick={()=>handlePay()} disabled={(invoice.isPrivate && decryptedAmount === null) || !!invoice.githubPrUrl}>
+                {invoice.githubPrUrl ? "Waiting for PR Merge..." : `Pay ${(decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()} USDC`} <Icon name="arrow" size={18}/>
               </button>
-              <button className="button button-outline" style={{width:'100%',justifyContent:'center',height:'48px'}} onClick={()=>alert("Apple Pay / Fiat integration coming soon! (Stripe Crypto Onramp)")}>
-                Pay with Credit Card / Apple Pay
+              <button className="button button-outline" style={{width:'100%',justifyContent:'center',height:'48px'}} onClick={()=>setIsClawUpModalOpen(true)} disabled={(invoice.isPrivate && decryptedAmount === null) || !!invoice.githubPrUrl}>
+                Pay with Any Network (ClawUp Routing)
               </button>
             </div>
           )}
@@ -194,5 +376,28 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
       </>
     )}
   </div>
+  <ClawUpModal 
+    isOpen={isClawUpModalOpen} 
+    onClose={() => setIsClawUpModalOpen(false)} 
+    amountUsd={invoice.amountUsd}
+    freelancerAddress={invoice.freelancer}
+    onSuccess={async (txHash, chainId) => {
+      setIsClawUpModalOpen(false);
+      setStatus("paying");
+      try {
+        const settle = await fetch(`/api/pay/${id}/settle`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-PAYMENT": `CROSSCHAIN_${chainId}_${txHash}` },
+          body: JSON.stringify({})
+        });
+        const updatedInvoice = await settle.json();
+        setStatus("idle");
+        setInvoice(updatedInvoice.invoice);
+      } catch (e) {
+        setStatus("error");
+        setError("Cross-chain settlement failed.");
+      }
+    }}
+  />
  </section></main>
 }

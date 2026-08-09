@@ -1,0 +1,39 @@
+{
+  "name": "paymate_billing",
+  "version": "1.0.0",
+  "description": "PayMate Billing Engine - allows AI agents to instantly generate cryptographic, non-custodial invoices settled on the GOAT Network.",
+  "author": "PayMate Team",
+  "tools": [
+    {
+      "name": "generate_invoice",
+      "description": "Generate a professional invoice for a client and return a verifiable payment link.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The title of the service or product provided."
+          },
+          "description": {
+            "type": "string",
+            "description": "A detailed breakdown of the deliverables."
+          },
+          "amountUsd": {
+            "type": "number",
+            "description": "The total amount due in USDC."
+          },
+          "freelancerWallet": {
+            "type": "string",
+            "description": "The crypto wallet address (0x...) of the agent or freelancer receiving the funds."
+          },
+          "clientWallet": {
+            "type": "string",
+            "description": "The crypto wallet address (0x...) of the client paying the invoice. If unknown, use '0x0000000000000000000000000000000000000000'."
+          }
+        },
+        "required": ["title", "description", "amountUsd", "freelancerWallet"]
+      },
+      "endpoint": "https://www.paymateagent.xyz/api/agent/paymate-skill"
+    }
+  ]
+}

@@ -3,10 +3,10 @@
 import { usePrivy } from "@privy-io/react-auth"
 
 export function WalletConnectMenu({ triggerClassName, triggerLabel }: { triggerClassName: string; triggerLabel: React.ReactNode }) {
-  const { login } = usePrivy()
+  const { connectWallet, ready } = usePrivy()
 
   return (
-    <button type="button" className={triggerClassName} onClick={() => login()}>
+    <button type="button" disabled={!ready} className={triggerClassName} onClick={() => connectWallet()}>
       {triggerLabel}
     </button>
   )

@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/TextPlugin.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html, body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #171813;
+        font-family: "Noto Sans", sans-serif;
+        color: #f5f3ed;
+      }
+      .clip {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        opacity: 0;
+      }
+      .display-font {
+        font-family: 'Trebuchet MS', sans-serif;
+      }
+      
+      /* Scene 1 */
+      #scene-1 {
+        background: radial-gradient(circle at center, #2a2b25 0%, #171813 100%);
+      }
+      #hook-text {
+        font-size: 110px;
+        font-weight: bold;
+        text-align: center;
+        color: #f5f3ed;
+      }
+      #hook-text span.orange {
+        color: #ff5b2e;
+      }
+
+      /* Scene 2 */
+      #scene-2 {
+        background: #f5f3ed;
+        color: #171813;
+      }
+      .prompt-card {
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 20px;
+        padding: 40px;
+        width: 1000px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.05);
+        border: 1px solid #ddd;
+        margin-bottom: -150px;
+        z-index: 2;
+        transform: translateY(0);
+      }
+      .prompt-top { color: #ff5b2e; font-weight: bold; font-size: 24px; margin-bottom: 20px; }
+      #prompt-typing {
+        font-size: 36px;
+        line-height: 1.5;
+        min-height: 150px;
+      }
+      .invoice-preview {
+        background: #fff;
+        border-radius: 20px;
+        padding: 50px;
+        width: 1100px;
+        box-shadow: 0 30px 60px rgba(0,0,0,0.1);
+        border: 1px solid #eee;
+        z-index: 1;
+        opacity: 0;
+      }
+      .inv-header { display: flex; justify-content: space-between; font-size: 32px; font-weight: bold; margin-bottom: 30px; }
+      .inv-amount { background: #f3f0e9; padding: 40px; border-radius: 16px; margin-bottom: 30px; text-align: center; }
+      .inv-amount b { font-size: 72px; color: #171813; }
+      
+      /* Scene 3 */
+      #scene-3 {
+        background: #171813;
+      }
+      .console {
+        background: rgba(255,255,255,0.05);
+        border-radius: 24px;
+        padding: 60px;
+        width: 1200px;
+        border: 1px solid rgba(255,255,255,0.1);
+      }
+      .console-title { font-size: 24px; letter-spacing: 0.1em; color: #888; margin-bottom: 40px; }
+      .trace-row {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+        padding: 30px;
+        border-radius: 16px;
+        background: rgba(255,255,255,0.05);
+        margin-bottom: 20px;
+        opacity: 0;
+      }
+      .trace-row.active { background: #e3f4e9; color: #171813; }
+      .trace-row b { font-size: 32px; }
+      
+      /* Scene 4 */
+      #scene-4 {
+        background: #f5f3ed;
+        color: #171813;
+      }
+      #logo-text {
+        font-size: 150px;
+        font-weight: bold;
+        letter-spacing: -0.05em;
+        margin-bottom: 20px;
+      }
+      #punchline {
+        font-size: 54px;
+        color: #ff5b2e;
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="20" data-width="1920" data-height="1080">
+      
+      <!-- Scene 1: Hook -->
+      <div id="scene-1" class="clip" data-start="0" data-duration="4" data-track-index="1">
+        <div id="hook-text" class="display-font"></div>
+      </div>
+
+      <!-- Scene 2: Draft -->
+      <div id="scene-2" class="clip" data-start="4" data-duration="5" data-track-index="1">
+        <div class="prompt-card" id="prompt-card">
+          <div class="prompt-top">Invoice composer</div>
+          <div id="prompt-typing"></div>
+        </div>
+        <div class="invoice-preview" id="invoice-preview">
+          <div class="inv-header">
+            <div>Brand strategy sprint</div>
+            <div style="color: #3b9368;">Ready</div>
+          </div>
+          <div class="inv-amount">
+            <div style="font-size: 24px; color: #888;">AMOUNT DUE</div>
+            <b class="display-font">$2,480.00</b>
+            <div style="color: #666; margin-top: 10px;">USDC · GOAT Network</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scene 3: Trace -->
+      <div id="scene-3" class="clip" data-start="9" data-duration="7" data-track-index="1">
+        <div class="console">
+          <div class="console-title">LIVE SETTLEMENT TRACE</div>
+          <div class="trace-row" id="trace-1">
+            <div style="color: #ff5b2e; font-weight: bold; font-size: 28px;">01</div>
+            <div>
+              <b>Invoice created</b><br/>
+              <span style="color: #aaa; font-size: 20px;">2,480.00 USDC</span>
+            </div>
+          </div>
+          <div class="trace-row" id="trace-2">
+            <div style="color: #ff5b2e; font-weight: bold; font-size: 28px;">02</div>
+            <div>
+              <b>Transfer submitted</b><br/>
+              <span style="color: #aaa; font-size: 20px;">0x8f2a…e19c</span>
+            </div>
+          </div>
+          <div class="trace-row active" id="trace-3">
+            <div style="color: #2b7854; font-weight: bold; font-size: 28px;">03</div>
+            <div>
+              <b>Settlement verified</b><br/>
+              <span style="color: #666; font-size: 20px;">Token · recipient · amount</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scene 4: Outro -->
+      <div id="scene-4" class="clip" data-start="16" data-duration="4" data-track-index="1">
+        <div id="logo-text" class="display-font">PayMate</div>
+        <div id="punchline">From done to paid.</div>
+      </div>
+
+    </div>
+
+    <script>
+      gsap.registerPlugin(TextPlugin);
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // Scene 1
+      tl.set("#scene-1", { opacity: 1 }, 0);
+      tl.to("#hook-text", { duration: 2, text: "Get paid.<br/><span class='orange'>Keep the proof.</span>", ease: "none" }, 0.5);
+      tl.to("#scene-1", { opacity: 0, duration: 0.5 }, 3.5);
+
+      // Scene 2
+      tl.set("#scene-2", { opacity: 1 }, 4);
+      tl.from("#prompt-card", { y: 100, opacity: 0, duration: 0.8, ease: "power3.out" }, 4);
+      tl.to("#prompt-typing", { duration: 1.5, text: "Brand strategy and launch system for Northstar, including two workshops and final asset handoff...", ease: "none" }, 4.8);
+      tl.to("#prompt-card", { y: -200, duration: 0.8, ease: "power3.inOut" }, 6.8);
+      tl.fromTo("#invoice-preview", { y: 200, opacity: 0 }, { y: -50, opacity: 1, duration: 0.8, ease: "power3.inOut" }, 6.8);
+      tl.to("#scene-2", { opacity: 0, duration: 0.5 }, 8.5);
+
+      // Scene 3
+      tl.set("#scene-3", { opacity: 1 }, 9);
+      tl.from(".console", { scale: 0.95, opacity: 0, duration: 0.8, ease: "power2.out" }, 9);
+      tl.fromTo("#trace-1", { x: -50, opacity: 0 }, { x: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 10.0);
+      tl.fromTo("#trace-2", { x: -50, opacity: 0 }, { x: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 11.5);
+      tl.fromTo("#trace-3", { x: -50, opacity: 0 }, { x: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 13.0);
+      tl.to("#scene-3", { opacity: 0, duration: 0.5 }, 15.5);
+
+      // Scene 4
+      tl.set("#scene-4", { opacity: 1 }, 16);
+      tl.from("#logo-text", { scale: 0.9, opacity: 0, duration: 1, ease: "power3.out" }, 16);
+      tl.to("#punchline", { opacity: 1, y: -20, duration: 0.8, ease: "power2.out" }, 17);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

@@ -18,9 +18,11 @@ export async function POST(request: Request) {
     3. title (short string)
     4. description (longer string)
     5. amountUsd (number)
+    6. isStream (boolean - set true if the prompt mentions "per second", "stream", "streaming", "per token", etc.)
+    7. streamRateUsd (number - the amount per tick if isStream is true, e.g. 0.05. null otherwise)
     
     Respond ONLY with a valid JSON object matching this schema. Do not include markdown blocks or any other text.
-    Example: {"freelancer":"0x123...","client":"0x456...","title":"Web Dev","description":"Built a landing page","amountUsd":500}`;
+    Example: {"freelancer":"0x123...","client":"0x456...","title":"Web Dev","description":"Built a landing page","amountUsd":500, "isStream": false, "streamRateUsd": null}`;
 
     const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",

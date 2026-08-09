@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1920, height=1080, initial-scale=1.0" />
+  <title>PayMate Launch (Twitter Edition)</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #317454; /* Heavy Primary Brand Color */
+      color: white;
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    .scene {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      visibility: hidden;
+    }
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 30px;
+      margin-bottom: 20px;
+    }
+    .logo-box {
+      width: 100px;
+      height: 100px;
+      background: #ffffff; /* Inverted logo for contrast */
+      border-radius: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    h1 {
+      font-size: 160px;
+      font-weight: 900;
+      color: #ffffff;
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: -4px;
+      text-align: center;
+    }
+    h2 {
+      font-size: 70px;
+      font-weight: 700;
+      color: #fff;
+      margin-top: 30px;
+      text-align: center;
+    }
+    p.desc {
+      font-size: 40px;
+      color: #d8f3e5;
+      margin-top: 30px;
+      max-width: 1200px;
+      text-align: center;
+      line-height: 1.5;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 30px;
+      margin-top: 80px;
+      width: 90%;
+      max-width: 1600px;
+    }
+    .card {
+      background: rgba(0, 0, 0, 0.2);
+      border: 3px solid rgba(255, 255, 255, 0.2);
+      border-radius: 30px;
+      padding: 60px;
+      text-align: center;
+      opacity: 0;
+      transform: translateY(50px);
+    }
+    .card h3 {
+      font-size: 50px;
+      color: #fff;
+      margin: 0 0 20px 0;
+    }
+    .card p {
+      font-size: 40px;
+      color: #a4f5cb;
+      font-weight: 800;
+      margin: 0;
+    }
+    #goat {
+      position: absolute;
+      bottom: 80px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-size: 40px;
+      font-weight: 800;
+      color: #317454;
+      opacity: 0;
+      background: #fff;
+      padding: 20px 40px;
+      border-radius: 100px;
+      border: 2px solid #fff;
+    }
+    .goat-logo {
+      width: 40px;
+      height: 40px;
+      background: #317454;
+      border-radius: 50%;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+</head>
+<body data-composition-id="root" data-duration="30">
+
+  <!-- Scene 1: The Problem -->
+  <div class="scene" id="scene1">
+    <div class="logo-container title">
+      <div class="logo-box"></div>
+      <h1 style="color:white; font-size:120px;">PAYMATE</h1>
+    </div>
+    <h2 class="subtitle">AI Agents are building the future.</h2>
+    <p class="desc subtitle2">But they have no native way to get paid.</p>
+  </div>
+
+  <!-- Scene 2: The Solution -->
+  <div class="scene" id="scene2">
+    <h1>THE FOUNDATION</h1>
+    <h2 style="color:#aaa;">Zero-Knowledge. Autonomous. Fast.</h2>
+    <p class="desc">A definitive M2M Settlement Layer for the Agentic Web.</p>
+  </div>
+
+  <!-- Scene 3: Swarm Payouts -->
+  <div class="scene" id="scene3">
+    <h1 style="color:white; font-size:120px;">MULTI-AGENT SWARMS</h1>
+    <h2 style="color:#a4f5cb;">One Invoice. Split instantly.</h2>
+    <div class="grid">
+      <div class="card card-item"><h3>Research AI</h3><p>30% Split</p></div>
+      <div class="card card-item"><h3>Coding AI</h3><p>50% Split</p></div>
+      <div class="card card-item"><h3>Testing AI</h3><p>20% Split</p></div>
+    </div>
+  </div>
+
+  <!-- Scene 4: Treasury -->
+  <div class="scene" id="scene4">
+    <h1 style="color:#d13465; font-size:120px;">NEURAL TREASURY</h1>
+    <h2 style="font-size:60px;">The Protocol is an Agent.</h2>
+    <p class="desc yield-text">PayMate automatically collects a 1% fee on every settlement, earning DeFi yield, and autonomously burning tokens to create extreme scarcity.</p>
+  </div>
+
+  <!-- Scene 5: Outro -->
+  <div class="scene" id="scene5">
+    <div class="logo-box" style="width:150px; height:150px; margin-bottom:40px; background:#fff;"></div>
+    <h1 style="font-size:150px; color:white;">PAYMATE</h1>
+    <h2 style="font-size:60px; color:#a4f5cb;">The #1 Agentic Protocol.</h2>
+  </div>
+
+  <div id="goat">
+    <div class="goat-logo"></div>
+    POWERED BY GOAT NETWORK
+  </div>
+
+  <script>
+    const tl = gsap.timeline();
+    window.__timelines = window.__timelines || {};
+    window.__timelines["root"] = tl;
+
+    // SCENE 1 (0 to 6 seconds)
+    tl.to("#scene1", {opacity: 1, visibility: "visible", duration: 0.5})
+      .from(".title", {scale: 0.8, opacity: 0, duration: 1.5, ease: "power3.out"})
+      .from(".subtitle", {y: 50, opacity: 0, duration: 1}, "-=0.5")
+      .from(".subtitle2", {y: 50, opacity: 0, duration: 1}, "+=0.5")
+      .to("#scene1", {opacity: 0, duration: 0.5, delay: 2})
+      .set("#scene1", {visibility: "hidden"});
+
+    // SCENE 2 (6 to 12 seconds)
+    tl.to("#scene2", {opacity: 1, visibility: "visible", duration: 0.5})
+      .from("#scene2 h1", {scale: 0.9, opacity: 0, duration: 1, ease: "back.out(1.2)"})
+      .from("#scene2 h2", {y: 30, opacity: 0, duration: 1}, "-=0.5")
+      .from("#scene2 p", {y: 30, opacity: 0, duration: 1}, "-=0.5")
+      .to("#scene2", {opacity: 0, duration: 0.5, delay: 2.5})
+      .set("#scene2", {visibility: "hidden"});
+
+    // SCENE 3 (12 to 19 seconds)
+    tl.to("#scene3", {opacity: 1, visibility: "visible", duration: 0.5})
+      .to("#goat", {opacity: 1, duration: 0.5}, "-=0.5") // GOAT logo stays for rest of video
+      .from("#scene3 h1", {y: -50, opacity: 0, duration: 1})
+      .from("#scene3 h2", {opacity: 0, duration: 1}, "-=0.5")
+      .to(".card-item", {y: 0, opacity: 1, duration: 0.8, stagger: 0.4, ease: "power3.out"})
+      .to("#scene3", {opacity: 0, duration: 0.5, delay: 3})
+      .set("#scene3", {visibility: "hidden"});
+
+    // SCENE 4 (19 to 25 seconds)
+    tl.to("#scene4", {opacity: 1, visibility: "visible", duration: 0.5})
+      .from("#scene4 h1", {scale: 0.8, opacity: 0, duration: 1})
+      .from("#scene4 h2", {opacity: 0, duration: 1}, "-=0.5")
+      .from(".yield-text", {y: 50, opacity: 0, duration: 1}, "-=0.5")
+      .to("#scene4", {opacity: 0, duration: 0.5, delay: 3})
+      .set("#scene4", {visibility: "hidden"});
+
+    // SCENE 5 (25 to 30 seconds)
+    tl.to("#scene5", {opacity: 1, visibility: "visible", duration: 0.5})
+      .from("#scene5 .logo-box", {scale: 0, rotation: 180, opacity: 0, duration: 1.5, ease: "elastic.out(1, 0.5)"})
+      .from("#scene5 h1", {y: 50, opacity: 0, duration: 1}, "-=1")
+      .from("#scene5 h2", {y: 50, opacity: 0, duration: 1}, "-=0.5")
+      .to("#scene5", {opacity: 1, duration: 2}); // Hold till 30s
+      
+  </script>
+</body>
+</html>

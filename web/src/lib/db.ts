@@ -36,6 +36,18 @@ export interface Invoice {
   splits: InvoiceSplit[] | null
   recurring: "weekly" | "monthly" | null
   milestones: Milestone[] | null
+  isStream: boolean
+  streamRateUsd: number | null
+  streamedAmountUsd: number
+  isPrivate: boolean
+  zkCommitment: string | null
+  githubPrUrl: string | null
+  isYieldBearing: boolean
+  yieldEarned: number
+  isSwarm: boolean
+  swarmWallets: {address:string; share:number}[] | null
+  proofOfCompute: boolean
+  computeHash: string | null
 }
 
 export type FeedbackRole = "freelancer" | "client" | "other"
@@ -81,6 +93,18 @@ interface InvoiceRow {
   splits: string | null
   recurring: string | null
   milestones: string | null
+  is_stream: boolean
+  stream_rate_usd: number | null
+  streamed_amount_usd: number
+  is_private: boolean
+  zk_commitment: string | null
+  github_pr_url: string | null
+  is_yield_bearing: boolean
+  yield_earned: number
+  is_swarm: boolean
+  swarm_wallets: string | null
+  proof_of_compute: boolean
+  compute_hash: string | null
 }
 
 declare global {
@@ -110,7 +134,29 @@ async function ready(): Promise<void> {
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS splits TEXT`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS recurring TEXT`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS milestones TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS is_stream BOOLEAN DEFAULT FALSE`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS stream_rate_usd DOUBLE PRECISION`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS streamed_amount_usd DOUBLE PRECISION DEFAULT 0`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS is_private BOOLEAN DEFAULT FALSE`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS zk_commitment TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS github_pr_url TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS is_yield_bearing BOOLEAN DEFAULT FALSE`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS yield_earned DOUBLE PRECISION DEFAULT 0`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS is_swarm BOOLEAN DEFAULT FALSE`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS swarm_wallets TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS proof_of_compute BOOLEAN DEFAULT FALSE`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS compute_hash TEXT`.catch(()=>null)
       await sql`CREATE INDEX IF NOT EXISTS idx_invoices_freelancer ON invoices(freelancer, created_at DESC)`
+      await sql`CREATE TABLE IF NOT EXISTS treasury (
+        id TEXT PRIMARY KEY,
+        balance_usd DOUBLE PRECISION DEFAULT 0,
+        total_donated_usd DOUBLE PRECISION DEFAULT 0
+      )`
+      
+      const t = await sql`SELECT * FROM treasury WHERE id = 'global_treasury'`
+      if (t.length === 0) {
+        await sql`INSERT INTO treasury (id, balance_usd, total_donated_usd) VALUES ('global_treasury', 0, 0)`
+      }
       await sql`CREATE TABLE IF NOT EXISTS feedback (
         id TEXT PRIMARY KEY, role TEXT NOT NULL, name TEXT NOT NULL, contact TEXT,
         rating INTEGER NOT NULL, comment TEXT NOT NULL, invoice_id TEXT,
@@ -157,6 +203,18 @@ function rowToInvoice(row: InvoiceRow): Invoice {
     splits: row.splits ? JSON.parse(row.splits) : null,
     recurring: (row.recurring as "weekly" | "monthly") || null,
     milestones: row.milestones ? JSON.parse(row.milestones) : null,
+    isStream: row.is_stream || false,
+    streamRateUsd: row.stream_rate_usd ? Number(row.stream_rate_usd) : null,
+    streamedAmountUsd: row.streamed_amount_usd ? Number(row.streamed_amount_usd) : 0,
+    isPrivate: row.is_private || false,
+    zkCommitment: row.zk_commitment || null,
+    githubPrUrl: row.github_pr_url || null,
+    isYieldBearing: row.is_yield_bearing || false,
+    yieldEarned: row.yield_earned ? Number(row.yield_earned) : 0,
+    isSwarm: row.is_swarm || false,
+    swarmWallets: row.swarm_wallets ? JSON.parse(row.swarm_wallets) : null,
+    proofOfCompute: row.proof_of_compute || false,
+    computeHash: row.compute_hash || null,
   }
 }
 
@@ -172,6 +230,17 @@ export async function createInvoice(input: {
   splits?: InvoiceSplit[] | null
   recurring?: "weekly" | "monthly" | null
   milestones?: Milestone[] | null
+  isStream?: boolean
+  streamRateUsd?: number | null
+  isPrivate?: boolean
+  zkCommitment?: string | null
+  githubPrUrl?: string | null
+  isYieldBearing?: boolean
+  yieldEarned?: number
+  isSwarm?: boolean
+  swarmWallets?: {address:string; share:number}[] | null
+  proofOfCompute?: boolean
+  computeHash?: string | null
 }): Promise<Invoice> {
   await ready()
   const sql = getSql()
@@ -194,18 +263,56 @@ export async function createInvoice(input: {
     splits: input.splits || null,
     recurring: input.recurring || null,
     milestones: input.milestones || null,
+    isStream: input.isStream || false,
+    streamRateUsd: input.streamRateUsd || null,
+    streamedAmountUsd: 0,
+    isPrivate: input.isPrivate || false,
+    zkCommitment: input.zkCommitment || null,
+    githubPrUrl: input.githubPrUrl || null,
+    isYieldBearing: input.isYieldBearing || false,
+    yieldEarned: input.yieldEarned || 0,
+    isSwarm: input.isSwarm || false,
+    swarmWallets: input.swarmWallets || null,
+    proofOfCompute: input.proofOfCompute || false,
+    computeHash: input.computeHash || null,
   }
   
   const splitsJson = invoice.splits ? JSON.stringify(invoice.splits) : null
   const milestonesJson = invoice.milestones ? JSON.stringify(invoice.milestones) : null
+  const swarmWalletsJson = invoice.swarmWallets ? JSON.stringify(invoice.swarmWallets) : null
 
-  await sql`INSERT INTO invoices VALUES (
+  await sql`
+  INSERT INTO invoices (
+    id, freelancer, client, title, description, amountUsd, status, chain, dueDate, txHash,
+    created_at, paidAt, webhookUrl, signature, splits, recurring, milestones,
+    is_stream, stream_rate_usd, streamed_amount_usd, is_private, zk_commitment, github_pr_url,
+    is_yield_bearing, yield_earned, is_swarm, swarm_wallets, proof_of_compute, compute_hash
+  ) VALUES (
     ${invoice.id}, ${invoice.freelancer}, ${invoice.client}, ${invoice.title}, ${invoice.description},
     ${invoice.amountUsd}, ${invoice.status}, ${invoice.chain}, ${invoice.dueDate}, ${invoice.txHash},
     ${invoice.createdAt}, ${invoice.paidAt}, ${invoice.webhookUrl}, ${invoice.signature}, ${splitsJson},
-    ${invoice.recurring}, ${milestonesJson}
+    ${invoice.recurring}, ${milestonesJson}, ${invoice.isStream}, ${invoice.streamRateUsd}, ${invoice.streamedAmountUsd},
+    ${invoice.isPrivate}, ${invoice.zkCommitment}, ${invoice.githubPrUrl},
+    ${invoice.isYieldBearing}, ${invoice.yieldEarned}, ${invoice.isSwarm}, ${swarmWalletsJson}, ${invoice.proofOfCompute}, ${invoice.computeHash}
   )`
   return invoice
+}
+
+export async function addTreasuryRevenue(amountUsd: number): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`UPDATE treasury SET balance_usd = balance_usd + ${amountUsd} WHERE id = 'global_treasury'`
+}
+
+export async function getTreasuryStats(): Promise<{balanceUsd: number, totalDonatedUsd: number}> {
+  await ready()
+  const sql = getSql()
+  const t = await sql`SELECT * FROM treasury WHERE id = 'global_treasury'`
+  if (t.length === 0) return {balanceUsd: 0, totalDonatedUsd: 0}
+  return {
+    balanceUsd: Number(t[0].balance_usd),
+    totalDonatedUsd: Number(t[0].total_donated_usd)
+  }
 }
 
 export async function getInvoice(id: string): Promise<Invoice | null> {
@@ -233,6 +340,26 @@ export async function markPaid(id: string, txHash: string, ipfsCid: string | nul
   const updated = (await sql`
     UPDATE invoices SET status='paid', tx_hash=${txHash}, paid_at=${Date.now()}, ipfs_receipt=${ipfsCid}
     WHERE id=${id} AND status='pending'
+    RETURNING id
+  `) as unknown as { id: string }[]
+  if (updated.length === 0) return null
+  return getInvoice(id)
+}
+
+export async function getInvoiceByGithubPrUrl(url: string): Promise<Invoice | null> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`SELECT * FROM invoices WHERE github_pr_url=${url} AND status='pending' LIMIT 1`) as unknown as InvoiceRow[]
+  if (rows.length === 0) return null
+  return rowToInvoice(rows[0])
+}
+
+export async function updateStreamAmount(id: string, amountToAdd: number): Promise<Invoice | null> {
+  await ready()
+  const sql = getSql()
+  const updated = (await sql`
+    UPDATE invoices SET streamed_amount_usd = streamed_amount_usd + ${amountToAdd}
+    WHERE id=${id} AND status='pending' AND is_stream=true
     RETURNING id
   `) as unknown as { id: string }[]
   if (updated.length === 0) return null

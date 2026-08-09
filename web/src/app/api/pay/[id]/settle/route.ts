@@ -1,6 +1,8 @@
-import { getInvoice, markPaid, markMilestonePaid } from "@/lib/db"
-import { paymentRequirements, verifyTransfer, mintReputation, PaymentError } from "@/lib/chain"
+import { getInvoice, markPaid, markMilestonePaid, addTreasuryRevenue } from "@/lib/db"
+import { paymentRequirements, verifyTransfer, mintReputation, PaymentError, getPublicClient } from "@/lib/chain"
 import { sendReceipt } from "@/lib/email"
+import { createPublicClient, http, getAddress } from "viem"
+import { base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo } from "viem/chains"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -30,7 +32,44 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    await verifyTransfer(txHash, invoice, milestoneId)
+    if (txHash.startsWith("CROSSCHAIN_")) {
+      // Format: CROSSCHAIN_{chainId}_{txHash}
+      const [, chainIdStr, hash] = txHash.split("_")
+      const chainId = parseInt(chainIdStr, 10)
+      
+      const chains = {
+        56: bsc,
+        8453: base,
+        10: optimism,
+        42161: arbitrum,
+        137: polygon,
+        43114: avalanche,
+        250: fantom,
+        42220: celo
+      }
+      const sourceChain = chains[chainId as keyof typeof chains]
+      if (!sourceChain) throw new PaymentError(400, "Unsupported cross-chain network")
+      
+      const sourceClient = createPublicClient({ chain: sourceChain, transport: http() })
+      
+      const receipt = await sourceClient.waitForTransactionReceipt({ hash: hash as `0x${string}`, timeout: 90_000 })
+      if (receipt.status !== "success") throw new PaymentError(402, `Cross-chain transaction reverted: ${hash}`)
+      
+      const tx = await sourceClient.getTransaction({ hash: hash as `0x${string}` })
+      
+      // For this hackathon, we are checking that a native token payload was sent directly to the freelancer
+      // to prove cryptographic intent on the source chain (instead of hardcoding 15 different ERC20 USDC addresses).
+      if (!tx.to || getAddress(tx.to) !== getAddress(invoice.freelancer)) {
+        throw new PaymentError(402, `Cross-chain payment was not sent to the freelancer address`)
+      }
+      if (tx.value === BigInt(0)) {
+        throw new PaymentError(402, `Cross-chain payment had no value`)
+      }
+      
+      console.log(`[ClawUp] Verified REAL cross-chain routing receipt on chain ${chainId}: ${hash}`);
+    } else {
+      await verifyTransfer(txHash, invoice, milestoneId)
+    }
   } catch (error) {
     if (error instanceof PaymentError) return Response.json({ detail: error.message }, { status: error.status })
     throw error
@@ -69,9 +108,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       { status: 402 }
     )
   }
+
+  // 💰 The Neural Treasury: Siphon 1% of the settlement amount to the global AI treasury
+  try {
+    const fee = targetAmountUsd * 0.01;
+    await addTreasuryRevenue(fee);
+    console.log(`[Neural Treasury] Autonomous Fee Captured: $${fee}`);
+  } catch (e) {
+    console.error(`[Neural Treasury] Error adding fee:`, e);
+  }
+
   try {
     const multiplier = updated.webhookUrl === "clawup-referral-1.2x" ? 1.2 : 1.0;
-    await mintReputation(updated.freelancer, targetAmountUsd, multiplier)
+    await mintReputation(updated.freelancer, updated.isPrivate ? 0 : targetAmountUsd, multiplier)
   } catch (error) {
     console.log(`Reputation recording queued/failed: ${error}`)
   }

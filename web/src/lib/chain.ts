@@ -86,6 +86,9 @@ export function getIssuerAccount() {
 }
 
 export async function mintReputation(freelancer: string, amountUsd: number, multiplier: number = 1.0) {
+  // We allow 0 amount for ZK Shielded Jobs, so only return if negative
+  if (Math.floor(amountUsd) < 0) return
+
   const contractAddress = process.env.REPUTATION_CONTRACT
   if (!contractAddress || contractAddress === "0x...") {
     console.log("REPUTATION_CONTRACT address not set or invalid in .env")
@@ -163,13 +166,13 @@ export function paymentRequirements(invoice: Invoice, milestoneId?: string) {
     }))
   } else {
     accepts = [{
-      scheme: "exact",
+      scheme: invoice.isStream ? "stream" : "exact",
       network: "goat",
       asset: getAddress(usdcToken),
       token: getAddress(usdcToken),
       payTo: invoice.freelancer,
-      price: `$${invoice.amountUsd.toFixed(2)}`,
-      maxAmountRequired: String(Math.round(invoice.amountUsd * 10 ** decimals)),
+      price: invoice.isPrivate ? "$0.00" : `$${invoice.amountUsd.toFixed(2)}`,
+      maxAmountRequired: invoice.isPrivate ? "0" : String(Math.round(invoice.amountUsd * 10 ** decimals)),
     }]
   }
 

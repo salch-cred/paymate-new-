@@ -29,7 +29,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         supportedChains: [goatChain],
         defaultChain: goatChain,
         walletConnectCloudProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "d5e89d14fc04d744f4ccbb715bb99a53",
-        loginMethods: ['wallet', 'telegram', 'email'],
+        loginMethods: ['wallet', 'email', 'passkey'],
         embeddedWallets: {
           ethereum: {
             createOnLogin: 'users-without-wallets',

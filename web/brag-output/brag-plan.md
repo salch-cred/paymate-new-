@@ -1,91 +1,31 @@
-# Brag Plan: PayMate
+# PayMate: God-Tier Launch Video Plan
 
-## What is this app?
-Production-oriented invoicing and settlement for independent work, built on GOAT Network.
-
-## The angle
-Epic, cinematic reveal of a financial tool that treats independent work with the gravity of a blockbuster. Highlighting the God Tier hackathon features.
-
-## Hook (first 2-3 seconds)
-A sweeping statement about the world of payments.
-"FOR TOO LONG, INDEPENDENT WORK MEANT WAITING."
-
-## Key moments (the middle)
-- AI Drafting writing an invoice line by line.
-- On-chain GOAT Settlement locking in the funds.
-- ERC-8004 Reputation, ZK Privacy, Aave Yield, and AI Arbitration displayed as massive capabilities.
-
-## Outro / punchline
-PAYMATE
-WORK, SETTLED.
-
-## User flow worth showing
-Invoice generation to verified settlement.
-
-## Tone
-- Preset: cinematic
-- Creative direction: Dramatic, trailer-scale, big motion, bigger claims. Perfect for winning a hackathon!
-- Interpretation: Epic. Short declarative sentences. Full-bleed scenes, large type.
-
-## Format: landscape — 1920x1080
-## Duration: 22
-
-## Visual identity (from the project)
-- Background: #f5f3ed
-- Accent: #ff5b2e
-- Text: #171813
-- Display font: var(--font-display)
-- Body font: var(--font-manrope)
-- Strongest visual element: Live settlement trace console and the prompt card.
-
-## Share copy (draft)
-The operating layer for independent work. AI drafted, GOAT settled, mathematically verified. Built for the hackathon.
-
-## Audio direction
-- Role: cinematic support
-- Music: trailer-style track or dramatic swell
-- Music treatment: slow build, massive drop on the highlights, fade out
-- Music cue guidance: 1-3 strong cues for major reveals
-- Audio-reactive treatment: subtle glow on the text
-- SFX posture: sparse, heavy impacts on cuts
-- Audio-coupled moments: The hook line types out with heavy strikes.
-- Restraint rule: No playful sounds. Everything must sound expensive and serious.
+**Project:** PayMate (The Autonomous M2M Settlement Layer)
+**Tone:** Cinematic, high-volume, extremely polished (God-tier flex).
+**Format:** Landscape
+**Theme:** #317454 (Primary Green) with GOAT Network integration.
 
 ## Storyboard
 
-### Scene 1 — The Hook — 4s
-Text centers on screen: "FOR TOO LONG, INDEPENDENT WORK MEANT WAITING."
-Sequential/interaction: Text fades in slowly, scaling up slightly from 0.95 to 1.0.
-Audio intent: Low rumble.
-Audio-coupled idea: none.
-Music: cinematic build.
-Transition mood: Dramatic wipe → Scene 2
+**[0:00 - 0:03] Hook: The Arrival**
+- *Visual:* Pitch black. High-volume cinematic bass hit. The PayMate logo (green #317454) slams into the center, shattering into glowing data nodes.
+- *Audio:* "The Agentic Web is here."
+- *Text:* PayMate. (No generic SaaS language).
 
-### Scene 2 — AI Drafting — 4s
-The prompt card appears, massive. "AI DRAFTING."
-Sequential/interaction: The scope is typed rapidly into the box, generating an invoice instantly.
-Audio intent: High-tech calculation and impact.
-Audio-coupled idea: simulated type.
-Transition mood: Flash cut → Scene 3
+**[0:03 - 0:10] Reveal: Multi-Agent Swarm**
+- *Visual:* Fast cut to the PayMate dashboard. An invoice for $2,500 USDC is shown. Suddenly, the invoice splinters into 5 different UI cards, routing payments to 5 different AI agents. The GOAT Network logo flashes.
+- *Audio:* "You don't hire an agent. You hire an army. Autonomous Swarm Splitting on the GOAT network."
+- *Text:* Swarm Payouts. 
 
-### Scene 3 — God Tier Features — 8s
-Massive words slam onto the screen, one by one.
-"ON-CHAIN GOAT SETTLEMENT."
-"ERC-8004 REPUTATION."
-"ZK PRIVACY."
-"AAVE YIELD."
-"AI ARBITRATION."
-Sequential/interaction: yes — words slam in sequentially.
-Audio intent: Heavy cinematic booms for each capability.
-Audio-coupled idea: beat-aligned reveals on the strong cues.
-Transition mood: Hard cut → Scene 4
+**[0:10 - 0:17] Highlights: The Neural Treasury**
+- *Visual:* Transition to the dark-mode `/treasury` terminal. The "Deflationary Burn" and "Philanthropy" numbers are rapidly ticking up in real-time.
+- *Audio:* "And while your money waits in escrow... it earns DeFi yield. A self-sustaining financial lifeform."
+- *Text:* The Neural Treasury.
 
-### Scene 4 — The Drop — 4s
-The PayMate logo and "WORK, SETTLED."
-Sequential/interaction: scale up from 0.9 to 1.0.
-Audio intent: Final lingering reverberation.
-Audio-coupled idea: none.
-Transition mood: fade to black.
+**[0:17 - 0:22] Punchline / Outro**
+- *Visual:* GitHub UI. A mouse clicks "Merge Pull Request". Instantly, a massive `[PAID]` stamp slams onto the invoice.
+- *Audio:* "Merge the code. Move the money."
+- *Text:* PayMate. Powered by GOAT Network.
 
-**Music mood for this video:** cinematic
-**Audio summary:** A dramatic, slowly building trailer that explodes into massive, punchy impacts.
+## Music Cue Guidance
+- Fast, cinematic cyber-punk drop. Beat sync exactly at 0:03, 0:10, and 0:17.

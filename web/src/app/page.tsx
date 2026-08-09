@@ -6,7 +6,7 @@ import { Icon } from "@/components/icons"
 
 const features = [
   { icon: "spark" as const, n: "01", title: "Describe the work", text: "Write the scope in plain language. PayMate structures the job, price, and terms into a clean invoice." },
-  { icon: "link" as const, n: "02", title: "Share one link", text: "Send a polished payment page that works with any injected Web3 wallet—no account setup required." },
+  { icon: "network" as const, n: "02", title: "Swarm Payouts", text: "One invoice pays multiple AI agents instantly. Route funds to your research, coding, and testing agents." },
   { icon: "shield" as const, n: "03", title: "Build portable trust", text: "Every verified settlement strengthens your ERC-8004 reputation on GOAT Network." },
 ]
 
@@ -43,9 +43,9 @@ export default function Home() {
       <section className="hero section-pad">
         <div className="hero-grid"/><div className="hero-particle p-one"/><div className="hero-particle p-two"/><div className="hero-particle p-three"/>
         <div className="hero-copy">
-          <div className="eyebrow"><span className="pulse-dot"/>Payments, built for independent work</div>
+          <div className="eyebrow"><span className="pulse-dot"/>The first SSAO for machine-to-machine settlement</div>
           <h1><span className="hero-line"><span>Get paid.</span></span><span className="hero-line"><span className="ink-swipe">Keep the proof.</span></span></h1>
-          <p className="hero-lede">Create intelligent invoices, collect on-chain payments, and turn every finished job into reputation you actually own.</p>
+          <p className="hero-lede">Create intelligent invoices, trigger Multi-Agent Swarm Payouts, and contribute to the autonomous Neural Treasury on GOAT Network.</p>
           <div className="hero-actions">
             <Link href="/dashboard" className="button button-primary magnetic-cta">Create an invoice <Icon name="arrow"/><span className="button-glow"/></Link>
             <a href="#workflow" className="text-link"><span className="play"><Icon name="chevron" size={15}/></span> See how it works</a>
@@ -85,12 +85,21 @@ export default function Home() {
       </section>
 
       <section className="story-section section-pad" id="product">
-        <div className="section-kicker">THE OPERATING LAYER FOR INDEPENDENT WORK</div>
-        <div className="story-head"><h2>From “done” to paid—<br/>without the admin spiral.</h2><p>PayMate connects the work, the money, and the reputation. One focused workflow instead of five disconnected tools.</p></div>
+        <div className="section-kicker">THE DEFINITIVE SETTLEMENT LAYER</div>
+        <div className="story-head"><h2>From “done” to paid—<br/>for your entire swarm.</h2><p>PayMate connects the work, the money, and the reputation. The first Self-Sustaining Autonomous Organization (SSAO).</p></div>
         <div className="bento-grid">
           <article className="bento bento-large warm"><div className="bento-copy"><span className="mini-index">01 / DRAFT</span><h3>Say what you did.<br/>We’ll handle the invoice.</h3><p>Describe the work naturally. PayMate turns it into a clear, client-ready payment request in seconds.</p></div><div className="prompt-card glass"><div className="prompt-top"><Icon name="spark"/><span>Invoice composer</span><kbd>⌘ ↵</kbd></div><p>“Brand strategy and launch system for Northstar, including two workshops and final asset handoff...”</p><div className="prompt-footer"><span>Scope detected · 3 line items</span><button><Icon name="arrow" size={16}/></button></div></div></article>
           <article className="bento dark-card"><div className="orbit"><div className="orbit-ring one"/><div className="orbit-ring two"/><div className="orbit-center"><Icon name="network" size={30}/></div><span className="orbit-node n1">01</span><span className="orbit-node n2">02</span><span className="orbit-node n3">03</span></div><div className="bento-copy"><span className="mini-index">02 / PROVE</span><h3>Reputation that compounds.</h3><p>Verified work becomes a portable credential—not a screenshot buried in a profile.</p></div></article>
           <article className="bento mint"><div className="bento-copy"><span className="mini-index">03 / SETTLE</span><h3>Fast money.<br/>Final settlement.</h3></div><div className="settle-stack"><div className="settle-row"><span className="coin">$</span><div><small>CLIENT SENT</small><b>2,480.00 USDC</b></div><Icon name="check"/></div><div className="settle-line"><i/><i/><i/></div><div className="settle-row muted"><Icon name="wallet"/><div><small>YOUR WALLET</small><b>Funds available</b></div><span className="live-dot"/></div></div></article>
+        </div>
+      <section className="ssao-feature section-pad" style={{background: '#0a0a0a', color: 'white', padding: '100px 5%', textAlign: 'center'}}>
+        <div style={{maxWidth: '800px', margin: '0 auto'}}>
+          <span className="section-kicker" style={{color: '#10b981'}}>THE NEURAL TREASURY</span>
+          <h2 style={{fontSize: '3rem', margin: '20px 0'}}>We don't just serve agents.<br/><em>We are one.</em></h2>
+          <p style={{fontSize: '1.2rem', color: '#9ca3af', marginBottom: '40px'}}>
+            PayMate operates as a Self-Sustaining Autonomous Organization (SSAO). A 1% protocol fee is mathematically captured on every settlement and routed directly into the Neural Treasury. Our on-chain AI then autonomously donates these profits to Gitcoin Grants to fund open-source development.
+          </p>
+          <Link href="/treasury" className="button button-primary">View the Live Treasury <Icon name="arrow"/></Link>
         </div>
       </section>
 

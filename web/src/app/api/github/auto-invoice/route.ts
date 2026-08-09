@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Octokit } from "octokit";
 
 export async function POST(request: Request) {
   try {
@@ -9,17 +10,72 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing MISTRAL_API_KEY" }, { status: 500 });
     }
 
-    // In a full implementation, we would use octokit to fetch the actual PR diffs here.
-    // For this hackathon demo, we will pass the repo URL to Mistral and ask it to infer
-    // the scope of work based on standard open-source PR structures.
+    if (!repoUrl || !prNumber) {
+      return NextResponse.json({ error: "Missing repoUrl or prNumber" }, { status: 400 });
+    }
 
-    const aiPrompt = `You are a technical AI agent for PayMate. A freelancer has submitted a GitHub URL: ${repoUrl} (PR #${prNumber || 'latest'}).
-Analyze the likely scope of work for a typical pull request in this context and generate a professional invoice draft.
+    // Parse owner and repo from URL (e.g. https://github.com/owner/repo)
+    const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    if (!match) {
+      return NextResponse.json({ error: "Invalid GitHub URL" }, { status: 400 });
+    }
+    const owner = match[1];
+    const repo = match[2].replace(/\.git$/, "");
+
+    let diffText = "";
+    let prTitle = "";
+    let prBody = "";
+
+    try {
+      const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+      
+      // Fetch PR details
+      const pr = await octokit.rest.pulls.get({
+        owner,
+        repo,
+        pull_number: parseInt(prNumber, 10),
+      });
+      
+      prTitle = pr.data.title;
+      prBody = pr.data.body || "";
+
+      // Fetch actual PR diff
+      const diffResponse = await octokit.rest.pulls.get({
+        owner,
+        repo,
+        pull_number: parseInt(prNumber, 10),
+        mediaType: {
+          format: "diff",
+        },
+      });
+      
+      diffText = diffResponse.data as unknown as string;
+      
+      // Truncate diff if it's too huge for the LLM context
+      if (diffText.length > 15000) {
+         diffText = diffText.substring(0, 15000) + "\n...[DIFF TRUNCATED]";
+      }
+    } catch (err) {
+      console.error("Failed to fetch GitHub PR data:", err);
+      return NextResponse.json({ error: "Failed to fetch PR from GitHub. Check URL, PR number, or GITHUB_TOKEN." }, { status: 400 });
+    }
+
+    const aiPrompt = `You are a technical AI agent for PayMate. A freelancer has submitted a GitHub Pull Request for invoicing.
+Here are the precise details fetched from GitHub:
+Title: ${prTitle}
+Body: ${prBody}
+
+Code Diff:
+\`\`\`diff
+${diffText}
+\`\`\`
+
+Analyze the actual scope of work shown in this diff and generate a professional invoice draft based on the real code changes.
 Output a JSON object with:
 {
-  "title": "<A short professional title for the PR/work>",
-  "description": "<A detailed breakdown of the likely deliverables and code changes>",
-  "amountUsd": <A suggested fair bounty amount between 50 and 5000 based on standard dev rates>
+  "title": "<A short professional title for this specific work>",
+  "description": "<A detailed breakdown of the exact deliverables and code changes based on the diff>",
+  "amountUsd": <A suggested fair bounty amount between 50 and 5000 based on standard dev rates and the complexity of the diff>
 }`;
 
     const aiResponse = await fetch("https://api.mistral.ai/v1/chat/completions", {
