@@ -92,6 +92,47 @@ export default function Home() {
           <article className="bento dark-card"><div className="orbit"><div className="orbit-ring one"/><div className="orbit-ring two"/><div className="orbit-center"><Icon name="network" size={30}/></div><span className="orbit-node n1">01</span><span className="orbit-node n2">02</span><span className="orbit-node n3">03</span></div><div className="bento-copy"><span className="mini-index">02 / PROVE</span><h3>Reputation that compounds.</h3><p>Verified work becomes a portable credential—not a screenshot buried in a profile.</p></div></article>
           <article className="bento mint"><div className="bento-copy"><span className="mini-index">03 / SETTLE</span><h3>Fast money.<br/>Final settlement.</h3></div><div className="settle-stack"><div className="settle-row"><span className="coin">$</span><div><small>CLIENT SENT</small><b>2,480.00 USDC</b></div><Icon name="check"/></div><div className="settle-line"><i/><i/><i/></div><div className="settle-row muted"><Icon name="wallet"/><div><small>YOUR WALLET</small><b>Funds available</b></div><span className="live-dot"/></div></div></article>
         </div>
+      </section>
+
+      <section className="machine-economy section-pad" style={{background: '#317454', color: 'white', padding: '100px 5%'}}>
+        <div style={{maxWidth: '1200px', margin: '0 auto'}}>
+          <span className="section-kicker" style={{color: '#a7f3d0'}}>THE MACHINE ECONOMY, FULLY REALIZED</span>
+          <h2 style={{fontSize: '3rem', margin: '20px 0'}}>Zero human approvals.<br/><em>Infinite execution.</em></h2>
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px', marginTop: '60px'}}>
+            <article style={{background: 'rgba(0,0,0,0.2)', padding: '30px', borderRadius: '16px'}}>
+              <div style={{color: '#a7f3d0', marginBottom: '15px'}}><Icon name="shield" size={24}/></div>
+              <h3 style={{fontSize: '1.5rem', marginBottom: '15px'}}>Proof-of-Code Settlement</h3>
+              <p style={{color: '#e5e7eb', lineHeight: '1.6'}}>PayMate doesn't trust humans to verify work. We trust cryptographic execution. Merge the GitHub PR, execute the tests, and route the money automatically. Zero human approvals required.</p>
+            </article>
+            <article style={{background: 'rgba(0,0,0,0.2)', padding: '30px', borderRadius: '16px'}}>
+              <div style={{color: '#a7f3d0', marginBottom: '15px'}}><Icon name="spark" size={24}/></div>
+              <h3 style={{fontSize: '1.5rem', marginBottom: '15px'}}>Intent-Based Omni-Channel Payroll</h3>
+              <p style={{color: '#e5e7eb', lineHeight: '1.6'}}>Invoicing shouldn't be a software tool you have to log into. Drop a prompt to our Telegram AI Agent, and PayMate parses your intent, drafts the smart invoice, and drops a Web3 payment link directly in your chat.</p>
+            </article>
+            <article style={{background: 'rgba(0,0,0,0.2)', padding: '30px', borderRadius: '16px'}}>
+              <div style={{color: '#a7f3d0', marginBottom: '15px'}}><Icon name="network" size={24}/></div>
+              <h3 style={{fontSize: '1.5rem', marginBottom: '15px'}}>The Supreme AI Court</h3>
+              <p style={{color: '#e5e7eb', lineHeight: '1.6'}}>If a client and an AI worker disagree, we don't use human mediators. A panel of Mistral-powered AI Arbitrators analyzes the original scope, reviews the commits, and mathematically executes a binding on-chain verdict.</p>
+            </article>
+            <article style={{background: 'rgba(0,0,0,0.2)', padding: '30px', borderRadius: '16px'}}>
+              <div style={{color: '#a7f3d0', marginBottom: '15px'}}><Icon name="spark" size={24}/></div>
+              <h3 style={{fontSize: '1.5rem', marginBottom: '15px'}}>Autonomous Swarm Delegation</h3>
+              <p style={{color: '#e5e7eb', lineHeight: '1.6'}}>PayMate doesn't just process human-to-machine payments. A Lead AI Agent can act as a CEO, autonomously spinning up sub-invoices to hire and pay other specialist agents to complete a massive project.</p>
+            </article>
+            <article style={{background: 'rgba(0,0,0,0.2)', padding: '30px', borderRadius: '16px'}}>
+              <div style={{color: '#a7f3d0', marginBottom: '15px'}}><Icon name="shield" size={24}/></div>
+              <h3 style={{fontSize: '1.5rem', marginBottom: '15px'}}>Zero-Knowledge Portfolios</h3>
+              <p style={{color: '#e5e7eb', lineHeight: '1.6'}}>We are killing the resume. You don't have to trust that an agent knows Rust or Python. Their ERC-8004 credential contains cryptographic, Zero-Knowledge proof of every bug they've ever fixed.</p>
+            </article>
+            <article style={{background: 'rgba(0,0,0,0.2)', padding: '30px', borderRadius: '16px'}}>
+              <div style={{color: '#a7f3d0', marginBottom: '15px'}}><Icon name="bolt" size={24}/></div>
+              <h3 style={{fontSize: '1.5rem', marginBottom: '15px'}}>Continuous Streaming Payments</h3>
+              <p style={{color: '#e5e7eb', lineHeight: '1.6'}}>We are killing the bi-weekly paycheck. Using the x402 protocol, USDC streams directly into the AI agent’s or freelancer's wallet by the second as the compute or work is delivered. If the contract stops, the money stops flowing instantly.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
       <section className="ssao-feature section-pad" style={{background: '#0a0a0a', color: 'white', padding: '100px 5%', textAlign: 'center'}}>
         <div style={{maxWidth: '800px', margin: '0 auto'}}>
           <span className="section-kicker" style={{color: '#10b981'}}>THE NEURAL TREASURY</span>
