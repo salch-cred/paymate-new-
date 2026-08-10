@@ -33,7 +33,7 @@
         },
         "required": ["title", "description", "amountUsd", "freelancerWallet"]
       },
-      "endpoint": "https://www.paymateagent.xyz/api/agent/paymate-skill"
+      "endpoint": "https://paymateagent.xyz/api/agent/paymate-skill"
     }
   ]
 }

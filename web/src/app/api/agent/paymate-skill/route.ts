@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createInvoice } from "@/lib/db";
+import { createBotInvoice } from "@/lib/chat-invoice";
 import { getAddress } from "viem";
 
 export async function POST(request: Request) {
@@ -12,21 +12,16 @@ export async function POST(request: Request) {
     }
 
     // Default client wallet to the zero address if not provided
-    const clientAddress = clientWallet 
-      ? getAddress(clientWallet) 
-      : getAddress("0x0000000000000000000000000000000000000000");
+    const clientAddress = clientWallet ? getAddress(clientWallet) : getAddress("0x0000000000000000000000000000000000000000");
 
-    const invoice = await createInvoice({
-      freelancer: getAddress(freelancerWallet),
+    const { invoice, payUrl } = await createBotInvoice({
+      source: "openclaw-agent",
+      freelancer: freelancerWallet,
       client: clientAddress,
-      title: title,
-      description: description,
+      title,
+      description,
       amountUsd: Number(amountUsd),
-      webhookUrl: "openclaw-agent",
-      signature: "0xagent_signature_placeholder",
     });
-
-    const payUrl = `https://www.paymateagent.xyz/pay/${invoice.id}`;
 
     return NextResponse.json({ 
       ok: true, 

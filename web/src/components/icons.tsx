@@ -11,19 +11,19 @@ import {
   Copy01Icon,
   Invoice01Icon,
   UserGroupIcon,
-  Globe01Icon,
+  GlobeIcon,
   SentIcon,
   Menu01Icon,
   Cancel01Icon,
-  Receipt01Icon,
+  ReceiptDollarIcon,
   LockKeyIcon,
-  NodesIcon,
+  AiNetworkIcon,
   ArrowDown01Icon
 } from "hugeicons-react"
 
 export type IconName = "arrow" | "spark" | "wallet" | "shield" | "bolt" | "link" | "chart" | "check" | "copy" | "invoice" | "users" | "globe" | "send" | "menu" | "close" | "receipt" | "lock" | "network" | "chevron"
 
-const components: Record<IconName, React.FC<any>> = {
+const components: Record<IconName, typeof ArrowRight01Icon> = {
   arrow: ArrowRight01Icon,
   spark: SparklesIcon,
   wallet: Wallet01Icon,
@@ -35,17 +35,20 @@ const components: Record<IconName, React.FC<any>> = {
   copy: Copy01Icon,
   invoice: Invoice01Icon,
   users: UserGroupIcon,
-  globe: Globe01Icon,
+  globe: GlobeIcon,
   send: SentIcon,
   menu: Menu01Icon,
   close: Cancel01Icon,
-  receipt: Receipt01Icon,
+  receipt: ReceiptDollarIcon,
   lock: LockKeyIcon,
-  network: NodesIcon,
+  network: AiNetworkIcon,
   chevron: ArrowDown01Icon,
 }
 
 export function Icon({ name, size = 20, ...props }: SVGProps<SVGSVGElement> & { name: IconName; size?: number }) {
   const Comp = components[name] || ArrowRight01Icon;
-  return <Comp size={size} color="currentColor" strokeWidth={1.8} {...props} />
+  // Strip SVG attributes that conflict with HugeiconsIconProps in the spread.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { color, strokeWidth, ...cleanProps } = props;
+  return <Comp size={size} color="currentColor" strokeWidth={1.8} {...cleanProps} />
 }

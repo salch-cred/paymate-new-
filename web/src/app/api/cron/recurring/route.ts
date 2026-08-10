@@ -1,18 +1,16 @@
 import { getSql, createInvoice } from "@/lib/db";
+import { requireBearerAuth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
   // SECURITY: this endpoint mutates the database (creates new invoices) and
   // MUST be authenticated, otherwise anyone on the internet can spam-generate
   // duplicate recurring invoices. Require a CRON_SECRET at all times.
-  const authHeader = request.headers.get('authorization');
   if (!process.env.CRON_SECRET) {
     console.error("[cron/recurring] CRON_SECRET is not configured. Refusing to run.");
-    return new Response('Server misconfigured: CRON_SECRET not set', { status: 500 });
   }
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return new Response('Unauthorized', { status: 401 });
-  }
+  const unauthorized = requireBearerAuth(request, process.env.CRON_SECRET);
+  if (unauthorized) return unauthorized;
 
   try {
     const sql = getSql();

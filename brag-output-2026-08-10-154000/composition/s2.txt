@@ -1,0 +1,1 @@
+Describe the work in plain language. PayMate structures it into a client-ready payment request — instantly.

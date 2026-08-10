@@ -1,17 +1,18 @@
 "use client"
 
 import Link from "next/link"
-import { use, useEffect, useState, useRef } from "react"
+import { use, useEffect, useState } from "react"
 import { useAccount, useSwitchChain, useWalletClient } from "wagmi"
-import { parseUnits } from "viem"
 import { goatChain } from "@/lib/chain"
+import { DOMAIN, STREAM_ALLOWANCE_TYPES } from "@/lib/eip712"
+import { DUMMY_CLIENT_ADDRESS } from "@/lib/constants"
 import { Icon } from "@/components/icons"
 import { WalletConnectMenu } from "@/components/wallet-connect-menu"
 import { FeedbackForm } from "@/components/feedback-form"
 import { ClawUpModal } from "@/components/clawup-modal"
 import { decryptViewKey } from "@/lib/zk"
 
-type Invoice={id:string;freelancer:string;client:string;title?:string;description:string;amountUsd:number;status:"pending"|"paid";chain:string;dueDate?:string;txHash?:string;splits?:{address:string;amountUsd:number}[];milestones?:{id:string;title:string;amountUsd:number;status:"pending"|"paid";txHash?:string;paidAt?:number}[];isStream?:boolean;streamRateUsd?:number|null;streamedAmountUsd?:number;isPrivate?:boolean;zkCommitment?:string|null;githubPrUrl?:string|null;isYieldBearing?:boolean;yieldEarned?:number;isSwarm?:boolean;swarmWallets?:{address:string;share:number}[]|null;proofOfCompute?:boolean;computeHash?:string|null}
+type Invoice={id:string;freelancer:string;client:string;title?:string;description:string;amountUsd:number;status:"pending"|"paid";chain:string;dueDate?:string;txHash?:string;splits?:{address:string;amountUsd:number}[];milestones?:{id:string;title:string;amountUsd:number;status:"pending"|"paid";txHash?:string;paidAt?:number}[];isStream?:boolean;streamRateUsd?:number|null;streamedAmountUsd?:number;streamSignature?:string|null;streamAuthorizedAt?:number|null;isPrivate?:boolean;zkCommitment?:string|null;githubPrUrl?:string|null;isYieldBearing?:boolean;yieldEarned?:number;isSwarm?:boolean;swarmWallets?:{address:string;share:number}[]|null;proofOfCompute?:boolean;computeHash?:string|null}
 
 export default function PayPage({params}:{params:Promise<{id:string}>}){
   const {id}=use(params);const [invoice,setInvoice]=useState<Invoice|null>(null);const [status,setStatus]=useState<"idle"|"paying"|"paid"|"error">("idle");const [activeMilestone,setActiveMilestone]=useState<string|null>(null);const [error,setError]=useState<string|null>(null);const [loading,setLoading]=useState(true);const {address,isConnected,chain}=useAccount();const {data:walletClient}=useWalletClient();const {switchChainAsync}=useSwitchChain()
@@ -22,39 +23,33 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
   const [decryptedAmount, setDecryptedAmount] = useState<number | null>(null)
   const [viewKeyInput, setViewKeyInput] = useState("")
   const [liveYield, setLiveYield] = useState(0)
-  const checkPaymentLoop = useRef<NodeJS.Timeout|null>(null)
   
   useEffect(()=>{
     fetch(`/api/invoices/${id}`).then(r=>{if(!r.ok)throw new Error("Invoice not found");return r.json()}).then((inv) => {
       setInvoice(inv);
+      setLiveYield(inv.yieldEarned || 0);
+      // Decrypt the view key from the URL fragment once the invoice is known.
+      if (inv.isPrivate) {
+        const hash = window.location.hash.replace("#key=", "")
+        if (hash) {
+          const decrypted = decryptViewKey(hash);
+          if (decrypted) setDecryptedAmount(decrypted.amountUsd);
+        }
+      }
     }).catch(e=>setError(e.message||"Could not load invoice")).finally(()=>setLoading(false))
   },[id])
 
   useEffect(() => {
-    if (invoice?.isPrivate) {
-      const hash = window.location.hash.replace("#key=", "")
-      if (hash) {
-        const decrypted = decryptViewKey(hash);
-        if (decrypted) setDecryptedAmount(decrypted.amountUsd);
-      }
-    }
-  }, [invoice])
-
-  useEffect(() => {
-    if (invoice?.isYieldBearing && invoice.status !== "paid") {
-      setLiveYield(invoice.yieldEarned || 0)
+    if (invoice?.isYieldBearing && invoice?.status !== "paid") {
       const interval = setInterval(() => {
         setLiveYield(prev => prev + 0.00012)
       }, 2000)
       return () => clearInterval(interval)
     }
-    if (invoice?.status === "paid") {
-      setLiveYield(invoice.yieldEarned || 0)
-    }
-  }, [invoice])
+  }, [invoice?.isYieldBearing, invoice?.status])
 
   useEffect(() => {
-    let interval: any;
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (isStreaming && invoice && invoice.isStream && invoice.streamRateUsd && invoice.status === 'pending') {
       interval = setInterval(async () => {
         try {
@@ -63,13 +58,13 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               amountToAdd: invoice.streamRateUsd,
-              signatureMock: "1-CLICK-ALLOWANCE-MOCK"
+              clientAddress: address
             })
           });
           if (res.ok) {
             const data = await res.json();
             setInvoice(data.invoice);
-            if (data.invoice.status === 'paid') {
+            if (data.streamComplete || data.invoice.status === 'paid') {
               setIsStreaming(false);
             }
           }
@@ -79,7 +74,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
       }, 1000); // 1 tick per second
     }
     return () => clearInterval(interval);
-  }, [isStreaming, invoice, id]);
+  }, [isStreaming, invoice, id, address]);
   async function downloadPDF() {
     try {
       const html2canvas = (await import('html2canvas')).default;
@@ -112,11 +107,30 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
    }
  }
 
- async function handlePay(milestoneId?: string){if(!isConnected||!address||!walletClient)return;setStatus("paying");if(milestoneId)setActiveMilestone(milestoneId);setError(null);try{if(chain?.id!==goatChain.id)await switchChainAsync({chainId:goatChain.id});const res=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({milestoneId})});if(res.status!==402){if(res.ok){setStatus("paid");setActiveMilestone(null);setInvoice(v=>v?{...v,status:"paid"}:v);return}throw new Error(`Unexpected settlement status: ${res.status}`)}const requirements=await res.json();if(!requirements.accepts||requirements.accepts.length===0)throw new Error("No valid payment options returned.");const txHashes=[];for(const option of requirements.accepts){const hash=await walletClient.writeContract({address:(option.token||"0x228B00") as `0x${string}`,abi:[{inputs:[{name:"recipient",type:"address"},{name:"amount",type:"uint256"}],name:"transfer",outputs:[{name:"",type:"bool"}],stateMutability:"nonpayable",type:"function"}],functionName:"transfer",args:[option.payTo as `0x${string}`,parseUnits(option.price.replace("$",""),6)],account:address,chain:goatChain});txHashes.push(hash);}const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":txHashes.join(",")},body:JSON.stringify({milestoneId})});if(!settle.ok)throw new Error("Payment verification failed.");const updatedInvoice=await settle.json();setStatus("idle");setActiveMilestone(null);setInvoice(updatedInvoice.invoice)}catch(e){setStatus("error");setActiveMilestone(null);setError(e instanceof Error?e.message:"Payment failed")}}
+ async function authorizeStream(){
+   if(!walletClient||!address||!invoice)return;
+   setStatus("paying");
+   try{
+     const signature=await walletClient.signTypedData({domain:DOMAIN,types:STREAM_ALLOWANCE_TYPES,primaryType:"StreamAllowance",message:{invoiceId:id,maxAmountUsd:BigInt(Math.round(invoice.amountUsd))},account:address});
+     const res=await fetch(`/api/pay/${id}/stream`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"authorize",signature,maxAmountUsd:invoice.amountUsd})});
+     if(!res.ok)throw new Error("Stream authorization failed");
+     const data=await res.json();
+     setInvoice(data.invoice);
+     setIsStreaming(true);
+     setStatus("idle");
+   }catch(e){
+     setStatus("error");
+     setError(e instanceof Error?e.message:"Stream authorization failed");
+   }
+ }
+
+ async function handlePay(milestoneId?: string){if(!isConnected||!address||!walletClient)return;setStatus("paying");if(milestoneId)setActiveMilestone(milestoneId);setError(null);try{if(chain?.id!==goatChain.id)await switchChainAsync({chainId:goatChain.id});const res=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({milestoneId})});if(res.status!==402){if(res.ok){setStatus("paid");setActiveMilestone(null);setInvoice(v=>v?{...v,status:"paid"}:v);return}throw new Error(`Unexpected settlement status: ${res.status}`)}const requirements=await res.json();if(!requirements.accepts||requirements.accepts.length===0)throw new Error("No valid payment options returned.");const txHashes=[];for(const option of requirements.accepts){if(!option.token)throw new Error("Payment requirements missing the USDC token address");if(!option.maxAmountRequired)throw new Error("Payment requirements missing the exact settlement amount");const amount=BigInt(option.maxAmountRequired);const hash=await walletClient.writeContract({address:option.token as `0x${string}`,abi:[{inputs:[{name:"recipient",type:"address"},{name:"amount",type:"uint256"}],name:"transfer",outputs:[{name:"",type:"bool"}],stateMutability:"nonpayable",type:"function"}],functionName:"transfer",args:[option.payTo as `0x${string}`,amount],account:address,chain:goatChain});txHashes.push(hash);}const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":txHashes.join(",")},body:JSON.stringify({milestoneId})});if(!settle.ok)throw new Error("Payment verification failed.");const updatedInvoice=await settle.json();setStatus("idle");setActiveMilestone(null);setInvoice(updatedInvoice.invoice)}catch(e){setStatus("error");setActiveMilestone(null);setError(e instanceof Error?e.message:"Payment failed")}}
  if(loading)return <main className="loading-page"><div className="loader"/></main>
  if(!invoice)return <main className="loading-page"><div style={{textAlign:"center"}}><h1 style={{fontFamily:"var(--font-display)"}}>Invoice unavailable</h1><p>{error}</p><Link className="button button-dark" href="/">Return home</Link></div></main>
  const paid=invoice.status==="paid"||status==="paid"
- const isAuthorized = isConnected && address && (address.toLowerCase() === invoice.client.toLowerCase() || address.toLowerCase() === invoice.freelancer.toLowerCase());
+ const isPlaceholderClient = invoice.client.toLowerCase() === DUMMY_CLIENT_ADDRESS.toLowerCase() || invoice.client.toLowerCase() === "0x0000000000000000000000000000000000000000"
+ const isAuthorized = isConnected && address && (isPlaceholderClient || address.toLowerCase() === invoice.client.toLowerCase() || address.toLowerCase() === invoice.freelancer.toLowerCase());
+ const streamComplete = invoice.isStream && (invoice.streamedAmountUsd || 0) >= invoice.amountUsd
 
  return <main className="payment-shell"><header className="payment-nav"><Link className="brand" href="/"><span className="brand-mark"><span/></span><b>PayMate</b></Link><span style={{fontSize:9,color:"#8a8981",background:"rgba(255,255,255,0.6)",border:"1px solid var(--line)",padding:"6px 10px",borderRadius:"12px",letterSpacing:"0.05em",fontWeight:700,backdropFilter:"blur(10px)",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:"6px"}}><Icon name="shield" size={10} /> SECURE ID · {invoice.id.split("-")[0]}</span></header><section className="payment-wrap">
   <aside className="payment-aside"><span className="section-kicker">CLIENT CHECKOUT</span><h1>A clean finish<br/>to good work.</h1><p>This payment settles directly to the freelancer&apos;s wallet and creates verifiable proof of completion.</p><div className="trust-list"><div><Icon name="lock"/>Non-custodial wallet payment</div><div><Icon name="shield"/>On-chain settlement verification</div><div><Icon name="network"/>Portable ERC-8004 reputation</div></div></aside>
@@ -312,16 +326,29 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
                 <div style={{width:'100%', height:'8px', background:'var(--line)', borderRadius:'4px', overflow:'hidden'}}>
                   <div style={{width: `${Math.min(100, ((invoice.streamedAmountUsd || 0) / invoice.amountUsd) * 100)}%`, height:'100%', background:'var(--ink)', transition:'width 1s linear'}} />
                 </div>
+                {streamComplete && (
+                  <p style={{fontSize:'12px', color:'#317454', fontWeight:700, margin:'12px 0 0'}}>
+                    <Icon name="check" size={12}/> Stream complete — settle the streamed amount on-chain to finish.
+                  </p>
+                )}
               </div>
               
-              {!isConnected ? (
+              {streamComplete ? (
+                <button className="pay-action" onClick={()=>handlePay()}>
+                  Settle ${(invoice.streamedAmountUsd || 0).toFixed(2)} USDC on-chain <Icon name="arrow" size={18}/>
+                </button>
+              ) : !isConnected ? (
                 <WalletConnectMenu triggerClassName="pay-action" triggerLabel={<><Icon name="wallet" size={18}/>Connect wallet to stream</>} />
               ) : isStreaming ? (
                 <button className="button button-outline" style={{width:'100%',justifyContent:'center',height:'48px'}} onClick={()=>setIsStreaming(false)}>
                   <Icon name="close" size={18}/> Stop Stream
                 </button>
+              ) : invoice.streamSignature ? (
+                <button className="pay-action" onClick={() => setIsStreaming(true)}>
+                  Resume Stream (${invoice.streamRateUsd}/sec)
+                </button>
               ) : (
-                <button className="pay-action" onClick={()=>setIsStreaming(true)}>
+                <button className="pay-action" onClick={authorizeStream}>
                   Approve 1-Click Stream (${invoice.streamRateUsd}/sec)
                 </button>
               )}
@@ -393,7 +420,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
         const updatedInvoice = await settle.json();
         setStatus("idle");
         setInvoice(updatedInvoice.invoice);
-      } catch (e) {
+      } catch {
         setStatus("error");
         setError("Cross-chain settlement failed.");
       }

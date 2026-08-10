@@ -1,3 +1,5 @@
+import { mistralJsonText, parseJsonResponse } from "@/lib/mistral";
+
 export async function POST(request: Request) {
   try {
     const { clientOffer, freelancerCounter, history } = await request.json();
@@ -17,27 +19,13 @@ export async function POST(request: Request) {
     Respond ONLY with a valid JSON object matching this schema:
     {"decision": "ACCEPT" | "REJECT" | "COUNTER", "amount": number, "reasoning": "string"}`;
 
-    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "mistral-small-latest",
-        temperature: 0.1,
-        response_format: { type: "json_object" },
-        messages: [{ role: "user", content: systemPrompt }],
-      }),
+    const text = await mistralJsonText({
+      messages: [{ role: "user", content: systemPrompt }],
     });
 
-    const data = await response.json();
-    const text = data.choices?.[0]?.message?.content;
-    
-    let parsed;
+    let parsed: { decision: string; amount: number; reasoning: string };
     try {
-      const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      parsed = JSON.parse(cleaned);
+      parsed = parseJsonResponse(text);
     } catch {
       return Response.json({ error: "Agent negotiation failed" }, { status: 400 });
     }

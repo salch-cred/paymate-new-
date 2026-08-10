@@ -24,7 +24,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         appearance: {
           theme: 'light',
           accentColor: '#fb744d',
-          logo: 'https://paymate-new.vercel.app/logo.png',
+          logo: 'https://paymateagent.xyz/logo-app-v2.png',
         },
         supportedChains: [goatChain],
         defaultChain: goatChain,

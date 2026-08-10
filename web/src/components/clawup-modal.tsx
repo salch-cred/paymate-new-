@@ -13,7 +13,7 @@ interface ClawUpModalProps {
   freelancerAddress: string;
 }
 
-export function ClawUpModal({ isOpen, onClose, onSuccess, amountUsd, freelancerAddress }: ClawUpModalProps) {
+export function ClawUpModal({ isOpen, onClose, onSuccess, freelancerAddress }: ClawUpModalProps) {
   const [step, setStep] = useState<"select" | "bridging" | "done">("select");
   const [selectedChain, setSelectedChain] = useState<number | null>(null);
   

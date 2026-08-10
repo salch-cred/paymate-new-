@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Octokit } from "octokit";
+import { mistralJsonText, parseJsonResponse } from "@/lib/mistral";
 
 export async function POST(request: Request) {
   try {
@@ -78,25 +79,16 @@ Output a JSON object with:
   "amountUsd": <A suggested fair bounty amount between 50 and 5000 based on standard dev rates and the complexity of the diff>
 }`;
 
-    const aiResponse = await fetch("https://api.mistral.ai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "mistral-small-latest",
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-        messages: [{ role: "system", content: aiPrompt }]
-      })
+    const aiContent = await mistralJsonText({
+      messages: [{ role: "system", content: aiPrompt }],
+      temperature: 0.2,
     });
 
-    const data = await aiResponse.json();
-    const aiContent = data.choices?.[0]?.message?.content;
-    
     if (!aiContent) throw new Error("AI generation failed");
 
     let draft;
     try {
-      draft = JSON.parse(aiContent.replace(/```json/g, '').replace(/```/g, '').trim());
+      draft = parseJsonResponse(aiContent);
     } catch {
       draft = { title: "GitHub Bounty", description: `Bounty payout for ${repoUrl}`, amountUsd: 150 };
     }

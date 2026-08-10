@@ -3,6 +3,8 @@ import { autonomousAgentPay } from "@/lib/agent";
 import { getAddress, isAddress } from "viem";
 import { verifyInvoiceSignature } from "@/lib/eip712";
 import { checkAndConsumeIntentBudget } from "@/lib/rateLimit";
+import { requireBearerAuth } from "@/lib/auth";
+import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants";
 
 // SECURITY NOTE (fixed 2026-07-29 audit finding C-1 / C-2):
 // This endpoint used to (a) accept requests with zero authentication, and
@@ -20,15 +22,11 @@ export async function POST(request: Request) {
   try {
     // 1. Require a shared secret from the calling platform. Never process
     // an unauthenticated request that can trigger a real fund transfer.
-    const sharedSecret = process.env.CLAWUP_SHARED_SECRET;
-    if (!sharedSecret) {
+    if (!process.env.CLAWUP_SHARED_SECRET) {
       console.error("[clawup/intent] CLAWUP_SHARED_SECRET is not configured. Refusing to run.");
-      return Response.json({ detail: "Server misconfigured" }, { status: 500 });
     }
-    const authHeader = request.headers.get("authorization");
-    if (authHeader !== `Bearer ${sharedSecret}`) {
-      return Response.json({ detail: "Unauthorized" }, { status: 401 });
-    }
+    const unauthorized = requireBearerAuth(request, process.env.CLAWUP_SHARED_SECRET);
+    if (unauthorized) return unauthorized;
 
     const body = await request.json().catch(() => null);
     if (!body || !body.intent) {
@@ -68,7 +66,7 @@ export async function POST(request: Request) {
         return Response.json({ detail: "Autonomous payout budget exceeded for this window. Manual review required." }, { status: 429 });
       }
 
-      const referralCode = process.env.CLAWUP_REFERRAL_ID || "clawup-referral-1.2x";
+      const referralCode = process.env.CLAWUP_REFERRAL_ID || REFERRAL_MULTIPLIER_TAG;
       const invoice = await createInvoice({
         freelancer: getAddress(freelancer),
         client: getAddress(client),

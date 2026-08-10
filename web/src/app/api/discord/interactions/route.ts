@@ -72,7 +72,8 @@ export async function POST(req: Request) {
         const permissions = body.member?.permissions ? BigInt(body.member.permissions) : BigInt(0);
         const isAdministrator = (permissions & BigInt(0x8)) !== BigInt(0); // 0x8 is the Administrator permission bit
         const userRoles = body.member?.roles || [];
-        const isAuthorized = isAdministrator || userRoles.includes(process.env.DISCORD_ADMIN_ROLE_ID || 'mock_role_id');
+        // Fail closed: without DISCORD_ADMIN_ROLE_ID configured, only server Administrators may generate invoices.
+        const isAuthorized = isAdministrator || (process.env.DISCORD_ADMIN_ROLE_ID ? userRoles.includes(process.env.DISCORD_ADMIN_ROLE_ID) : false);
 
         if (!isAuthorized) {
           return NextResponse.json({

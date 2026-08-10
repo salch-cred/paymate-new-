@@ -1,23 +1,23 @@
 import { createPublicClient, http, formatEther } from 'viem';
 import { defineChain } from 'viem';
 
-const goatTestnet3 = defineChain({
-  id: 48816,
-  name: 'GOAT Testnet3',
-  network: 'goat-testnet3',
+const goatMainnet = defineChain({
+  id: 2345,
+  name: 'GOAT Mainnet',
+  network: 'goat-mainnet',
   nativeCurrency: {
     decimals: 18,
     name: 'Bitcoin',
     symbol: 'BTC',
   },
   rpcUrls: {
-    default: { http: ['https://rpc.testnet3.goat.network'] },
-    public: { http: ['https://rpc.testnet3.goat.network'] },
+    default: { http: ['https://rpc.goat.network'] },
+    public: { http: ['https://rpc.goat.network'] },
   },
 });
 
 const client = createPublicClient({
-  chain: goatTestnet3,
+  chain: goatMainnet,
   transport: http()
 });
 

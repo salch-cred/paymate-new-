@@ -4,55 +4,187 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=1920, height=1080" />
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      html,
-      body {
-        margin: 0;
-        width: 1920px;
-        height: 1080px;
-        overflow: hidden;
-        background: #000;
-      }
-      body {
-        font-family: "Inter", sans-serif;
-      }
-      code,
-      pre,
-      .monospace {
-        font-family: "JetBrains Mono", monospace;
-      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { width: 1920px; height: 1080px; overflow: hidden; font-family: 'Manrope', sans-serif; background: #000; color: #fff; }
+      #root { width: 100%; height: 100%; position: relative; }
+      
+      .scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; align-items: center; justify-content: center; flex-direction: column; }
+      
+      /* Scene 1 */
+      #scene1 { background: #f6f5f1; display: flex; position: relative; }
+      .scene-grid { position: absolute; inset: 0; background-image: radial-gradient(rgba(0,0,0,0.08) 2px, transparent 2px); background-size: 40px 40px; z-index: 0; opacity: 0.5; }
+      #s1-logo-mark { width: 120px; height: 120px; background: url('assets/logo-white.png') no-repeat center center; background-size: cover; border-radius: 24%; margin-bottom: 40px; transform: scale(0); opacity: 0; box-shadow: 0 20px 40px rgba(0,0,0,0.08); z-index: 5; }
+      #text-paid { font-size: 380px; font-weight: 800; letter-spacing: -0.05em; transform: scale(3); opacity: 0; color: #1d1e1a; z-index: 10; text-shadow: 0 20px 50px rgba(0,0,0,0.1); }
+
+      /* Scene 2 */
+      #scene2 { background: #f1efe9; color: #171813; }
+      .glass-panel { background: rgba(255,255,255,0.8); border: 2px solid rgba(255,255,255,1); border-radius: 40px; padding: 80px; box-shadow: 0 30px 80px rgba(0,0,0,0.05); backdrop-filter: blur(20px); width: 1400px; min-height: 400px; position: relative; }
+      .typed-text { font-size: 60px; font-weight: 700; height: 140px; }
+      .generated-badge { position: absolute; right: 80px; bottom: 60px; background: #e7f5ec; color: #317454; padding: 20px 40px; border-radius: 20px; font-size: 32px; font-weight: 800; transform: translateX(200px); opacity: 0; }
+
+      /* Scene 3 */
+      #scene3 { background: #0a0a0a; color: #fff; }
+      .payment-panel { width: 1400px; display: flex; align-items: center; justify-content: space-between; padding: 80px; background: #1c1d19; border-radius: 40px; }
+      .amount { font-size: 140px; font-weight: 800; letter-spacing: -0.05em; }
+      .pay-btn { background: #ff5b2e; padding: 40px 80px; font-size: 40px; font-weight: 800; border-radius: 24px; color: #fff; box-shadow: 0 20px 50px rgba(255,91,46,0.2); position: relative; }
+      .cursor { width: 60px; height: 60px; background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="white" stroke="black" stroke-width="2"><path d="M3 3l7 19 4-7 7-4z"/></svg>') no-repeat; position: absolute; top: 0; left: 0; transform: translate(1200px, 800px); z-index: 100; opacity: 0; }
+      .verified-card { position: absolute; bottom: 100px; background: #e7f5ec; color: #317454; padding: 40px 80px; font-size: 48px; font-weight: 800; border-radius: 20px; transform: translateY(200px); opacity: 0; }
+
+      /* Scene 4 */
+      #scene4 { background: #1d1e1a; }
+      .score-ring { width: 600px; height: 600px; border-radius: 50%; background: #1d1e1a; box-shadow: 0 0 0 40px rgba(255,255,255,0.05); position: relative; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+      .score-ring::before { content: ""; position: absolute; inset: -40px; border-radius: 50%; background: conic-gradient(#c9fa78 var(--p, 0%), transparent var(--p, 0%)); z-index: -1; }
+      .score-val { font-size: 160px; font-weight: 800; }
+      .score-label { font-size: 32px; color: #ff5b2e; font-weight: 800; letter-spacing: 0.1em; margin-top: 20px; }
+      .stats-row { display: flex; gap: 80px; margin-top: 100px; }
+      .stat { font-size: 48px; font-weight: 800; opacity: 0; transform: translateY(40px); }
+
+      /* Scene 5 */
+      #scene5 { background: #f6f5f1; color: #1d1e1a; position: relative; }
+      .logo-mark { width: 160px; height: 160px; background: url('assets/logo-white.png') no-repeat center center; background-size: cover; border-radius: 24%; margin-bottom: 60px; transform: translateY(-400px); opacity: 0; box-shadow: 0 20px 40px rgba(0,0,0,0.08); z-index: 10; }
+      .logo-text { font-size: 120px; font-weight: 800; letter-spacing: -0.05em; margin-bottom: 20px; opacity: 0; color: #1d1e1a; z-index: 10; }
+      .tagline { font-size: 48px; color: #7b7c74; margin-bottom: 60px; opacity: 0; z-index: 10; }
+      .url { font-size: 36px; color: #317454; font-weight: 700; opacity: 0; z-index: 10; }
     </style>
   </head>
   <body>
-    <div
-      id="root"
-      data-composition-id="main"
-      data-start="0"
-      data-duration="10"
-      data-width="1920"
-      data-height="1080"
-    >
+    <div id="root" data-composition-id="main" data-start="0" data-duration="40" data-width="1920" data-height="1080">
       
-      
+      <!-- Scene 1 -->
+      <div id="scene1" class="scene" data-start="0" data-duration="4">
+        <div class="scene-grid"></div>
+        <div id="s1-logo-mark"></div>
+        <div id="text-paid">PAID.</div>
+      </div>
 
-      <!--
-        Add your clips here. Example:
-        <div id="title" class="clip" data-start="0" data-duration="5" data-track-index="1"
-             style="font-size: 64px; color: #fff; padding: 40px">
-          Hello World
+      <!-- Audio Tracks -->
+      <audio src="assets/voice_s2.wav" class="clip" data-start="4.5" data-track-index="3" preload="auto"></audio>
+      <audio src="assets/voice_s3.wav" class="clip" data-start="13.5" data-track-index="4" preload="auto"></audio>
+      <audio src="assets/voice_s4.wav" class="clip" data-start="23.5" data-track-index="5" preload="auto"></audio>
+      <audio src="assets/voice_s5.wav" class="clip" data-start="34.5" data-track-index="6" preload="auto"></audio>
+      <audio src="assets/music.mp3" class="clip" data-start="0" data-duration="40" data-track-index="2" data-volume="0.15" preload="auto"></audio>
+
+      <!-- Scene 2 -->
+      <div id="scene2" class="scene" data-start="4" data-duration="9">
+        <div class="glass-panel" id="s2-panel">
+          <div class="typed-text" id="s2-text"></div>
+          <div class="generated-badge" id="s2-badge">Invoice Generated ✓</div>
         </div>
-      -->
+      </div>
+
+      <!-- Scene 3 -->
+      <div id="scene3" class="scene" data-start="13" data-duration="10">
+        <div class="payment-panel" id="s3-panel">
+          <div>
+            <div style="font-size: 32px; color: #aaa; margin-bottom: 20px; font-weight: 800; letter-spacing: 0.1em">AMOUNT DUE</div>
+            <div class="amount">2,480.00 USDC</div>
+          </div>
+          <div class="pay-btn" id="s3-btn">Pay Now</div>
+        </div>
+        <div class="cursor" id="s3-cursor"></div>
+        <div class="verified-card" id="s3-verified">Payment Verified ✓</div>
+      </div>
+
+      <!-- Scene 4 -->
+      <div id="scene4" class="scene" data-start="23" data-duration="11">
+        <div class="score-ring" id="s4-ring" style="--p: 0%">
+          <div class="score-val" id="s4-score">0</div>
+          <div class="score-label" id="s4-label">+0 REPUTATION</div>
+        </div>
+        <div class="stats-row">
+          <div class="stat" id="s4-stat1">Total Earned: $12,840</div>
+          <div class="stat" id="s4-stat2">Jobs: 23</div>
+        </div>
+      </div>
+
+      <!-- Scene 5 -->
+      <div id="scene5" class="scene" data-start="34" data-duration="6">
+        <div class="scene-grid"></div>
+        <div class="logo-mark" id="s5-mark"></div>
+        <div class="logo-text" id="s5-logo">PayMate</div>
+        <div class="tagline" id="s5-tagline">Work, Settled.</div>
+        <div class="url" id="s5-url">paymateagent.xyz</div>
+      </div>
+
     </div>
 
     <script>
       window.__timelines = window.__timelines || {};
       const tl = gsap.timeline({ paused: true });
-      // Example: tl.from("#title", { opacity: 0, y: -50, duration: 1 }, 0);
+
+      // Scene 1 (0s to 4s)
+      tl.set("#scene1", { display: "flex" }, 0);
+      tl.to("#s1-logo-mark", { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(1.5)" }, 0);
+      tl.to("#text-paid", { opacity: 1, scale: 1, duration: 0.1, ease: "power4.inOut" }, 0.2); // SLAM
+      tl.to("#scene1", { opacity: 0, duration: 0.1 }, 3.9);
+      tl.set("#scene1", { display: "none" }, 4.0);
+
+      // Scene 2 (4s to 13s)
+      tl.set("#scene2", { display: "flex", y: 1080 }, 4.0);
+      tl.to("#scene2", { y: 0, duration: 0.8, ease: "power3.out" }, 4.0);
+      
+      const fullText = "Brand system sprint — 2,480 USDC";
+      tl.to("#s2-text", {
+        duration: 3,
+        text: fullText,
+        onUpdate: function() {
+          const progress = this.progress();
+          const charCount = Math.floor(progress * fullText.length);
+          document.getElementById('s2-text').innerText = fullText.substring(0, charCount);
+        }
+      }, 5.0);
+      
+      tl.to("#s2-badge", { opacity: 1, x: 0, duration: 0.6, ease: "back.out(1.5)" }, 8.5);
+      tl.to("#scene2", { opacity: 0, duration: 0.5 }, 12.5);
+      tl.set("#scene2", { display: "none" }, 13.0);
+
+      // Scene 3 (13s to 23s)
+      tl.set("#scene3", { display: "flex", opacity: 0 }, 13.0);
+      tl.to("#scene3", { opacity: 1, duration: 0.5 }, 13.0);
+      tl.to("#s3-cursor", { opacity: 1, duration: 0.2 }, 14.0);
+      tl.to("#s3-cursor", { x: 1450, y: 550, duration: 1.5, ease: "power2.inOut" }, 14.2);
+      tl.to("#s3-cursor", { scale: 0.85, duration: 0.1, yoyo: true, repeat: 1 }, 15.7);
+      tl.to("#s3-btn", { scale: 0.95, duration: 0.1 }, 15.7);
+      tl.to("#s3-btn", { scale: 1, duration: 0.1 }, 15.9);
+      tl.to("#s3-cursor", { opacity: 0, duration: 0.2 }, 16.5);
+      tl.to("#s3-verified", { opacity: 1, y: 0, duration: 0.6, ease: "back.out(1.5)" }, 17.0);
+      tl.to("#scene3", { opacity: 0, duration: 0.5 }, 22.5);
+      tl.set("#scene3", { display: "none" }, 23.0);
+
+      // Scene 4 (23s to 34s)
+      tl.set("#scene4", { display: "flex", x: -1920 }, 23.0);
+      tl.to("#scene4", { x: 0, duration: 0.8, ease: "power3.out" }, 23.0);
+      tl.to("#s4-ring", { "--p": "94%", duration: 2.5, ease: "power2.out" }, 24.5);
+      
+      tl.to({val: 0}, {
+        val: 94,
+        duration: 2.5,
+        ease: "power2.out",
+        onUpdate: function() { document.getElementById('s4-score').innerText = Math.round(this.targets()[0].val); }
+      }, 24.5);
+
+      tl.to({val: 0}, {
+        val: 8,
+        duration: 2.5,
+        ease: "power2.out",
+        onUpdate: function() { document.getElementById('s4-label').innerText = "+" + Math.round(this.targets()[0].val) + " REPUTATION"; }
+      }, 24.5);
+
+      tl.to("#s4-stat1", { opacity: 1, y: 0, duration: 0.5, ease: "back.out(1.5)" }, 27.5);
+      tl.to("#s4-stat2", { opacity: 1, y: 0, duration: 0.5, ease: "back.out(1.5)" }, 28.0);
+      tl.to("#scene4", { opacity: 0, duration: 0.5 }, 33.5);
+      tl.set("#scene4", { display: "none" }, 34.0);
+
+      // Scene 5 (34s to 40s)
+      tl.set("#scene5", { display: "flex" }, 34.0);
+      tl.to("#s5-mark", { opacity: 1, y: 0, duration: 0.6, ease: "bounce.out" }, 34.5);
+      tl.to("#s5-logo", { opacity: 1, duration: 0.5 }, 35.1);
+      tl.to("#s5-tagline", { opacity: 1, duration: 0.5 }, 35.3);
+      tl.to("#s5-url", { opacity: 1, duration: 0.5 }, 35.5);
+      tl.to("#scene5", { opacity: 0, duration: 1.0 }, 39.0);
+
       window.__timelines["main"] = tl;
     </script>
   </body>

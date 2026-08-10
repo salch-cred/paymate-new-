@@ -18,7 +18,7 @@ const CLIENT = clientAccount.address;
 const DOMAIN = {
   name: "PayMate",
   version: "1",
-  chainId: 48816,
+  chainId: 2345,
   verifyingContract: "0x0000000000000000000000000000000000000000" as `0x${string}`,
 };
 

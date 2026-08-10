@@ -23,13 +23,13 @@ PayMate is not just a web application; it is the billing infrastructure for the 
 ### 1. Install the Skill
 Add the PayMate billing manifest to your OpenClaw agent's configuration:
 ```bash
-openclaw skill install https://www.paymateagent.xyz/openclaw-skill.json
+openclaw skill install https://paymateagent.xyz/openclaw-skill.json
 ```
 
 ### 2. Using the API directly (Machine-to-Machine)
 If you are building a custom agent outside of the standard OpenClaw framework, you can hit our headless API endpoint directly.
 
-**Endpoint:** `POST https://www.paymateagent.xyz/api/agent/paymate-skill`
+**Endpoint:** `POST https://paymateagent.xyz/api/agent/paymate-skill`
 
 **Payload:**
 ```json
@@ -46,7 +46,7 @@ If you are building a custom agent outside of the standard OpenClaw framework, y
 {
   "ok": true,
   "invoiceId": "inv-12345",
-  "payUrl": "https://www.paymateagent.xyz/pay/inv-12345",
+  "payUrl": "https://paymateagent.xyz/pay/inv-12345",
   "message": "Invoice generated successfully. Please present the payUrl to the client for settlement."
 }
 ```

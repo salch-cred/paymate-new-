@@ -1,21 +1,8 @@
 import { createWalletClient, http, getAddress } from "viem"
-import { getPublicClient, goatChain, getIssuerAccount, assertProductionSafeToken } from "./chain"
+import { getPublicClient, goatChain, getIssuerAccount, assertProductionSafeToken, ERC20_TRANSFER_ABI, usdcAmount } from "./chain"
 import { verifyInvoiceSignature } from "./eip712"
 import { analyzeInvoiceFraud } from "./sybilGuard"
 import type { Invoice } from "./db"
-
-const ERC20_TRANSFER_ABI = [
-  {
-    type: "function",
-    name: "transfer",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "recipient", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [{ name: "", type: "bool" }],
-  },
-] as const
 
 export async function autonomousAgentPay(invoice: Invoice): Promise<string> {
   assertProductionSafeToken()
@@ -69,8 +56,7 @@ export async function autonomousAgentPay(invoice: Invoice): Promise<string> {
   const publicClient = getPublicClient()
   const walletClient = createWalletClient({ account, chain: goatChain, transport: http() })
 
-  const decimals = Number(process.env.USDC_DECIMALS || "6")
-  const amountToTransfer = BigInt(Math.round(invoice.amountUsd * 10 ** decimals))
+  const amountToTransfer = usdcAmount(invoice.amountUsd)
 
   console.log(`[AGENT] Autonomous payment approved. Sending ${invoice.amountUsd} USDC to ${invoice.freelancer}...`)
   

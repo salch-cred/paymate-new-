@@ -2,6 +2,8 @@ import { autonomousAgentPay } from "@/lib/agent"
 import { getInvoice, markPaid } from "@/lib/db"
 import { mintReputation } from "@/lib/chain"
 import { checkAndConsumeIntentBudget } from "@/lib/rateLimit"
+import { requireBearerAuth } from "@/lib/auth"
+import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
 
 // SECURITY (audit follow-up, 2026-07-30): this endpoint triggers the exact
 // same real, autonomous USDC payout as /api/clawup/intent (it calls the same
@@ -17,15 +19,11 @@ import { checkAndConsumeIntentBudget } from "@/lib/rateLimit"
 // current reachability.
 export async function POST(request: Request) {
   try {
-    const sharedSecret = process.env.AGENT_PAY_ADMIN_SECRET
-    if (!sharedSecret) {
+    if (!process.env.AGENT_PAY_ADMIN_SECRET) {
       console.error("[agent/pay] AGENT_PAY_ADMIN_SECRET is not configured. Refusing to run.")
-      return Response.json({ detail: "Server misconfigured" }, { status: 500 })
     }
-    const authHeader = request.headers.get("authorization")
-    if (authHeader !== `Bearer ${sharedSecret}`) {
-      return Response.json({ detail: "Unauthorized" }, { status: 401 })
-    }
+    const unauthorized = requireBearerAuth(request, process.env.AGENT_PAY_ADMIN_SECRET)
+    if (unauthorized) return unauthorized
 
     const body = await request.json().catch(() => null)
     if (!body || !body.invoiceId) {
@@ -59,7 +57,7 @@ export async function POST(request: Request) {
 
     // 3. Mint On-Chain Reputation via ERC-8004
     try {
-      const multiplier = updated.webhookUrl === "clawup-referral-1.2x" ? 1.2 : 1.0;
+      const multiplier = updated.webhookUrl === REFERRAL_MULTIPLIER_TAG ? 1.2 : 1.0;
       await mintReputation(updated.freelancer, updated.amountUsd, multiplier)
     } catch (e) {
       console.log("Reputation failed", e)

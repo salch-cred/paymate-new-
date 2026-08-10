@@ -39,6 +39,8 @@ export interface Invoice {
   isStream: boolean
   streamRateUsd: number | null
   streamedAmountUsd: number
+  streamSignature: string | null
+  streamAuthorizedAt: number | null
   isPrivate: boolean
   zkCommitment: string | null
   githubPrUrl: string | null
@@ -96,6 +98,8 @@ interface InvoiceRow {
   is_stream: boolean
   stream_rate_usd: number | null
   streamed_amount_usd: number
+  stream_signature: string | null
+  stream_authorized_at: number | null
   is_private: boolean
   zk_commitment: string | null
   github_pr_url: string | null
@@ -137,6 +141,8 @@ async function ready(): Promise<void> {
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS is_stream BOOLEAN DEFAULT FALSE`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS stream_rate_usd DOUBLE PRECISION`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS streamed_amount_usd DOUBLE PRECISION DEFAULT 0`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS stream_signature TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS stream_authorized_at BIGINT`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS is_private BOOLEAN DEFAULT FALSE`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS zk_commitment TEXT`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS github_pr_url TEXT`.catch(()=>null)
@@ -206,6 +212,8 @@ function rowToInvoice(row: InvoiceRow): Invoice {
     isStream: row.is_stream || false,
     streamRateUsd: row.stream_rate_usd ? Number(row.stream_rate_usd) : null,
     streamedAmountUsd: row.streamed_amount_usd ? Number(row.streamed_amount_usd) : 0,
+    streamSignature: row.stream_signature || null,
+    streamAuthorizedAt: row.stream_authorized_at ? Number(row.stream_authorized_at) : null,
     isPrivate: row.is_private || false,
     zkCommitment: row.zk_commitment || null,
     githubPrUrl: row.github_pr_url || null,
@@ -252,7 +260,7 @@ export async function createInvoice(input: {
     description: input.description.trim(),
     amountUsd: Math.round(input.amountUsd * 100) / 100,
     status: "pending",
-    chain: "goat-testnet3",
+    chain: "goat-mainnet",
     dueDate: input.dueDate || null,
     txHash: null,
     createdAt: Date.now(),
@@ -266,6 +274,8 @@ export async function createInvoice(input: {
     isStream: input.isStream || false,
     streamRateUsd: input.streamRateUsd || null,
     streamedAmountUsd: 0,
+    streamSignature: null,
+    streamAuthorizedAt: null,
     isPrivate: input.isPrivate || false,
     zkCommitment: input.zkCommitment || null,
     githubPrUrl: input.githubPrUrl || null,
@@ -283,16 +293,16 @@ export async function createInvoice(input: {
 
   await sql`
   INSERT INTO invoices (
-    id, freelancer, client, title, description, amountUsd, status, chain, dueDate, txHash,
-    created_at, paidAt, webhookUrl, signature, splits, recurring, milestones,
-    is_stream, stream_rate_usd, streamed_amount_usd, is_private, zk_commitment, github_pr_url,
+    id, freelancer, client, title, description, amount_usd, status, chain, due_date, tx_hash,
+    created_at, paid_at, webhook_url, signature, splits, recurring, milestones,
+    is_stream, stream_rate_usd, streamed_amount_usd, stream_signature, stream_authorized_at, is_private, zk_commitment, github_pr_url,
     is_yield_bearing, yield_earned, is_swarm, swarm_wallets, proof_of_compute, compute_hash
   ) VALUES (
     ${invoice.id}, ${invoice.freelancer}, ${invoice.client}, ${invoice.title}, ${invoice.description},
     ${invoice.amountUsd}, ${invoice.status}, ${invoice.chain}, ${invoice.dueDate}, ${invoice.txHash},
     ${invoice.createdAt}, ${invoice.paidAt}, ${invoice.webhookUrl}, ${invoice.signature}, ${splitsJson},
     ${invoice.recurring}, ${milestonesJson}, ${invoice.isStream}, ${invoice.streamRateUsd}, ${invoice.streamedAmountUsd},
-    ${invoice.isPrivate}, ${invoice.zkCommitment}, ${invoice.githubPrUrl},
+    ${invoice.streamSignature}, ${invoice.streamAuthorizedAt}, ${invoice.isPrivate}, ${invoice.zkCommitment}, ${invoice.githubPrUrl},
     ${invoice.isYieldBearing}, ${invoice.yieldEarned}, ${invoice.isSwarm}, ${swarmWalletsJson}, ${invoice.proofOfCompute}, ${invoice.computeHash}
   )`
   return invoice
@@ -358,8 +368,21 @@ export async function updateStreamAmount(id: string, amountToAdd: number): Promi
   await ready()
   const sql = getSql()
   const updated = (await sql`
-    UPDATE invoices SET streamed_amount_usd = streamed_amount_usd + ${amountToAdd}
+    UPDATE invoices SET streamed_amount_usd = LEAST(amount_usd, streamed_amount_usd + ${amountToAdd})
     WHERE id=${id} AND status='pending' AND is_stream=true
+    RETURNING id
+  `) as unknown as { id: string }[]
+  if (updated.length === 0) return null
+  return getInvoice(id)
+}
+
+/** Records the client's real EIP-712 stream allowance on the invoice. */
+export async function authorizeStream(id: string, signature: string): Promise<Invoice | null> {
+  await ready()
+  const sql = getSql()
+  const updated = (await sql`
+    UPDATE invoices SET stream_signature=${signature}, stream_authorized_at=${Date.now()}
+    WHERE id=${id} AND status='pending' AND is_stream=true AND stream_signature IS NULL
     RETURNING id
   `) as unknown as { id: string }[]
   if (updated.length === 0) return null
@@ -542,6 +565,7 @@ export interface GrowthStats {
   feedbackByRole: { role: string; count: number }[]
   firstInvoiceAt: number | null
   lastInvoiceAt: number | null
+  lastPaidInvoice: { title: string; amountUsd: number; txHash: string | null; paidAt: number } | null
 }
 
 export async function getGrowthStats(): Promise<GrowthStats> {
@@ -572,6 +596,13 @@ export async function getGrowthStats(): Promise<GrowthStats> {
   `) as unknown as { total: number; avg_rating: number }[]
   const fb = feedbackRows[0]
 
+  const lastPaidRows = (await sql`
+    SELECT title, amount_usd, tx_hash, paid_at FROM invoices
+    WHERE status='paid' AND paid_at IS NOT NULL
+    ORDER BY paid_at DESC LIMIT 1
+  `) as unknown as { title: string; amount_usd: number; tx_hash: string | null; paid_at: string }[]
+  const lastPaid = lastPaidRows[0]
+
   const byRoleRows = (await sql`
     SELECT role, COUNT(*)::int AS count FROM feedback GROUP BY role
   `) as unknown as { role: string; count: number }[]
@@ -590,6 +621,9 @@ export async function getGrowthStats(): Promise<GrowthStats> {
     feedbackByRole: byRoleRows,
     firstInvoiceAt: inv.first_at ? Number(inv.first_at) : null,
     lastInvoiceAt: inv.last_at ? Number(inv.last_at) : null,
+    lastPaidInvoice: lastPaid
+      ? { title: lastPaid.title, amountUsd: Number(lastPaid.amount_usd), txHash: lastPaid.tx_hash, paidAt: Number(lastPaid.paid_at) }
+      : null,
   }
 }
 

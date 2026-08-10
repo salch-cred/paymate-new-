@@ -1,7 +1,7 @@
-import { createPublicClient, createWalletClient, http, getAddress, isAddress, decodeFunctionData } from "viem"
+import { createPublicClient, createWalletClient, http, getAddress, isAddress, decodeFunctionData, type Chain } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import type { Invoice } from "./db"
-import { goat } from "viem/chains"
+import { goat, base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo } from "viem/chains"
 
 export const goatChain = goat
 
@@ -37,7 +37,7 @@ const REPUTATION_ABI = [
   },
 ] as const
 
-const ERC20_TRANSFER_ABI = [
+export const ERC20_TRANSFER_ABI = [
   {
     type: "function",
     name: "transfer",
@@ -49,6 +49,31 @@ const ERC20_TRANSFER_ABI = [
     outputs: [{ name: "", type: "bool" }],
   },
 ] as const
+
+/** Converts a USD amount to the token's smallest unit (USDC_DECIMALS, default 6). */
+export function usdcAmount(amountUsd: number): bigint {
+  const decimals = Number(process.env.USDC_DECIMALS || "6")
+  return BigInt(Math.round(amountUsd * 10 ** decimals))
+}
+
+// Source chains accepted for CROSSCHAIN_ settlement receipts.
+const CROSS_CHAIN_CLIENTS: Record<number, Chain> = {
+  56: bsc,
+  8453: base,
+  10: optimism,
+  42161: arbitrum,
+  137: polygon,
+  43114: avalanche,
+  250: fantom,
+  42220: celo,
+}
+
+/** Returns a public client for a supported cross-chain settlement, or null. */
+export function getCrossChainClient(chainId: number) {
+  const chain = CROSS_CHAIN_CLIENTS[chainId]
+  if (!chain) return null
+  return createPublicClient({ chain, transport: http() })
+}
 
 export class PaymentError extends Error {
   status: number
@@ -139,7 +164,6 @@ export function paymentRequirements(invoice: Invoice, milestoneId?: string) {
   if (!usdcToken || !isAddress(usdcToken)) {
     throw new PaymentError(503, "USDC_TOKEN is not configured on the API")
   }
-  const decimals = Number(process.env.USDC_DECIMALS || "6")
   
   let accepts = []
   if (milestoneId && invoice.milestones) {
@@ -152,7 +176,7 @@ export function paymentRequirements(invoice: Invoice, milestoneId?: string) {
       token: getAddress(usdcToken),
       payTo: invoice.freelancer,
       price: `$${ms.amountUsd.toFixed(2)}`,
-      maxAmountRequired: String(Math.round(ms.amountUsd * 10 ** decimals)),
+      maxAmountRequired: usdcAmount(ms.amountUsd).toString(),
     }]
   } else if (invoice.splits && invoice.splits.length > 0) {
     accepts = invoice.splits.map(split => ({
@@ -162,17 +186,22 @@ export function paymentRequirements(invoice: Invoice, milestoneId?: string) {
       token: getAddress(usdcToken),
       payTo: getAddress(split.address),
       price: `$${split.amountUsd.toFixed(2)}`,
-      maxAmountRequired: String(Math.round(split.amountUsd * 10 ** decimals)),
+      maxAmountRequired: usdcAmount(split.amountUsd).toString(),
     }))
   } else {
+    // For streaming invoices, the final on-chain settlement covers exactly the
+    // amount that has actually streamed so far (capped at the invoice cap).
+    const settleAmount = invoice.isStream && invoice.streamedAmountUsd > 0
+      ? Math.min(invoice.streamedAmountUsd, invoice.amountUsd)
+      : invoice.amountUsd
     accepts = [{
-      scheme: invoice.isStream ? "stream" : "exact",
+      scheme: "exact",
       network: "goat",
       asset: getAddress(usdcToken),
       token: getAddress(usdcToken),
       payTo: invoice.freelancer,
-      price: invoice.isPrivate ? "$0.00" : `$${invoice.amountUsd.toFixed(2)}`,
-      maxAmountRequired: invoice.isPrivate ? "0" : String(Math.round(invoice.amountUsd * 10 ** decimals)),
+      price: invoice.isPrivate ? "$0.00" : `$${settleAmount.toFixed(2)}`,
+      maxAmountRequired: invoice.isPrivate ? "0" : usdcAmount(settleAmount).toString(),
     }]
   }
 
@@ -192,7 +221,6 @@ export async function verifyTransfer(txHashes: string | string[], invoice: Invoi
   if (!usdcToken || !isAddress(usdcToken)) {
     throw new PaymentError(503, "USDC_TOKEN is not configured on the API")
   }
-  const decimals = Number(process.env.USDC_DECIMALS || "6")
   
   const hashes = Array.isArray(txHashes) ? txHashes : txHashes.split(",").map(h => h.trim())
   
@@ -202,11 +230,14 @@ export async function verifyTransfer(txHashes: string | string[], invoice: Invoi
   if (milestoneId && invoice.milestones) {
     const ms = invoice.milestones.find(m => m.id === milestoneId)
     if (!ms) throw new PaymentError(404, "Milestone not found")
-    expectedPayments = [{ recipient: getAddress(invoice.freelancer), amount: BigInt(Math.round(ms.amountUsd * 10 ** decimals)), matched: false }]
+    expectedPayments = [{ recipient: getAddress(invoice.freelancer), amount: usdcAmount(ms.amountUsd), matched: false }]
   } else if (invoice.splits && invoice.splits.length > 0) {
-    expectedPayments = invoice.splits.map(s => ({ recipient: getAddress(s.address), amount: BigInt(Math.round(s.amountUsd * 10 ** decimals)), matched: false }))
+    expectedPayments = invoice.splits.map(s => ({ recipient: getAddress(s.address), amount: usdcAmount(s.amountUsd), matched: false }))
   } else {
-    expectedPayments = [{ recipient: getAddress(invoice.freelancer), amount: BigInt(Math.round(invoice.amountUsd * 10 ** decimals)), matched: false }]
+    const settleAmount = invoice.isStream && invoice.streamedAmountUsd > 0
+      ? Math.min(invoice.streamedAmountUsd, invoice.amountUsd)
+      : invoice.amountUsd
+    expectedPayments = [{ recipient: getAddress(invoice.freelancer), amount: usdcAmount(settleAmount), matched: false }]
   }
     
   if (hashes.length < expectedPayments.length) {

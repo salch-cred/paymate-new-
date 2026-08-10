@@ -1,4 +1,5 @@
 import { getInvoice, createDispute, countDisputesForInvoice, type DisputeResolution } from "@/lib/db"
+import { mistralJsonText, parseJsonResponse } from "@/lib/mistral"
 
 // PayMate AI Escrow Arbitrator.
 //
@@ -70,27 +71,14 @@ Output ONLY a valid JSON object matching this schema:
   "reasoning": "Concise, specific explanation referencing the scope and the dispute conversation."
 }`
 
-    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "mistral-large-latest",
-        temperature: 0.1,
-        response_format: { type: "json_object" },
-        messages: [{ role: "user", content: systemPrompt }],
-      }),
+    const text = await mistralJsonText({
+      messages: [{ role: "user", content: systemPrompt }],
+      model: "mistral-large-latest",
     })
-
-    const data = await response.json()
-    const text = data.choices?.[0]?.message?.content
 
     let parsed: { resolution?: string; reasoning?: string }
     try {
-      const cleaned = String(text).replace(/```json/g, "").replace(/```/g, "").trim()
-      parsed = JSON.parse(cleaned)
+      parsed = parseJsonResponse(text)
     } catch {
       return Response.json({ detail: "Arbitrator failed to render a valid verdict." }, { status: 502 })
     }

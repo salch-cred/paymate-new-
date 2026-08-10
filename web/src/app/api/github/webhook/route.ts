@@ -1,17 +1,7 @@
-import { createInvoice } from "@/lib/db";
-import { getAddress } from "viem";
+import { createBotInvoice } from "@/lib/chat-invoice";
+import { verifyHmacSignature } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { Octokit } from "octokit";
-import { createHmac, timingSafeEqual } from "crypto";
-
-function isValidGithubSignature(rawBody: string, signatureHeader: string | null, secret: string): boolean {
-  if (!signatureHeader || !signatureHeader.startsWith("sha256=")) return false;
-  const expected = "sha256=" + createHmac("sha256", secret).update(rawBody).digest("hex");
-  const a = Buffer.from(expected);
-  const b = Buffer.from(signatureHeader);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
 
 export async function POST(request: Request) {
   try {
@@ -23,7 +13,7 @@ export async function POST(request: Request) {
       console.error("[github/webhook] GITHUB_WEBHOOK_SECRET is not configured. Refusing request.");
       return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
     }
-    if (!isValidGithubSignature(rawBody, request.headers.get("x-hub-signature-256"), secret)) {
+    if (!verifyHmacSignature({ rawBody, secret, signature: request.headers.get("x-hub-signature-256"), sigPrefix: "sha256=" })) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
     const payload = JSON.parse(rawBody);
@@ -54,17 +44,13 @@ export async function POST(request: Request) {
     const title = `GitHub Bounty: ${item.title}`;
     const url = item.html_url;
 
-    const invoice = await createInvoice({
-      freelancer: getAddress(wallet),
-      client: getAddress("0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"), // dummy
-      title: title,
+    const { invoice, payUrl } = await createBotInvoice({
+      source: "github-bot",
+      freelancer: wallet,
+      title,
       description: `Bounty payout for ${url}`,
       amountUsd: amount,
-      webhookUrl: "github-bot",
-      signature: "0xgithub_signature_placeholder",
     });
-
-    const payUrl = `https://www.paymateagent.xyz/pay/${invoice.id}`;
 
     if (process.env.GITHUB_TOKEN && payload.repository) {
       try {

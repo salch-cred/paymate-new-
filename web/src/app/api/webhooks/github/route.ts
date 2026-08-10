@@ -1,23 +1,10 @@
 import { getInvoiceByGithubPrUrl, markPaid, addTreasuryRevenue } from "@/lib/db"
-import { createWalletClient, createPublicClient, http, getAddress, parseUnits, parseAbi } from "viem"
+import { createWalletClient, http, getAddress } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
-import { goatChain } from "@/lib/chain"
+import { goatChain, ERC20_TRANSFER_ABI, getPublicClient, usdcAmount } from "@/lib/chain"
 
 const RPC_URL = process.env.RPC_GOAT_MAINNET || goatChain.rpcUrls.default.http[0]
 const usdcToken = process.env.USDC_TOKEN
-
-const ERC20_TRANSFER_ABI = [
-  {
-    type: "function",
-    name: "transfer",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "recipient", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [{ name: "", type: "bool" }],
-  },
-] as const
 
 export async function POST(request: Request) {
   try {
@@ -42,11 +29,10 @@ export async function POST(request: Request) {
       if (!adminKey) throw new Error("ADMIN_PRIVATE_KEY not configured for DevOps Escrow")
       
       const account = privateKeyToAccount(`0x${adminKey}`)
-      const publicClient = createPublicClient({ chain: goatChain, transport: http(RPC_URL) })
+      const publicClient = getPublicClient()
       const walletClient = createWalletClient({ account, chain: goatChain, transport: http(RPC_URL) })
 
       // 3. Execute the transfer autonomously
-      const decimals = Number(process.env.USDC_DECIMALS || "6")
       let txHash: `0x${string}` | "" = "";
 
       if (invoice.isSwarm && invoice.swarmWallets && invoice.swarmWallets.length > 0) {
@@ -54,7 +40,7 @@ export async function POST(request: Request) {
         
         for (const agent of invoice.swarmWallets) {
           const splitAmountUsd = invoice.amountUsd * agent.share;
-          const amountToPay = parseUnits(splitAmountUsd.toString(), decimals)
+          const amountToPay = usdcAmount(splitAmountUsd)
           
           txHash = await walletClient.writeContract({
             address: getAddress(usdcToken),
@@ -69,7 +55,7 @@ export async function POST(request: Request) {
           console.log(`[GitHub Webhook] Swarm split payout successful to ${agent.address}: ${txHash}`)
         }
       } else {
-        const amountToPay = parseUnits(invoice.amountUsd.toString(), decimals)
+        const amountToPay = usdcAmount(invoice.amountUsd)
         
         txHash = await walletClient.writeContract({
           address: getAddress(usdcToken),

@@ -1,8 +1,8 @@
 import { getInvoice, markPaid, markMilestonePaid, addTreasuryRevenue } from "@/lib/db"
-import { paymentRequirements, verifyTransfer, mintReputation, PaymentError, getPublicClient } from "@/lib/chain"
+import { paymentRequirements, verifyTransfer, mintReputation, PaymentError, getCrossChainClient } from "@/lib/chain"
+import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
 import { sendReceipt } from "@/lib/email"
-import { createPublicClient, http, getAddress } from "viem"
-import { base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo } from "viem/chains"
+import { getAddress } from "viem"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -37,20 +37,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const [, chainIdStr, hash] = txHash.split("_")
       const chainId = parseInt(chainIdStr, 10)
       
-      const chains = {
-        56: bsc,
-        8453: base,
-        10: optimism,
-        42161: arbitrum,
-        137: polygon,
-        43114: avalanche,
-        250: fantom,
-        42220: celo
-      }
-      const sourceChain = chains[chainId as keyof typeof chains]
-      if (!sourceChain) throw new PaymentError(400, "Unsupported cross-chain network")
-      
-      const sourceClient = createPublicClient({ chain: sourceChain, transport: http() })
+      const sourceClient = getCrossChainClient(chainId)
+      if (!sourceClient) throw new PaymentError(400, "Unsupported cross-chain network")
       
       const receipt = await sourceClient.waitForTransactionReceipt({ hash: hash as `0x${string}`, timeout: 90_000 })
       if (receipt.status !== "success") throw new PaymentError(402, `Cross-chain transaction reverted: ${hash}`)
@@ -119,7 +107,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const multiplier = updated.webhookUrl === "clawup-referral-1.2x" ? 1.2 : 1.0;
+    const multiplier = updated.webhookUrl === REFERRAL_MULTIPLIER_TAG ? 1.2 : 1.0;
     await mintReputation(updated.freelancer, updated.isPrivate ? 0 : targetAmountUsd, multiplier)
   } catch (error) {
     console.log(`Reputation recording queued/failed: ${error}`)
@@ -181,17 +169,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
-  // Push Protocol (Wallet Notification) Mock Implementation
-  // Note: True integration requires @pushprotocol/restapi and ethers
+  // Push Protocol wallet notification — direct REST call (no SDK, edge-safe)
   if (process.env.PUSH_PROTOCOL_CHANNEL_PK) {
     try {
-      // Mocking the Push API call directly to avoid massive SDK dependencies on edge runtime
       console.log(`[Push Protocol] Sending wallet notification to ${updated.freelancer}`);
       await fetch("https://backend.epns.io/apis/v1/payloads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          recipient: `eip155:48816:${updated.freelancer}`,
+          recipient: `eip155:2345:${updated.freelancer}`,
           title: "Payment Received",
           body: `Your PayMate payment for $${targetAmountUsd} was verified on-chain!`,
         })

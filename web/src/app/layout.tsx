@@ -20,7 +20,7 @@ const softwareApplicationSchema = {
   operatingSystem: "Web",
   description:
     "On-chain invoicing and settlement for independent workers. Create invoices, collect direct wallet-to-wallet USDC payments via the x402 protocol, and build a portable ERC-8004 reputation credential on GOAT Network.",
-  url: "https://paymates.vercel.app",
+  url: "https://paymateagent.xyz",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
     "Intelligent natural-language invoice drafting",

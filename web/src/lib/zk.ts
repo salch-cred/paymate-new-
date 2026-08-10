@@ -34,7 +34,7 @@ export function decryptViewKey(viewKey: string): { amountUsd: number, salt: stri
   try {
     const decoded = atob(viewKey);
     return JSON.parse(decoded);
-  } catch (e) {
+  } catch {
     return null;
   }
 }
