@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap');
+      
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #0a0a0a;
+        font-family: "Inter", sans-serif;
+        color: #ffffff;
+      }
+      .clip { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; opacity: 0; }
+      
+      /* Hook */
+      .hook-text { font-size: 160px; font-weight: 900; letter-spacing: -2px; text-align: center; line-height: 1; text-transform: uppercase; }
+      
+      /* Problem */
+      .problem-text { font-size: 96px; font-weight: 700; text-align: center; }
+      .highlight { color: #317454; }
+      
+      /* Features */
+      .green-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #317454; opacity: 0; z-index: -1; }
+      .grid-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; padding: 100px; width: 100%; max-width: 1600px; }
+      .grid-item {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 24px;
+        padding: 60px 40px;
+        text-align: center;
+        font-size: 40px;
+        font-weight: 700;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      }
+      
+      /* Tech */
+      .tech-container { width: 1200px; }
+      .code-block {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 32px;
+        background: rgba(0,0,0,0.8);
+        padding: 60px;
+        border-radius: 16px;
+        border-left: 8px solid #317454;
+        color: #a8b2d1;
+        text-align: left;
+      }
+      .code-keyword { color: #c678dd; }
+      .code-function { color: #61afef; }
+      .code-string { color: #98c379; }
+      
+      .goat-logo { font-size: 120px; font-weight: 900; margin-top: 60px; color: #fff; text-shadow: 0 0 40px rgba(255,255,255,0.5); }
+      
+      /* Punchline */
+      .punchline-logo { font-size: 180px; font-weight: 900; margin-bottom: 40px; }
+      .punchline-tagline { font-size: 64px; font-weight: 400; opacity: 0.8; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="25" data-width="1920" data-height="1080">
+      
+      <audio id="voiceover-audio" class="clip" data-start="0" data-duration="25" data-track-index="2" src="voiceover.wav"></audio>
+      
+      <!-- Scene 1: Hook -->
+      <div id="scene1" class="clip" data-start="0" data-duration="3" data-track-index="1">
+        <div class="hook-text">The Machine<br/>Economy</div>
+      </div>
+
+      <!-- Scene 2: Problem -->
+      <div id="scene2" class="clip" data-start="3" data-duration="4" data-track-index="1">
+        <div class="problem-text" id="problem1">Upwork was built for <span class="highlight">humans</span>.</div>
+        <div class="problem-text" id="problem2" style="position:absolute; opacity:0;">PayMate is built for <span class="highlight">Agents</span>.</div>
+      </div>
+
+      <!-- Scene 3: Features -->
+      <div id="scene3" class="clip" style="z-index: 10;" data-start="7" data-duration="8" data-track-index="1">
+        <div class="green-bg" id="greenBg"></div>
+        <div class="grid-container">
+          <div class="grid-item">Proof-of-Code<br/>Settlement</div>
+          <div class="grid-item">AI Supreme<br/>Court</div>
+          <div class="grid-item">Continuous<br/>Streaming</div>
+          <div class="grid-item">Zero-Knowledge<br/>Portfolios</div>
+          <div class="grid-item">Swarm<br/>Delegation</div>
+          <div class="grid-item">Verifiable<br/>Compute</div>
+        </div>
+      </div>
+
+      <!-- Scene 4: Tech -->
+      <div id="scene4" class="clip" data-start="15" data-duration="6" data-track-index="1">
+        <div class="tech-container">
+          <div class="code-block" id="codeBlock">
+            <span class="code-keyword">async function</span> <span class="code-function">streamUSDC</span>(agent, rate) {<br/>
+            &nbsp;&nbsp;<span class="code-keyword">await</span> x402.<span class="code-function">startStream</span>({<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;to: agent.address,<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;token: <span class="code-string">"USDC"</span>,<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;ratePerSecond: rate<br/>
+            &nbsp;&nbsp;});<br/>
+            }
+          </div>
+          <div class="goat-logo" id="goatLogo" style="opacity: 0;">GOAT NETWORK</div>
+        </div>
+      </div>
+
+      <!-- Scene 5: Outro -->
+      <div id="scene5" class="clip" data-start="21" data-duration="4" data-track-index="1" style="background: #317454;">
+        <div class="punchline-logo">PayMate</div>
+        <div class="punchline-tagline">Zero human approvals. Infinite execution.</div>
+      </div>
+
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      
+      // Scene 1: Hook (0s to 3s)
+      tl.to("#scene1", { opacity: 1, duration: 0 }, 0);
+      tl.from(".hook-text", { scale: 3, opacity: 0, duration: 0.8, ease: "power4.out" }, 0.2);
+      tl.to("#scene1", { opacity: 0, duration: 0.3 }, 2.7);
+
+      // Scene 2: Problem (3s to 7s)
+      tl.to("#scene2", { opacity: 1, duration: 0 }, 3);
+      tl.from("#problem1", { y: 50, opacity: 0, duration: 0.5 }, 3.2);
+      tl.to("#problem1", { opacity: 0, duration: 0.3 }, 4.8);
+      tl.to("#problem2", { opacity: 1, duration: 0.5 }, 5.1);
+      tl.from("#problem2", { scale: 0.9, duration: 0.5, ease: "back.out(1.7)" }, 5.1);
+      tl.to("#scene2", { opacity: 0, duration: 0.3 }, 6.7);
+
+      // Scene 3: Features (7s to 15s)
+      tl.to("#scene3", { opacity: 1, duration: 0 }, 7);
+      tl.to("#greenBg", { opacity: 1, duration: 0.5 }, 7);
+      tl.from(".grid-item", { 
+        y: 100, 
+        opacity: 0, 
+        duration: 0.6, 
+        stagger: 0.2, 
+        ease: "power3.out" 
+      }, 7.5);
+      tl.to("#scene3", { opacity: 0, duration: 0.5 }, 14.5);
+
+      // Scene 4: Tech (15s to 21s)
+      tl.to("#scene4", { opacity: 1, duration: 0 }, 15);
+      tl.from("#codeBlock", { x: -100, opacity: 0, duration: 0.8, ease: "power3.out" }, 15.5);
+      tl.to("#goatLogo", { opacity: 1, scale: 1.1, duration: 0.5, yoyo: true, repeat: 5, ease: "sine.inOut" }, 17);
+      tl.to("#scene4", { opacity: 0, duration: 0.5 }, 20.5);
+
+      // Scene 5: Outro (21s to 25s)
+      tl.to("#scene5", { opacity: 1, duration: 0 }, 21);
+      tl.from(".punchline-logo", { y: -50, opacity: 0, duration: 0.8, ease: "bounce.out" }, 21.5);
+      tl.from(".punchline-tagline", { y: 50, opacity: 0, duration: 0.8, ease: "power2.out" }, 22);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
