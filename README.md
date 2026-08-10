@@ -6,7 +6,7 @@ PayMate is an intelligent, non-custodial invoicing platform designed for freelan
 
 - **AI Smart Drafting**: Describe your invoice in plain text (e.g., "500 USDC for marketing work") and the embedded AI structures a complete, professional invoice.
 - **Discord Bot Integration**: Create invoices directly from Discord slash commands (`/paymate` and `/invoice`). The bot operates ephemerally and is restricted to Administrators for maximum security.
-- **On-chain Settlement (x402)**: Invoices are settled directly on the GOAT Testnet3, proving payment cryptographically.
+- **On-chain Settlement (x402)**: Invoices are settled directly on the GOAT Mainnet, proving payment cryptographically.
 - **ERC-8004 Portable Reputation**: Every verified payment mints a soulbound reputation credential, giving freelancers an immutable on-chain track record of completed jobs and total earnings.
 - **Real-time Webhooks**: Automated Discord Webhooks announce paid invoices to your community instantly.
 
@@ -15,7 +15,7 @@ PayMate is an intelligent, non-custodial invoicing platform designed for freelan
 - **Frontend Framework**: Next.js 14 (App Router)
 - **Styling**: Pure Vanilla CSS for a hyper-premium, animated glassmorphism aesthetic.
 - **Wallet & Authentication**: [Privy](https://privy.io/) for embedded, gasless Web3 onboarding.
-- **Blockchain**: GOAT Network (Testnet3)
+- **Blockchain**: GOAT Network (Mainnet)
 - **AI Infrastructure**: OpenClaw Toolkit
 
 ## Hackathon Stage 2: Growth Strategy

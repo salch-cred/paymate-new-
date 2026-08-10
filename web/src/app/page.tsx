@@ -56,7 +56,7 @@ export default function Home() {
         <div className="hero-visual" aria-label="PayMate invoice product preview" onPointerMove={movePreview} onPointerLeave={resetPreview}>
           <div className="clay-shape clay-a"/><div className="clay-shape clay-b"/>
           <div className="preview-window glass-heavy">
-            <div className="preview-top"><div className="window-dots"><i/><i/><i/></div><span>paymate.work/invoice/PM-2948</span><Icon name="lock" size={15}/></div>
+            <div className="preview-top"><div className="window-dots"><i/><i/><i/></div><span>paymateagent.xyz/invoice/PM-2948</span><Icon name="lock" size={15}/></div>
             <div className="preview-body">
               <aside className="mini-sidebar"><span className="brand-mark small"><span/></span><div className="side-line active"/><div className="side-line"/><div className="side-line short"/><div className="sidebar-user">MS</div></aside>
               <div className="invoice-preview">

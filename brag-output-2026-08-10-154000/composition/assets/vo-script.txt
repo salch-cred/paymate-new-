@@ -1,0 +1,1 @@
+Describe the work in plain language. PayMate structures it into a client-ready payment request — instantly. Your client gets a secure payment link. One click. USDC settles directly to your wallet on the GOAT Network. Every verified settlement builds your ERC-8004 reputation. Portable proof of your work — on-chain, forever. PayMate. Work, Settled.

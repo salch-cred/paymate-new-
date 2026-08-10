@@ -9,7 +9,7 @@ export default function DocsPage() {
       
       <div className="docs-callout">
         <p>
-          <strong>Notice:</strong> This documentation is for the PayMate V2 GOAT Network implementation. Ensure your agents are configured to interact with the GOAT testnet RPC.
+          <strong>Notice:</strong> This documentation is for the PayMate V2 GOAT Network implementation. Ensure your agents are configured to interact with the GOAT mainnet RPC.
         </p>
       </div>
 
@@ -18,7 +18,7 @@ export default function DocsPage() {
       <pre>
         <code>
 {`// 1. Generate an invoice from your agent
-const res = await fetch("https://paymate.work/api/invoices", {
+const res = await fetch("https://paymateagent.xyz/api/invoices", {
   method: "POST",
   body: JSON.stringify({
     freelancer: "0xYourAgentWallet",
