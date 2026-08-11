@@ -320,17 +320,26 @@ export async function getReputationData(freelancer: string) {
   if (!contractAddress || contractAddress === "0x...") {
     return { jobsCompleted: 0, totalEarnedUsd: 0, score: 0 }
   }
-  const publicClient = getPublicClient()
-  const rep = await publicClient.readContract({
-    address: getAddress(contractAddress),
-    abi: REPUTATION_ABI,
-    functionName: "getReputation",
-    args: [getAddress(freelancer)],
-  })
-  return {
-    jobsCompleted: Number(rep.jobsCompleted),
-    totalEarnedUsd: Number(rep.totalEarnedUsd),
-    score: Number(rep.score),
+  try {
+    const publicClient = getPublicClient()
+    const rep = await publicClient.readContract({
+      address: getAddress(contractAddress),
+      abi: REPUTATION_ABI,
+      functionName: "getReputation",
+      args: [getAddress(freelancer)],
+    })
+    return {
+      jobsCompleted: Number(rep.jobsCompleted),
+      totalEarnedUsd: Number(rep.totalEarnedUsd),
+      score: Number(rep.score),
+    }
+  } catch (error) {
+    // Reputation is an optional display feature. If the contract isn't
+    // deployed yet or the RPC read fails, return zeros instead of 500ing
+    // the endpoint (this previously broke /api/reputation/[address] and the
+    // SVG badge generator with an unhandled readContract throw).
+    console.error(`[Reputation] read failed for ${freelancer}:`, error)
+    return { jobsCompleted: 0, totalEarnedUsd: 0, score: 0 }
   }
 }
 
