@@ -35,6 +35,7 @@ export interface Invoice {
   ipfsReceipt: string | null
   splits: InvoiceSplit[] | null
   recurring: "weekly" | "monthly" | null
+  recurringParentId: string | null
   milestones: Milestone[] | null
   isStream: boolean
   streamRateUsd: number | null
@@ -50,6 +51,11 @@ export interface Invoice {
   swarmWallets: {address:string; share:number}[] | null
   proofOfCompute: boolean
   computeHash: string | null
+  escrowStatus: "none" | "funded" | "resolved"
+  escrowTxHash: string | null
+  apiKeyId: string | null
+  /** Real paywall deliverable stored on the invoice — served only after on-chain payment. */
+  paywallContent: string | null
 }
 
 export type FeedbackRole = "freelancer" | "client" | "other"
@@ -94,6 +100,7 @@ interface InvoiceRow {
   ipfs_receipt: string | null
   splits: string | null
   recurring: string | null
+  recurring_parent_id: string | null
   milestones: string | null
   is_stream: boolean
   stream_rate_usd: number | null
@@ -109,6 +116,10 @@ interface InvoiceRow {
   swarm_wallets: string | null
   proof_of_compute: boolean
   compute_hash: string | null
+  escrow_status: string | null
+  escrow_tx_hash: string | null
+  api_key_id: string | null
+  paywall_content: string | null
 }
 
 declare global {
@@ -137,6 +148,8 @@ async function ready(): Promise<void> {
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ipfs_receipt TEXT`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS splits TEXT`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS recurring TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS recurring_parent_id TEXT`.catch(()=>null)
+      await sql`CREATE INDEX IF NOT EXISTS idx_invoices_recurring_parent ON invoices(recurring_parent_id, created_at DESC)`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS milestones TEXT`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS is_stream BOOLEAN DEFAULT FALSE`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS stream_rate_usd DOUBLE PRECISION`.catch(()=>null)
@@ -152,6 +165,11 @@ async function ready(): Promise<void> {
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS swarm_wallets TEXT`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS proof_of_compute BOOLEAN DEFAULT FALSE`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS compute_hash TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS escrow_status TEXT DEFAULT 'none'`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS escrow_tx_hash TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS api_key_id TEXT`.catch(()=>null)
+      await sql`CREATE INDEX IF NOT EXISTS idx_invoices_api_key ON invoices(api_key_id, created_at DESC)`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paywall_content TEXT`.catch(()=>null)
       await sql`CREATE INDEX IF NOT EXISTS idx_invoices_freelancer ON invoices(freelancer, created_at DESC)`
       await sql`CREATE TABLE IF NOT EXISTS treasury (
         id TEXT PRIMARY KEY,
@@ -177,6 +195,19 @@ async function ready(): Promise<void> {
         created_at BIGINT NOT NULL
       )`
       await sql`CREATE INDEX IF NOT EXISTS idx_disputes_invoice ON disputes(invoice_id, created_at DESC)`
+      await sql`CREATE TABLE IF NOT EXISTS api_keys (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        wallet TEXT NOT NULL,
+        key_hash TEXT NOT NULL UNIQUE,
+        key_prefix TEXT NOT NULL,
+        quota_usd DOUBLE PRECISION NOT NULL DEFAULT 1000,
+        used_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+        revoked_at BIGINT,
+        created_at BIGINT NOT NULL,
+        last_used_at BIGINT
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_api_keys_wallet ON api_keys(wallet, created_at DESC)`
       await sql`CREATE TABLE IF NOT EXISTS chat_states (
         chat_id TEXT PRIMARY KEY,
         address TEXT,
@@ -208,6 +239,7 @@ function rowToInvoice(row: InvoiceRow): Invoice {
     ipfsReceipt: row.ipfs_receipt || null,
     splits: row.splits ? JSON.parse(row.splits) : null,
     recurring: (row.recurring as "weekly" | "monthly") || null,
+    recurringParentId: row.recurring_parent_id || null,
     milestones: row.milestones ? JSON.parse(row.milestones) : null,
     isStream: row.is_stream || false,
     streamRateUsd: row.stream_rate_usd ? Number(row.stream_rate_usd) : null,
@@ -223,6 +255,10 @@ function rowToInvoice(row: InvoiceRow): Invoice {
     swarmWallets: row.swarm_wallets ? JSON.parse(row.swarm_wallets) : null,
     proofOfCompute: row.proof_of_compute || false,
     computeHash: row.compute_hash || null,
+    escrowStatus: (row.escrow_status as "none" | "funded" | "resolved") || "none",
+    escrowTxHash: row.escrow_tx_hash || null,
+    apiKeyId: row.api_key_id || null,
+    paywallContent: row.paywall_content || null,
   }
 }
 
@@ -237,6 +273,7 @@ export async function createInvoice(input: {
   signature?: string | null
   splits?: InvoiceSplit[] | null
   recurring?: "weekly" | "monthly" | null
+  recurringParentId?: string | null
   milestones?: Milestone[] | null
   isStream?: boolean
   streamRateUsd?: number | null
@@ -249,6 +286,8 @@ export async function createInvoice(input: {
   swarmWallets?: {address:string; share:number}[] | null
   proofOfCompute?: boolean
   computeHash?: string | null
+  apiKeyId?: string | null
+  paywallContent?: string | null
 }): Promise<Invoice> {
   await ready()
   const sql = getSql()
@@ -270,6 +309,7 @@ export async function createInvoice(input: {
     ipfsReceipt: null,
     splits: input.splits || null,
     recurring: input.recurring || null,
+    recurringParentId: input.recurringParentId || null,
     milestones: input.milestones || null,
     isStream: input.isStream || false,
     streamRateUsd: input.streamRateUsd || null,
@@ -285,6 +325,10 @@ export async function createInvoice(input: {
     swarmWallets: input.swarmWallets || null,
     proofOfCompute: input.proofOfCompute || false,
     computeHash: input.computeHash || null,
+    escrowStatus: "none",
+    escrowTxHash: null,
+    apiKeyId: input.apiKeyId || null,
+    paywallContent: input.paywallContent || null,
   }
   
   const splitsJson = invoice.splits ? JSON.stringify(invoice.splits) : null
@@ -294,16 +338,18 @@ export async function createInvoice(input: {
   await sql`
   INSERT INTO invoices (
     id, freelancer, client, title, description, amount_usd, status, chain, due_date, tx_hash,
-    created_at, paid_at, webhook_url, signature, splits, recurring, milestones,
+    created_at, paid_at, webhook_url, signature, splits, recurring, recurring_parent_id, milestones,
     is_stream, stream_rate_usd, streamed_amount_usd, stream_signature, stream_authorized_at, is_private, zk_commitment, github_pr_url,
-    is_yield_bearing, yield_earned, is_swarm, swarm_wallets, proof_of_compute, compute_hash
+    is_yield_bearing, yield_earned, is_swarm, swarm_wallets, proof_of_compute, compute_hash,
+    escrow_status, escrow_tx_hash, api_key_id, paywall_content
   ) VALUES (
     ${invoice.id}, ${invoice.freelancer}, ${invoice.client}, ${invoice.title}, ${invoice.description},
     ${invoice.amountUsd}, ${invoice.status}, ${invoice.chain}, ${invoice.dueDate}, ${invoice.txHash},
     ${invoice.createdAt}, ${invoice.paidAt}, ${invoice.webhookUrl}, ${invoice.signature}, ${splitsJson},
-    ${invoice.recurring}, ${milestonesJson}, ${invoice.isStream}, ${invoice.streamRateUsd}, ${invoice.streamedAmountUsd},
+    ${invoice.recurring}, ${invoice.recurringParentId}, ${milestonesJson}, ${invoice.isStream}, ${invoice.streamRateUsd}, ${invoice.streamedAmountUsd},
     ${invoice.streamSignature}, ${invoice.streamAuthorizedAt}, ${invoice.isPrivate}, ${invoice.zkCommitment}, ${invoice.githubPrUrl},
-    ${invoice.isYieldBearing}, ${invoice.yieldEarned}, ${invoice.isSwarm}, ${swarmWalletsJson}, ${invoice.proofOfCompute}, ${invoice.computeHash}
+    ${invoice.isYieldBearing}, ${invoice.yieldEarned}, ${invoice.isSwarm}, ${swarmWalletsJson}, ${invoice.proofOfCompute}, ${invoice.computeHash},
+    ${invoice.escrowStatus}, ${invoice.escrowTxHash}, ${invoice.apiKeyId}, ${invoice.paywallContent}
   )`
   return invoice
 }
@@ -354,6 +400,37 @@ export async function markPaid(id: string, txHash: string, ipfsCid: string | nul
   `) as unknown as { id: string }[]
   if (updated.length === 0) return null
   return getInvoice(id)
+}
+
+/** Persists (or replaces) the paywall deliverable for an invoice. */
+export async function updatePaywallContent(id: string, content: string): Promise<Invoice | null> {
+  await ready()
+  const sql = getSql()
+  const updated = (await sql`
+    UPDATE invoices SET paywall_content=${content}
+    WHERE id=${id}
+    RETURNING id
+  `) as unknown as { id: string }[]
+  if (updated.length === 0) return null
+  return getInvoice(id)
+}
+
+/**
+ * Finds the most recent invoice in a retainer chain. A chain starts at a
+ * user-created invoice (recurring_parent_id IS NULL) and continues through
+ * every cron-generated retainer (recurring_parent_id = chain root id). Used by
+ * the recurring cron to create the next retainer only when the previous one is
+ * due — never duplicate on every run.
+ */
+export async function getLatestRetainer(chainRootId: string): Promise<Invoice | null> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM invoices
+    WHERE id = ${chainRootId} OR recurring_parent_id = ${chainRootId}
+    ORDER BY created_at DESC LIMIT 1
+  `) as unknown as InvoiceRow[]
+  return rows[0] ? rowToInvoice(rows[0]) : null
 }
 
 export async function getInvoiceByGithubPrUrl(url: string): Promise<Invoice | null> {
@@ -415,6 +492,54 @@ export async function markMilestonePaid(id: string, milestoneId: string, txHash:
       ipfs_receipt=${allPaid ? ipfsCid : invoice.ipfsReceipt}
     WHERE id=${id}
   `
+  return getInvoice(id)
+}
+
+/** Records that client funds are locked in the on-chain escrow contract. */
+export async function markEscrowFunded(id: string, escrowTxHash: string): Promise<Invoice | null> {
+  await ready()
+  const sql = getSql()
+  const updated = (await sql`
+    UPDATE invoices SET escrow_status='funded', escrow_tx_hash=${escrowTxHash}
+    WHERE id=${id} AND status='pending' AND escrow_status='none'
+    RETURNING id
+  `) as unknown as { id: string }[]
+  if (updated.length === 0) return null
+  return getInvoice(id)
+}
+
+/**
+ * Records that the escrowed funds were released on-chain to the freelancer
+ * (normal resolve or a PAY_FREELANCER / SPLIT_50_50 verdict) and the invoice
+ * is now fully paid.
+ */
+export async function markEscrowPaid(id: string, txHash: string, escrowTxHash: string): Promise<Invoice | null> {
+  await ready()
+  const sql = getSql()
+  const updated = (await sql`
+    UPDATE invoices SET status='paid', tx_hash=${txHash}, escrow_status='resolved',
+      escrow_tx_hash=${escrowTxHash}, paid_at=${Date.now()}
+    WHERE id=${id} AND status='pending' AND escrow_status='funded'
+    RETURNING id
+  `) as unknown as { id: string }[]
+  if (updated.length === 0) return null
+  return getInvoice(id)
+}
+
+/**
+ * Records that a REFUND_CLIENT verdict returned the escrowed funds to the
+ * client. The invoice is closed as cancelled — the freelancer was not paid.
+ */
+export async function markEscrowRefunded(id: string, txHash: string, escrowTxHash: string): Promise<Invoice | null> {
+  await ready()
+  const sql = getSql()
+  const updated = (await sql`
+    UPDATE invoices SET status='cancelled', tx_hash=${txHash}, escrow_status='resolved',
+      escrow_tx_hash=${escrowTxHash}, paid_at=NULL
+    WHERE id=${id} AND status='pending' AND escrow_status='funded'
+    RETURNING id
+  `) as unknown as { id: string }[]
+  if (updated.length === 0) return null
   return getInvoice(id)
 }
 
@@ -699,4 +824,135 @@ export async function clearChatState(chatId: string): Promise<void> {
   await ready()
   const sql = getSql()
   await sql`DELETE FROM chat_states WHERE chat_id = ${chatId}`
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Public Agent API keys
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ApiKey {
+  id: string
+  name: string
+  wallet: string
+  keyHash: string
+  keyPrefix: string
+  quotaUsd: number
+  usedUsd: number
+  revokedAt: number | null
+  createdAt: number
+  lastUsedAt: number | null
+}
+
+interface ApiKeyRow {
+  id: string
+  name: string
+  wallet: string
+  key_hash: string
+  key_prefix: string
+  quota_usd: number
+  used_usd: number
+  revoked_at: string | null
+  created_at: string
+  last_used_at: string | null
+}
+
+function rowToApiKey(row: ApiKeyRow): ApiKey {
+  return {
+    id: row.id,
+    name: row.name,
+    wallet: row.wallet,
+    keyHash: row.key_hash,
+    keyPrefix: row.key_prefix,
+    quotaUsd: Number(row.quota_usd),
+    usedUsd: Number(row.used_usd),
+    revokedAt: row.revoked_at === null ? null : Number(row.revoked_at),
+    createdAt: Number(row.created_at),
+    lastUsedAt: row.last_used_at === null ? null : Number(row.last_used_at),
+  }
+}
+
+/** Creates an API key row. Only the SHA-256 hash of the secret is stored. */
+export async function createApiKey(input: {
+  id: string
+  name: string
+  wallet: string
+  keyHash: string
+  keyPrefix: string
+  quotaUsd: number
+}): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`
+    INSERT INTO api_keys (id, name, wallet, key_hash, key_prefix, quota_usd, used_usd, created_at)
+    VALUES (${input.id}, ${input.name}, ${input.wallet.toLowerCase()}, ${input.keyHash}, ${input.keyPrefix}, ${input.quotaUsd}, 0, ${Date.now()})
+  `
+}
+
+export async function listApiKeys(wallet: string): Promise<ApiKey[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM api_keys WHERE wallet = ${wallet.toLowerCase()}
+    ORDER BY created_at DESC
+  `) as unknown as ApiKeyRow[]
+  return rows.map(rowToApiKey)
+}
+
+/** Looks up a key by its SHA-256 hash (constant-time-ish; hash equality is safe). */
+export async function getApiKeyByHash(keyHash: string): Promise<ApiKey | null> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM api_keys WHERE key_hash = ${keyHash} LIMIT 1
+  `) as unknown as ApiKeyRow[]
+  return rows[0] ? rowToApiKey(rows[0]) : null
+}
+
+export async function getApiKeyById(id: string): Promise<ApiKey | null> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM api_keys WHERE id = ${id} LIMIT 1
+  `) as unknown as ApiKeyRow[]
+  return rows[0] ? rowToApiKey(rows[0]) : null
+}
+
+/** Marks a key revoked (owner only). */
+export async function revokeApiKey(id: string, wallet: string): Promise<boolean> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    UPDATE api_keys SET revoked_at = ${Date.now()}
+    WHERE id = ${id} AND lower(wallet) = lower(${wallet}) AND revoked_at IS NULL
+    RETURNING id
+  `) as unknown as { id: string }[]
+  return rows.length > 0
+}
+
+/** Updates the key's last_used_at timestamp on each authenticated call. */
+export async function touchApiKey(id: string): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`UPDATE api_keys SET last_used_at = ${Date.now()} WHERE id = ${id}`
+}
+
+/**
+ * Consumes `amountUsd` against the key's quota. Returns false (no spend)
+ * if the key would exceed its quota — fail closed on any DB error too.
+ */
+export async function consumeApiQuota(id: string, amountUsd: number): Promise<boolean> {
+  try {
+    await ready()
+    const sql = getSql()
+    const rows = (await sql`
+      UPDATE api_keys
+      SET used_usd = used_usd + ${amountUsd}
+      WHERE id = ${id} AND revoked_at IS NULL AND used_usd + ${amountUsd} <= quota_usd
+      RETURNING id
+    `) as unknown as { id: string }[]
+    return rows.length > 0
+  } catch (error) {
+    console.error("[db] consumeApiQuota failed, failing closed:", error)
+    return false
+  }
 }

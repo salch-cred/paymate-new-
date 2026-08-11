@@ -39,9 +39,18 @@ USDC_DECIMALS=6
 AGENT_PAY_ADMIN_SECRET=<any-long-secret> # auth for /api/agent/pay
 MISTRAL_API_KEY=...                      # sybil-guard + drafting
 REPUTATION_CONTRACT=0x...                # optional — ERC-8004 mint (skip = no mint, no crash)
+ESCROW_CONTRACT=0x...                    # REQUIRED for GitHub escrow + AI-verdict fund movement
 RESEND_API_KEY=...                       # optional — email receipts
 RPC_GOAT_MAINNET=https://rpc.goat.network
 ```
+
+**Deploy the contracts first** (one command deploys Reputation + YieldEscrow + Treasury):
+```bash
+cd contracts && npx hardhat run scripts/deploy.ts --network goat
+# paste the printed addresses into web/.env (REPUTATION_CONTRACT, ESCROW_CONTRACT, TREASURY_CONTRACT)
+```
+
+Now the **GitHub escrow is real**: a client locks USDC in the escrow contract → the moment the PR merges, the webhook releases it on-chain to the freelancer. And if a dispute is raised, the **AI verdict actually moves the funds** (PAY_FREELANCER / REFUND_CLIENT / SPLIT_50_50).
 
 ### Option A — Autonomous agent flow (fastest)
 ```bash

@@ -10,7 +10,14 @@ const API_BASE = process.env.API_BASE || "http://localhost:3000";
 // live production API route. Local/demo scripts must never contain a fixed
 // private key. Provide SIMULATE_CLIENT_PRIVATE_KEY via your local .env
 // (never commit it) or a fresh throwaway key is generated per run.
-const FREELANCER = process.env.SIMULATE_FREELANCER_ADDRESS || "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+// Fail closed: never fall back to a well-known test wallet. You must name the
+// real freelancer wallet that should receive the settlement.
+const FREELANCER_ENV = process.env.SIMULATE_FREELANCER_ADDRESS
+if (!FREELANCER_ENV) {
+  console.error("Set SIMULATE_FREELANCER_ADDRESS (the real receiving wallet) to run this script.")
+  process.exit(1)
+}
+const FREELANCER: string = FREELANCER_ENV
 const CLIENT_PRIVATE_KEY = (process.env.SIMULATE_CLIENT_PRIVATE_KEY as `0x${string}`) || generatePrivateKey();
 const clientAccount = privateKeyToAccount(CLIENT_PRIVATE_KEY);
 const CLIENT = clientAccount.address;
@@ -31,7 +38,7 @@ const INVOICE_TYPES = {
 };
 
 async function simulate() {
-  console.log("Starting Live Network Simulation with EIP-712 Proofs...");
+  console.log("Starting a real EIP-712-signed settlement on GOAT mainnet...");
 
   const amountUsd = 15.0;
 
@@ -55,8 +62,8 @@ async function simulate() {
     body: JSON.stringify({
       freelancer: FREELANCER,
       client: CLIENT,
-      title: "Simulated Automated Task",
-      description: "AI-generated task for network activity simulation",
+      title: "Automated Agent Task",
+      description: "Autonomous AI-agent work item settled through the PayMate billing rail",
       amountUsd,
       dueDate: new Date().toISOString(),
       signature,

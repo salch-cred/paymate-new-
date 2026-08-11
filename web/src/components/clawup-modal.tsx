@@ -13,40 +13,72 @@ interface ClawUpModalProps {
   freelancerAddress: string;
 }
 
-export function ClawUpModal({ isOpen, onClose, onSuccess, freelancerAddress }: ClawUpModalProps) {
+// Real mainnet chain IDs supported by the cross-chain settlement verifier.
+const chains = [
+  { id: 56, name: "Binance (BSC)", icon: "🟡", symbol: "BNB", decimals: 18 },
+  { id: 8453, name: "Base", icon: "🌐", symbol: "ETH", decimals: 18 },
+  { id: 10, name: "Optimism", icon: "🔴", symbol: "ETH", decimals: 18 },
+  { id: 42161, name: "Arbitrum", icon: "🔵", symbol: "ETH", decimals: 18 },
+  { id: 137, name: "Polygon", icon: "🟣", symbol: "POL", decimals: 18 },
+  { id: 43114, name: "Avalanche", icon: "🔺", symbol: "AVAX", decimals: 18 },
+  { id: 250, name: "Fantom", icon: "👻", symbol: "FTM", decimals: 18 },
+  { id: 42220, name: "Celo", icon: "🌱", symbol: "CELO", decimals: 18 },
+];
+
+/** Adds a 3% buffer so the settlement covers the invoice amount even if the
+ *  native price drifts between the quote and the confirmed transaction. */
+const VALUE_BUFFER = 1.03;
+
+export function ClawUpModal({ isOpen, onClose, onSuccess, amountUsd, freelancerAddress }: ClawUpModalProps) {
   const [step, setStep] = useState<"select" | "bridging" | "done">("select");
   const [selectedChain, setSelectedChain] = useState<number | null>(null);
+  const [prices, setPrices] = useState<Record<number, number | null>>({});
+  const [amountOut, setAmountOut] = useState<string | null>(null);
   
   const { switchChainAsync } = useSwitchChain();
   const { sendTransactionAsync } = useSendTransaction();
   const { isConnected } = useAccount();
 
-  // Using standard mainnet chain IDs for the real implementation
-  const chains = [
-    { id: 56, name: "Binance (BSC)", icon: "🟡", symbol: "BNB" },
-    { id: 8453, name: "Base", icon: "🌐", symbol: "ETH" },
-    { id: 10, name: "Optimism", icon: "🔴", symbol: "ETH" },
-    { id: 42161, name: "Arbitrum", icon: "🔵", symbol: "ETH" },
-    { id: 137, name: "Polygon", icon: "🟣", symbol: "MATIC" },
-    { id: 43114, name: "Avalanche", icon: "🔺", symbol: "AVAX" },
-    { id: 250, name: "Fantom", icon: "👻", symbol: "FTM" },
-    { id: 42220, name: "Celo", icon: "🌱", symbol: "CELO" },
-  ];
+  const selectChain = async (chainId: number) => {
+    setSelectedChain(chainId);
+    // Load the live native-token price for this chain and quote the exact
+    // amount needed to cover the invoice (buffered for price drift).
+    try {
+      const res = await fetch("/api/prices");
+      const data = await res.json();
+      setPrices(data.prices || {});
+      const usd = data.prices?.[chainId];
+      if (typeof usd === "number" && usd > 0) {
+        const units = ((amountUsd * VALUE_BUFFER) / usd).toFixed(6);
+        setAmountOut(units);
+      } else {
+        setAmountOut(null);
+      }
+    } catch {
+      setPrices({});
+      setAmountOut(null);
+    }
+  };
 
   const handlePay = async () => {
     if (!selectedChain || !isConnected) return;
+    const usd = prices[selectedChain];
+    if (!amountOut || !usd) {
+      alert("Could not fetch the live native price for this network. Try again in a moment.");
+      return;
+    }
     try {
       setStep("bridging");
       
       // 1. Physically switch the wallet to the external network
       await switchChainAsync({ chainId: selectedChain });
       
-      // 2. Execute a REAL transaction on the source network to the freelancer's wallet.
-      // For this hackathon cross-chain implementation, we send a tiny native token 
-      // payload to cryptographically prove the cross-chain intent on the backend.
+      // 2. Send the invoice's REAL value in the source chain's native token to
+      // the freelancer's wallet. The backend verifies the on-chain value
+      // against the live price before settling — dust is rejected.
       const txHash = await sendTransactionAsync({
         to: freelancerAddress as `0x${string}`,
-        value: parseEther("0.0001"), 
+        value: parseEther(amountOut),
       });
 
       // 3. Pass the real transaction hash back so the backend can verify it across RPCs!
@@ -93,13 +125,15 @@ export function ClawUpModal({ isOpen, onClose, onSuccess, freelancerAddress }: C
           {step === "select" && (
             <div>
               <p style={{ marginBottom: '16px', color: 'var(--muted)', fontSize: '14px' }}>
-                Pay from any network. Your wallet will be prompted to send the funds, and our backend will cryptographically verify the receipt before settling on GOAT.
+                Pay from any network. Your wallet will send <b>${amountUsd.toLocaleString()}</b> worth of the
+                network&apos;s native token directly to the freelancer, and our backend cryptographically verifies
+                the value on-chain before settling on GOAT.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {chains.map(c => (
                   <button 
                     key={c.id} 
-                    onClick={() => setSelectedChain(c.id)}
+                    onClick={() => selectChain(c.id)}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '16px', borderRadius: '12px',
@@ -111,17 +145,19 @@ export function ClawUpModal({ isOpen, onClose, onSuccess, freelancerAddress }: C
                     <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span>{c.icon}</span> {c.name}
                     </span>
-                    {selectedChain === c.id && <Icon name="check" size={16} />}
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--muted)' }}>
+                      {selectedChain === c.id && amountOut ? `≈ ${amountOut} ${c.symbol}` : c.symbol}
+                    </span>
                   </button>
                 ))}
               </div>
               <button 
                 onClick={handlePay}
-                disabled={!selectedChain}
+                disabled={!selectedChain || !amountOut}
                 className="button button-primary" 
-                style={{ width: '100%', marginTop: '24px', opacity: selectedChain ? 1 : 0.5 }}
+                style={{ width: '100%', marginTop: '24px', opacity: selectedChain && amountOut ? 1 : 0.5 }}
               >
-                Send Cross-Chain Intent on {chains.find(c => c.id === selectedChain)?.name}
+                Send {amountOut ? `${amountOut} ` : ""}{chains.find(c => c.id === selectedChain)?.symbol || "…"} ({`$${amountUsd.toLocaleString()}`} value)
               </button>
             </div>
           )}

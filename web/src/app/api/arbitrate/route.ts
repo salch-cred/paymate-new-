@@ -1,5 +1,12 @@
-import { getInvoice, createDispute, countDisputesForInvoice, type DisputeResolution } from "@/lib/db"
+import { getInvoice, createDispute, countDisputesForInvoice, markEscrowPaid, markEscrowRefunded, addTreasuryRevenue, type DisputeResolution } from "@/lib/db"
+import { resolveDisputeOnChain, isEscrowInvoice, mintReputation, PaymentError } from "@/lib/chain"
 import { mistralJsonText, parseJsonResponse } from "@/lib/mistral"
+
+const RESOLUTION_TO_ENUM: Record<DisputeResolution, number> = {
+  PAY_FREELANCER: 0,
+  REFUND_CLIENT: 1,
+  SPLIT_50_50: 2,
+}
 
 // PayMate AI Escrow Arbitrator.
 //
@@ -19,6 +26,11 @@ import { mistralJsonText, parseJsonResponse } from "@/lib/mistral"
 // it's auditable later (e.g. from the dashboard). Capped at MAX_ROUNDS
 // arbitration calls per invoice so this can't be used to run up an unbounded
 // Mistral bill.
+//
+// FIXED 2026-08-11 (escrow wiring): a verdict is now ENFORCED on-chain. If the
+// invoice's funds are locked in the YieldEscrow contract, the resolution moves
+// the real USDC (PAY_FREELANCER / REFUND_CLIENT / SPLIT_50_50) and the invoice
+// state is updated accordingly (paid or refunded).
 const MAX_ROUNDS_PER_INVOICE = 8
 
 export async function POST(request: Request) {
@@ -93,14 +105,56 @@ Output ONLY a valid JSON object matching this schema:
 
     const dispute = await createDispute({ invoiceId, complaint, resolution, reasoning })
 
-    // NOTE: this endpoint records a binding *verdict* but does not itself move
-    // funds — there is no deployed escrow contract wired up yet (see
-    // contracts/src/YieldEscrow.sol). Once an escrow is live, `resolution`
-    // here is exactly the input `resolveEscrow`/`resolveInFavorOf` would take.
+    // Enforce the verdict on-chain: if this invoice's funds are locked in the
+    // escrow contract, the AI arbitrator's decision ACTUALLY moves the USDC —
+    // to the freelancer (PAY_FREELANCER), back to the client (REFUND_CLIENT),
+    // or split 50/50. This is real money movement, not just a recorded verdict.
+    let onChain: { executed: boolean; resolutionTxHash?: string; note?: string } = { executed: false }
+    let updatedInvoice = null
+    if (isEscrowInvoice(invoice) && invoice.escrowStatus === "funded") {
+      try {
+        const resolutionTxHash = await resolveDisputeOnChain(invoiceId, RESOLUTION_TO_ENUM[resolution])
+        if (resolution === "REFUND_CLIENT") {
+          updatedInvoice = await markEscrowRefunded(invoiceId, resolutionTxHash, invoice.escrowTxHash || resolutionTxHash)
+        } else {
+          // PAY_FREELANCER and SPLIT_50_50 both result in the freelancer
+          // receiving a payout, so the invoice is settled as paid.
+          updatedInvoice = await markEscrowPaid(invoiceId, resolutionTxHash, invoice.escrowTxHash || resolutionTxHash)
+          // Same reward path as the direct settle route: the freelancer earns
+          // their portable ERC-8004 reputation record.
+          try {
+            await mintReputation(invoice.freelancer, invoice.isPrivate ? 0 : invoice.amountUsd, 1.0)
+          } catch (error) {
+            console.log(`Reputation recording queued/failed: ${error}`)
+          }
+        }
+        // Match the direct settle route's accounting: the treasury captures
+        // 1% of the settled amount, so ledger stats stay consistent.
+        try {
+          await addTreasuryRevenue(invoice.amountUsd * 0.01)
+        } catch (error) {
+          console.error(`[Neural Treasury] Error adding fee after arbitration:`, error)
+        }
+        onChain = { executed: true, resolutionTxHash }
+      } catch (error) {
+        const detail = error instanceof PaymentError
+          ? error.message
+          : `Failed to move escrowed funds on-chain: ${error instanceof Error ? error.message : String(error)}`
+        onChain = { executed: false, note: detail }
+      }
+    } else if (invoice.escrowStatus !== "funded") {
+      onChain = {
+        executed: false,
+        note: "Invoice has no escrowed funds on-chain yet — verdict recorded, no funds moved.",
+      }
+    }
+
     return Response.json({
       ok: true,
       disputeId: dispute.id,
       decision: { resolution, reasoning },
+      onChain,
+      invoice: updatedInvoice,
     })
   } catch (error) {
     console.error("Arbitration Error:", error)

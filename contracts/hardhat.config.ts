@@ -1,10 +1,11 @@
 import { HardhatUserConfig } from "hardhat/config"
 import ethersPlugin from "@nomicfoundation/hardhat-ethers"
+import toolboxPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers"
 import "dotenv/config"
 
 const config: HardhatUserConfig = {
   solidity: "0.8.24",
-  plugins: [ethersPlugin],
+  plugins: [ethersPlugin, toolboxPlugin],
   networks: {
     goatTestnet3: {
       type: "http",

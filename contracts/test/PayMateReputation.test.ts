@@ -1,5 +1,8 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { network } from "hardhat";
+
+const { ethers, networkHelpers } = await network.create();
+const { loadFixture } = networkHelpers;
 
 describe("PayMateReputation", function () {
   async function deployReputationFixture() {
@@ -12,13 +15,13 @@ describe("PayMateReputation", function () {
   }
 
   it("Should set the right issuer", async function () {
-    const { reputation, issuer } = await deployReputationFixture();
+    const { reputation, issuer } = await loadFixture(deployReputationFixture);
     expect(await reputation.issuer()).to.equal(issuer.address);
   });
 
   it("Should allow issuer to record a job", async function () {
-    const { reputation, freelancer } = await deployReputationFixture();
-    
+    const { reputation, freelancer } = await loadFixture(deployReputationFixture);
+
     const amountUsd = 500;
     await expect(reputation.recordJob(freelancer.address, amountUsd))
       .to.emit(reputation, "JobRecorded")
@@ -31,23 +34,23 @@ describe("PayMateReputation", function () {
   });
 
   it("Should not allow non-issuer to record a job", async function () {
-    const { reputation, freelancer, otherAccount } = await deployReputationFixture();
-    
+    const { reputation, freelancer, otherAccount } = await loadFixture(deployReputationFixture);
+
     await expect(
       reputation.connect(otherAccount).recordJob(freelancer.address, 500)
     ).to.be.revertedWith("not issuer");
   });
 
   it("Should accumulate stats correctly over multiple jobs", async function () {
-    const { reputation, freelancer } = await deployReputationFixture();
-    
+    const { reputation, freelancer } = await loadFixture(deployReputationFixture);
+
     await reputation.recordJob(freelancer.address, 200);
     await reputation.recordJob(freelancer.address, 300);
 
     const rep = await reputation.getReputation(freelancer.address);
     expect(rep.jobsCompleted).to.equal(2);
     expect(rep.totalEarnedUsd).to.equal(500);
-    
+
     // First job score: 10 + 2 = 12
     // Second job score added: + 10 + 3 = +13
     // Total score = 25

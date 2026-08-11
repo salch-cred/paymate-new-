@@ -1,13 +1,12 @@
 import { getAddress } from "viem"
 import { createInvoice, getChatState, saveChatState, type ChatState, type Invoice } from "./db"
 import { mistralJsonText, parseJsonResponse } from "./mistral"
-import { DUMMY_CLIENT_ADDRESS } from "./constants"
+import { OPEN_CLIENT_ADDRESS } from "./constants"
 
 /**
  * Shared invoice-creation flow used by every automated/bot integration
- * (Slack, Telegram, Twitter, GitHub, OpenClaw). These flows previously each
- * duplicated the same "dummy client + placeholder signature + payUrl" logic.
- */
+ * (Slack, Telegram, Twitter, GitHub, OpenClaw). These flows previously each   * duplicated the same "open client + no fabricated signature + payUrl" logic.
+   */
 export async function createBotInvoice(opts: {
   /** webhookUrl tag recorded on the invoice, e.g. "slack-bot". */
   source: string
@@ -15,19 +14,25 @@ export async function createBotInvoice(opts: {
   title: string
   description: string
   amountUsd: number
-  /** Optional real client address; defaults to the shared dummy client. */
+  /** Optional real client address; defaults to the open-invoice sentinel. */
   client?: string
   /** Optional explicit signature; bot flows store none (no fabricated proofs). */
   signature?: string
+  /** Optional public API key id that generated this invoice (for attribution). */
+  apiKeyId?: string | null
+  /** Optional paywall deliverable — served only after on-chain payment. */
+  paywallContent?: string | null
 }): Promise<{ invoice: Invoice; payUrl: string }> {
   const invoice = await createInvoice({
     freelancer: getAddress(opts.freelancer),
-    client: getAddress(opts.client || DUMMY_CLIENT_ADDRESS),
+    client: getAddress(opts.client || OPEN_CLIENT_ADDRESS),
     title: opts.title,
     description: opts.description,
     amountUsd: opts.amountUsd,
     webhookUrl: opts.source,
     signature: opts.signature || null,
+    apiKeyId: opts.apiKeyId || null,
+    paywallContent: opts.paywallContent || null,
   })
   return { invoice, payUrl: `https://paymateagent.xyz/pay/${invoice.id}` }
 }

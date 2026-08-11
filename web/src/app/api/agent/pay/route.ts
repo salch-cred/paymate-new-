@@ -3,6 +3,7 @@ import { getInvoice, markPaid } from "@/lib/db"
 import { mintReputation } from "@/lib/chain"
 import { checkAndConsumeIntentBudget } from "@/lib/rateLimit"
 import { requireBearerAuth } from "@/lib/auth"
+import { authenticateApiKey, assertApiQuota } from "@/lib/apikey"
 import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
 
 // SECURITY (audit follow-up, 2026-07-30): this endpoint triggers the exact
@@ -19,11 +20,21 @@ import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
 // current reachability.
 export async function POST(request: Request) {
   try {
-    if (!process.env.AGENT_PAY_ADMIN_SECRET) {
-      console.error("[agent/pay] AGENT_PAY_ADMIN_SECRET is not configured. Refusing to run.")
+    // Auth: a public Agent API key (pm_...) OR the legacy shared admin secret.
+    const key = await authenticateApiKey(request)
+    let viaApiKey = true
+    let apiKeyId: string | null = null
+    if (key instanceof Response) {
+      // Not an API key — fall back to the shared admin secret for server-side ops.
+      viaApiKey = false
+      if (!process.env.AGENT_PAY_ADMIN_SECRET) {
+        console.error("[agent/pay] AGENT_PAY_ADMIN_SECRET is not configured. Refusing to run.")
+      }
+      const unauthorized = requireBearerAuth(request, process.env.AGENT_PAY_ADMIN_SECRET)
+      if (unauthorized) return unauthorized
+    } else {
+      apiKeyId = key.id
     }
-    const unauthorized = requireBearerAuth(request, process.env.AGENT_PAY_ADMIN_SECRET)
-    if (unauthorized) return unauthorized
 
     const body = await request.json().catch(() => null)
     if (!body || !body.invoiceId) {
@@ -44,6 +55,16 @@ export async function POST(request: Request) {
     const budgetOk = await checkAndConsumeIntentBudget(invoice.amountUsd)
     if (!budgetOk) {
       return Response.json({ detail: "Autonomous payout budget exceeded for this window. Manual review required." }, { status: 429 })
+    }
+
+    // 1b. When called with a public API key, charge the payout against the key's
+    // monthly quota too (fail closed on over-quota).
+    if (viaApiKey && apiKeyId) {
+      try {
+        await assertApiQuota(apiKeyId, invoice.amountUsd)
+      } catch (error) {
+        return Response.json({ detail: error instanceof Error ? error.message : "Quota exceeded" }, { status: 429 })
+      }
     }
 
     // 2. Trigger Autonomous Agent to Pay (Agent will verify EIP-712 Signature internally)

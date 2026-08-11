@@ -37,6 +37,68 @@ const REPUTATION_ABI = [
   },
 ] as const
 
+export const ESCROW_ABI = [
+  {
+    type: "function",
+    name: "registerInvoice",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "invoiceId", type: "string" },
+      { name: "client", type: "address" },
+      { name: "freelancer", type: "address" },
+      { name: "maturesAt", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "confirmFunded",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "invoiceId", type: "string" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "resolveEscrow",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "invoiceId", type: "string" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "resolveDispute",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "invoiceId", type: "string" },
+      { name: "resolution", type: "uint8" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "getEscrow",
+    stateMutability: "view",
+    inputs: [{ name: "invoiceId", type: "string" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "client", type: "address" },
+          { name: "freelancer", type: "address" },
+          { name: "principalAmount", type: "uint256" },
+          { name: "maturesAt", type: "uint256" },
+          { name: "funded", type: "bool" },
+          { name: "isResolved", type: "bool" },
+        ],
+      },
+    ],
+  },
+] as const
+
 export const ERC20_TRANSFER_ABI = [
   {
     type: "function",
@@ -75,6 +137,27 @@ export function getCrossChainClient(chainId: number) {
   return createPublicClient({ chain, transport: http() })
 }
 
+/**
+ * Returns the deployed YieldEscrow address, or throws if not configured.
+ * Fail-closed: escrow invoices refuse to settle without ESCROW_CONTRACT.
+ */
+export function getEscrowAddress(): `0x${string}` {
+  const address = process.env.ESCROW_CONTRACT
+  if (!address || !isAddress(address)) {
+    throw new PaymentError(503, "ESCROW_CONTRACT is not configured on the API")
+  }
+  return getAddress(address)
+}
+
+/**
+ * Which invoices route through the on-chain escrow. GitHub PR invoices are the
+ * documented "Autonomous GitHub Escrow" flow; milestones/splits/streams keep
+ * their direct settlement path to avoid partial-release complexity.
+ */
+export function isEscrowInvoice(invoice: Pick<Invoice, "githubPrUrl" | "isStream" | "milestones" | "splits">): boolean {
+  return !!invoice.githubPrUrl && !invoice.isStream && !invoice.milestones && !invoice.splits
+}
+
 export class PaymentError extends Error {
   status: number
   constructor(status: number, message: string) {
@@ -108,6 +191,103 @@ export function getIssuerAccount() {
   const key = process.env.PRIVATE_KEY
   if (!key || key === "0x...") return null
   return privateKeyToAccount(key as `0x${string}`)
+}
+
+/**
+ * Registers an invoice with the escrow contract (owner-only) if it isn't
+ * registered yet, using the actual on-chain payer as the client so placeholder
+ * clients resolve to the real wallet that funded the escrow. Idempotent.
+ */
+export async function ensureEscrowRegistered(invoiceId: string, payer: string, freelancer: string): Promise<void> {
+  const escrowAddress = getEscrowAddress()
+  const account = getIssuerAccount()
+  if (!account) throw new PaymentError(503, "PRIVATE_KEY is not configured for escrow registration")
+
+  const publicClient = getPublicClient()
+  const existing = await publicClient.readContract({
+    address: escrowAddress,
+    abi: ESCROW_ABI,
+    functionName: "getEscrow",
+    args: [invoiceId],
+  })
+  if (existing.client !== "0x0000000000000000000000000000000000000000") return // already registered
+
+  const walletClient = createWalletClient({ account, chain: goatChain, transport: http(RPC_URL) })
+  try {
+    const hash = await walletClient.writeContract({
+      address: escrowAddress,
+      abi: ESCROW_ABI,
+      functionName: "registerInvoice",
+      // maturesAt = 0 → immediately releasable; release is gated by the backend
+      // (webhook on PR merge, or an AI verdict) calling resolve*, not by a timer.
+      args: [invoiceId, getAddress(payer), getAddress(freelancer), BigInt(0)],
+    })
+    await publicClient.waitForTransactionReceipt({ hash })
+  } catch (error) {
+    // Concurrent settle raced us: if another request registered it first, the
+    // contract reverts with "Already registered" — that's fine, the escrow is
+    // registered. Any other revert is a real failure.
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes("Already registered")) return
+    throw error
+  }
+}
+
+/** Confirms (owner-only) that the client's funds are locked in escrow. */
+export async function confirmEscrowFunded(invoiceId: string, amountUsd: number): Promise<string> {
+  const escrowAddress = getEscrowAddress()
+  const account = getIssuerAccount()
+  if (!account) throw new PaymentError(503, "PRIVATE_KEY is not configured for escrow confirmation")
+
+  const publicClient = getPublicClient()
+  const walletClient = createWalletClient({ account, chain: goatChain, transport: http(RPC_URL) })
+  const hash = await walletClient.writeContract({
+    address: escrowAddress,
+    abi: ESCROW_ABI,
+    functionName: "confirmFunded",
+    args: [invoiceId, usdcAmount(amountUsd)],
+  })
+  await publicClient.waitForTransactionReceipt({ hash })
+  return hash
+}
+
+/** Releases escrowed funds to the freelancer (PR merged, normal completion). */
+export async function resolveEscrowOnChain(invoiceId: string): Promise<string> {
+  const escrowAddress = getEscrowAddress()
+  const account = getIssuerAccount()
+  if (!account) throw new PaymentError(503, "PRIVATE_KEY is not configured for escrow resolution")
+
+  const publicClient = getPublicClient()
+  const walletClient = createWalletClient({ account, chain: goatChain, transport: http(RPC_URL) })
+  const hash = await walletClient.writeContract({
+    address: escrowAddress,
+    abi: ESCROW_ABI,
+    functionName: "resolveEscrow",
+    args: [invoiceId],
+  })
+  await publicClient.waitForTransactionReceipt({ hash })
+  return hash
+}
+
+/**
+ * Enforces the AI arbitrator's verdict on-chain. resolution matches
+ * DisputeResolution: 0 = PAY_FREELANCER, 1 = REFUND_CLIENT, 2 = SPLIT_50_50.
+ */
+export async function resolveDisputeOnChain(invoiceId: string, resolution: number): Promise<string> {
+  const escrowAddress = getEscrowAddress()
+  const account = getIssuerAccount()
+  if (!account) throw new PaymentError(503, "PRIVATE_KEY is not configured for dispute resolution")
+
+  const publicClient = getPublicClient()
+  const walletClient = createWalletClient({ account, chain: goatChain, transport: http(RPC_URL) })
+  const hash = await walletClient.writeContract({
+    address: escrowAddress,
+    abi: ESCROW_ABI,
+    functionName: "resolveDispute",
+    args: [invoiceId, resolution],
+  })
+  await publicClient.waitForTransactionReceipt({ hash })
+  return hash
 }
 
 export async function mintReputation(freelancer: string, amountUsd: number, multiplier: number = 1.0) {
@@ -165,8 +345,22 @@ export function paymentRequirements(invoice: Invoice, milestoneId?: string) {
     throw new PaymentError(503, "USDC_TOKEN is not configured on the API")
   }
   
-  let accepts = []
-  if (milestoneId && invoice.milestones) {
+  let accepts: unknown[] = []
+  // GitHub PR invoices lock funds in the on-chain escrow contract instead of
+  // paying the freelancer directly. The escrow is released by the webhook the
+  // moment the PR merges, or by the AI arbitrator on a dispute.
+  if (isEscrowInvoice(invoice)) {
+    const escrowAddress = getEscrowAddress()
+    accepts = [{
+      scheme: "exact",
+      network: "goat",
+      asset: getAddress(usdcToken),
+      token: getAddress(usdcToken),
+      payTo: escrowAddress,
+      price: `$${invoice.amountUsd.toFixed(2)}`,
+      maxAmountRequired: usdcAmount(invoice.amountUsd).toString(),
+    }]
+  } else if (milestoneId && invoice.milestones) {
     const ms = invoice.milestones.find(m => m.id === milestoneId)
     if (!ms) throw new PaymentError(404, "Milestone not found")
     accepts = [{
@@ -210,6 +404,40 @@ export function paymentRequirements(invoice: Invoice, milestoneId?: string) {
     error: "Payment required",
     accepts,
   }
+}
+
+/**
+ * Verifies that a client paid the exact invoice amount into the escrow
+ * contract (not to the freelancer) and returns the real payer address, which
+ * is used to register the escrow. Fails closed on any mismatch.
+ */
+export async function verifyEscrowFunding(txHash: string, invoice: Invoice): Promise<{ payer: string }> {
+  const publicClient = getPublicClient()
+  const usdcToken = process.env.USDC_TOKEN
+  const escrowAddress = getEscrowAddress()
+  if (!usdcToken || !isAddress(usdcToken)) {
+    throw new PaymentError(503, "USDC_TOKEN is not configured on the API")
+  }
+
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}`, timeout: 90_000 })
+  if (receipt.status !== "success") throw new PaymentError(402, `Transaction reverted: ${txHash}`)
+  const tx = await publicClient.getTransaction({ hash: txHash as `0x${string}` })
+  if (!tx.to || getAddress(tx.to) !== getAddress(usdcToken)) {
+    throw new PaymentError(402, `Escrow payment used the wrong token in tx ${txHash}`)
+  }
+  const { functionName, args } = decodeFunctionData({ abi: ERC20_TRANSFER_ABI, data: tx.input })
+  if (functionName !== "transfer") {
+    throw new PaymentError(402, `Transaction ${txHash} is not a transfer`)
+  }
+  const [recipient, amount] = args as [`0x${string}`, bigint]
+  if (getAddress(recipient) !== escrowAddress) {
+    throw new PaymentError(402, "Escrow payment must be sent to the escrow contract")
+  }
+  if (amount < usdcAmount(invoice.amountUsd)) {
+    throw new PaymentError(402, `Escrow payment is short: expected at least ${invoice.amountUsd} USDC`)
+  }
+  if (!tx.from) throw new PaymentError(402, "Could not determine the payer of the escrow transaction")
+  return { payer: getAddress(tx.from) }
 }
 
 export async function verifyTransfer(txHashes: string | string[], invoice: Invoice, milestoneId?: string) {

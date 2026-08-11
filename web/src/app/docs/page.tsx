@@ -58,6 +58,9 @@ export default function DocsPage() {
               <a href="#x402" className="text-sm font-semibold text-gray-700 hover:text-black hover:bg-black/5 px-3 py-2 rounded-lg transition-colors flex items-center gap-2">
                 <Bitcoin01Icon size={16} /> x402 Streaming
               </a>
+              <a href="#paywall" className="text-sm font-semibold text-gray-700 hover:text-black hover:bg-black/5 px-3 py-2 rounded-lg transition-colors flex items-center gap-2">
+                <CodeCircleIcon size={16} /> Pay-to-Unlock Paywall
+              </a>
               <a href="#zk" className="text-sm font-semibold text-gray-700 hover:text-black hover:bg-black/5 px-3 py-2 rounded-lg transition-colors flex items-center gap-2">
                 <Shield02Icon size={16} /> ZK Shielded
               </a>
@@ -148,6 +151,43 @@ export default function DocsPage() {
 }`}
             </pre>
           </div>
+
+          {/* Pay-to-Unlock Paywall */}
+          <h2 id="paywall" className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight mb-4">Pay-to-Unlock Paywall (x402)</h2>
+          <p className="text-gray-600 leading-relaxed mb-6">
+            Turn any endpoint into revenue. Request the resource without paying and PayMate answers with
+            <code className="px-2 py-1 bg-black/5 rounded text-sm text-black"> HTTP 402 </code> plus an x402
+            <code className="px-2 py-1 bg-black/5 rounded text-sm text-black"> PAYMENT-REQUIRED </code> header carrying the
+            <code className="px-2 py-1 bg-black/5 rounded text-sm text-black"> accepts[] </code> quote
+            (USDC on GOAT Network, exact amount, payTo address). Pay the quote, retry with a
+            <code className="px-2 py-1 bg-black/5 rounded text-sm text-black"> PAYMENT-SIGNATURE </code> header, and the
+            endpoint serves the content plus a signed <b>Delivery Receipt</b> binding the transaction to the deliverable.
+          </p>
+          <div className="bg-[#171813] rounded-2xl overflow-hidden mb-6 shadow-2xl">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-white/5">
+              <span className="text-[10px] text-gray-400 font-mono font-bold">POST /api/paywall</span>
+            </div>
+            <pre className="p-6 text-sm font-mono text-gray-300 overflow-x-auto leading-loose">
+{`# 1. Create a real paywalled page (content is persisted with the invoice)
+curl -s -X POST https://paymateagent.xyz/api/paywall \\
+  -H "Content-Type: application/json" \\
+  -d '{"title":"Premium Report","content":"the deliverable...","amountUsd":2.5,"freelancerWallet":"0x..."}'
+# -> 201 { invoiceId, pageUrl, payUrl, accepts[] }
+
+# 2. Request the page without paying -> HTTP 402 + PAYMENT-REQUIRED header
+curl -s https://paymateagent.xyz/api/paywall/<invoiceId>
+
+# 3. Pay the quoted USDC on GOAT Network, then retry with proof:
+curl -s https://paymateagent.xyz/api/paywall/<invoiceId> \\
+  -H "PAYMENT-SIGNATURE: $(echo -n '{"txHash":"0x..."}' | base64)"`}
+            </pre>
+          </div>
+          <p className="text-gray-600 leading-relaxed mb-16">
+            Agents can mint paywalled invoices through the OpenClaw skill
+            (<code className="px-2 py-1 bg-black/5 rounded text-sm text-black">create_paywalled_invoice</code>)
+            or <code className="px-2 py-1 bg-black/5 rounded text-sm text-black">POST /api/agent/paywall</code>.
+            Try the real flow at <Link href="/paywall" className="text-orange-500 font-semibold underline">/paywall</Link>.
+          </p>
 
           {/* ZK Shielded */}
           <h2 id="zk" className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight mb-4">ZK Shielded Invoices</h2>

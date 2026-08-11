@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   if (!body) return Response.json({ detail: "Invalid request body" }, { status: 422 })
 
-  const { freelancer, client, title, description, amountUsd, dueDate, webhookUrl, splits } = body
+  const { freelancer, client, title, description, amountUsd, dueDate, webhookUrl, splits, recurring, isPrivate, signature } = body
 
   // SECURITY (audit fix H-4): the reputation-mint multiplier is granted
   // based on webhookUrl === REFERRAL_MULTIPLIER_TAG. This is a public API —
@@ -38,6 +38,14 @@ export async function POST(request: Request) {
   const amount = Number(amountUsd)
   if (!Number.isFinite(amount) || amount <= 0 || amount > 10_000_000) {
     return Response.json({ detail: "amountUsd must be a positive number" }, { status: 422 })
+  }
+
+  let validatedRecurring: "weekly" | "monthly" | null = null
+  if (recurring !== undefined && recurring !== null) {
+    if (recurring !== "weekly" && recurring !== "monthly") {
+      return Response.json({ detail: "recurring must be 'weekly' or 'monthly'" }, { status: 422 })
+    }
+    validatedRecurring = recurring
   }
 
   let validatedSplits = null
@@ -70,6 +78,14 @@ export async function POST(request: Request) {
     dueDate: dueDate || null,
     webhookUrl: safeWebhookUrl || null,
     splits: validatedSplits,
+    recurring: validatedRecurring,
+    isPrivate: isPrivate === true,
+    // The client's EIP-712 authorization is stored verbatim. The autonomous
+    // pay path (lib/agent.ts) verifies it against the CLIENT (payer) before
+    // moving funds — see the audit fix there. This is a public endpoint, so
+    // the signature is inert until/unless an authorized payout is attempted.
+    // Cap the length so a caller can't bloat the DB with an arbitrary string.
+    signature: typeof signature === "string" && signature.length > 0 && signature.length <= 200 ? signature : null,
   })
   return Response.json({ invoice, payUrl: `/pay/${invoice.id}` }, { status: 201 })
 }

@@ -5,14 +5,14 @@ import { use, useEffect, useState } from "react"
 import { useAccount, useSwitchChain, useWalletClient } from "wagmi"
 import { goatChain } from "@/lib/chain"
 import { DOMAIN, STREAM_ALLOWANCE_TYPES } from "@/lib/eip712"
-import { DUMMY_CLIENT_ADDRESS } from "@/lib/constants"
+import { OPEN_CLIENT_ADDRESS } from "@/lib/constants"
 import { Icon } from "@/components/icons"
 import { WalletConnectMenu } from "@/components/wallet-connect-menu"
 import { FeedbackForm } from "@/components/feedback-form"
 import { ClawUpModal } from "@/components/clawup-modal"
 import { decryptViewKey } from "@/lib/zk"
 
-type Invoice={id:string;freelancer:string;client:string;title?:string;description:string;amountUsd:number;status:"pending"|"paid";chain:string;dueDate?:string;txHash?:string;splits?:{address:string;amountUsd:number}[];milestones?:{id:string;title:string;amountUsd:number;status:"pending"|"paid";txHash?:string;paidAt?:number}[];isStream?:boolean;streamRateUsd?:number|null;streamedAmountUsd?:number;streamSignature?:string|null;streamAuthorizedAt?:number|null;isPrivate?:boolean;zkCommitment?:string|null;githubPrUrl?:string|null;isYieldBearing?:boolean;yieldEarned?:number;isSwarm?:boolean;swarmWallets?:{address:string;share:number}[]|null;proofOfCompute?:boolean;computeHash?:string|null}
+type Invoice={id:string;freelancer:string;client:string;title?:string;description:string;amountUsd:number;status:"pending"|"paid"|"cancelled";chain:string;dueDate?:string;txHash?:string;splits?:{address:string;amountUsd:number}[];milestones?:{id:string;title:string;amountUsd:number;status:"pending"|"paid";txHash?:string;paidAt?:number}[];isStream?:boolean;streamRateUsd?:number|null;streamedAmountUsd?:number;streamSignature?:string|null;streamAuthorizedAt?:number|null;isPrivate?:boolean;zkCommitment?:string|null;githubPrUrl?:string|null;isYieldBearing?:boolean;yieldEarned?:number;isSwarm?:boolean;swarmWallets?:{address:string;share:number}[]|null;proofOfCompute?:boolean;computeHash?:string|null;escrowStatus?:"none"|"funded"|"resolved";escrowTxHash?:string|null}
 
 export default function PayPage({params}:{params:Promise<{id:string}>}){
   const {id}=use(params);const [invoice,setInvoice]=useState<Invoice|null>(null);const [status,setStatus]=useState<"idle"|"paying"|"paid"|"error">("idle");const [activeMilestone,setActiveMilestone]=useState<string|null>(null);const [error,setError]=useState<string|null>(null);const [loading,setLoading]=useState(true);const {address,isConnected,chain}=useAccount();const {data:walletClient}=useWalletClient();const {switchChainAsync}=useSwitchChain()
@@ -22,12 +22,10 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
   
   const [decryptedAmount, setDecryptedAmount] = useState<number | null>(null)
   const [viewKeyInput, setViewKeyInput] = useState("")
-  const [liveYield, setLiveYield] = useState(0)
   
   useEffect(()=>{
     fetch(`/api/invoices/${id}`).then(r=>{if(!r.ok)throw new Error("Invoice not found");return r.json()}).then((inv) => {
       setInvoice(inv);
-      setLiveYield(inv.yieldEarned || 0);
       // Decrypt the view key from the URL fragment once the invoice is known.
       if (inv.isPrivate) {
         const hash = window.location.hash.replace("#key=", "")
@@ -38,15 +36,6 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
       }
     }).catch(e=>setError(e.message||"Could not load invoice")).finally(()=>setLoading(false))
   },[id])
-
-  useEffect(() => {
-    if (invoice?.isYieldBearing && invoice?.status !== "paid") {
-      const interval = setInterval(() => {
-        setLiveYield(prev => prev + 0.00012)
-      }, 2000)
-      return () => clearInterval(interval)
-    }
-  }, [invoice?.isYieldBearing, invoice?.status])
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | undefined;
@@ -101,7 +90,13 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
      const res=await fetch("/api/arbitrate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({invoiceId:id,complaint:transcript})});
      const data=await res.json();
      if(!res.ok) throw new Error(data.detail||"Arbitration failed");
-     setDisputeLog([...newLog, {role:"ai",content:`Decision: ${data.decision.resolution}\nReason: ${data.decision.reasoning}`}]);
+     const enforcement = data.onChain?.executed
+       ? `\nEnforced on-chain: ${data.onChain.resolutionTxHash}`
+       : data.onChain?.note
+         ? `\nOn-chain: ${data.onChain.note}`
+         : "";
+     setDisputeLog([...newLog, {role:"ai",content:`Decision: ${data.decision.resolution}\nReason: ${data.decision.reasoning}${enforcement}`}]);
+     if (data.invoice) setInvoice(data.invoice);
    }catch(e){
      setDisputeLog([...newLog, {role:"ai",content:`Error: ${e instanceof Error?e.message:"Failed"}`}]);
    }
@@ -128,7 +123,8 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
  if(loading)return <main className="loading-page"><div className="loader"/></main>
  if(!invoice)return <main className="loading-page"><div style={{textAlign:"center"}}><h1 style={{fontFamily:"var(--font-display)"}}>Invoice unavailable</h1><p>{error}</p><Link className="button button-dark" href="/">Return home</Link></div></main>
  const paid=invoice.status==="paid"||status==="paid"
- const isPlaceholderClient = invoice.client.toLowerCase() === DUMMY_CLIENT_ADDRESS.toLowerCase() || invoice.client.toLowerCase() === "0x0000000000000000000000000000000000000000"
+ const isEscrowInvoice = !!invoice.githubPrUrl && !invoice.isStream && !invoice.milestones && !invoice.splits
+ const isPlaceholderClient = invoice.client.toLowerCase() === OPEN_CLIENT_ADDRESS.toLowerCase() || invoice.client.toLowerCase() === "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc" // legacy bot-invoice sentinel (pre-rename)
  const isAuthorized = isConnected && address && (isPlaceholderClient || address.toLowerCase() === invoice.client.toLowerCase() || address.toLowerCase() === invoice.freelancer.toLowerCase());
  const streamComplete = invoice.isStream && (invoice.streamedAmountUsd || 0) >= invoice.amountUsd
 
@@ -146,8 +142,8 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
       <>
         <div className="client-line">
           <h2>{invoice.title}</h2>
-          <div className="status-badge" style={{ background: paid ? '#e7f5ec' : '#fff0ed', color: paid ? '#317454' : '#b94328' }}>
-            {paid ? 'PAID' : 'PENDING'}
+          <div className="status-badge" style={{ background: paid ? '#e7f5ec' : invoice.escrowStatus === 'funded' ? '#f0ead9' : '#fff0ed', color: paid ? '#317454' : invoice.escrowStatus === 'funded' ? '#8a6d1a' : '#b94328' }}>
+            {paid ? 'PAID' : invoice.escrowStatus === 'funded' ? 'IN ESCROW' : 'PENDING'}
           </div>
         </div>
 
@@ -164,30 +160,29 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
         </div>
         
         {invoice.githubPrUrl && !paid && (
-          <div style={{marginBottom:'24px', padding:'16px', background:'rgba(255,255,255,0.8)', borderRadius:'12px', border:'1px solid var(--line)'}}>
-            <div style={{fontWeight:800, marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px', color:'var(--ink)'}}>
-              <Icon name="link" size={14}/> DevOps Escrow
+          <div style={{marginBottom:'24px', padding:'16px', background: invoice.escrowStatus === 'funded' ? 'linear-gradient(to right, rgba(49, 130, 93, 0.1), rgba(49, 130, 93, 0.05))' : 'rgba(255,255,255,0.8)', borderRadius:'12px', border:'1px solid ' + (invoice.escrowStatus === 'funded' ? 'rgba(49, 130, 93, 0.3)' : 'var(--line)')}}>
+            <div style={{fontWeight:800, marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px', color: invoice.escrowStatus === 'funded' ? '#317454' : 'var(--ink)'}}>
+              <Icon name="link" size={14}/> DevOps Escrow {invoice.escrowStatus === 'funded' && <span style={{background:'#e7f5ec', color:'#317454', fontSize:'10px', padding:'2px 8px', borderRadius:'8px', fontWeight:800}}>FUNDED</span>}
             </div>
-            <p style={{fontSize:'12px', color:'var(--muted)', marginBottom:'12px', lineHeight:1.5}}>
-              This payment is locked in an autonomous DevOps Escrow. It will be cryptographically settled to the agent the exact millisecond the Pull Request is merged.
-            </p>
+            {invoice.escrowStatus === 'funded' ? (
+              <>
+                <p style={{fontSize:'12px', color:'var(--muted)', marginBottom:'12px', lineHeight:1.5}}>
+                  <b style={{color:'#317454'}}>${invoice.amountUsd.toLocaleString()} USDC is locked in the on-chain escrow contract.</b> It is released to the freelancer the exact millisecond the Pull Request merges — or by the AI arbitrator if a dispute is raised.
+                </p>
+                {invoice.escrowTxHash && (
+                  <a href={`https://explorer.goat.network/tx/${invoice.escrowTxHash}`} target="_blank" rel="noreferrer" style={{display:'inline-flex', alignItems:'center', gap:'8px', padding:'8px 12px', background:'var(--surface)', borderRadius:'6px', fontSize:'12px', fontWeight:600, color:'var(--ink)', textDecoration:'none', border:'1px solid var(--line)', marginBottom:'12px'}}>
+                    <Icon name="link" size={14}/> View Escrow Funding on GOAT
+                  </a>
+                )}
+              </>
+            ) : (
+              <p style={{fontSize:'12px', color:'var(--muted)', marginBottom:'12px', lineHeight:1.5}}>
+                Paying this invoice locks your funds in an autonomous on-chain escrow. They are cryptographically released to the agent the exact millisecond the Pull Request is merged.
+              </p>
+            )}
             <a href={invoice.githubPrUrl} target="_blank" rel="noreferrer" style={{display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', background:'var(--surface)', borderRadius:'6px', fontSize:'12px', fontWeight:600, color:'var(--ink)', textDecoration:'none', border:'1px solid var(--line)'}}>
               <Icon name="link" size={14}/> View Linked Pull Request
             </a>
-          </div>
-        )}
-
-        {invoice.isYieldBearing && (
-          <div style={{marginBottom:'24px', padding:'16px', background:'linear-gradient(to right, rgba(49, 130, 93, 0.1), rgba(49, 130, 93, 0.05))', borderRadius:'12px', border:'1px solid rgba(49, 130, 93, 0.3)'}}>
-            <div style={{fontWeight:800, marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px', color:'#317454'}}>
-              <Icon name="bolt" size={14}/> DeFi Escrow Yield
-            </div>
-            <p style={{fontSize:'12px', color:'var(--muted)', marginBottom:'12px', lineHeight:1.5}}>
-              Funds for this invoice are locked in a yield-bearing DeFi protocol on GOAT Network. Interest generated is automatically split with the agent upon settlement.
-            </p>
-            <div style={{fontFamily:'var(--font-display)', fontSize:'24px', fontWeight:800, color:'#317454'}}>
-              + ${liveYield.toFixed(5)} USDC
-            </div>
           </div>
         )}
 
@@ -308,7 +303,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
               <button onClick={downloadPDF} style={{marginLeft:'10px', background:'none', border:'none', color:'#8a8981', cursor:'pointer', display:'flex', alignItems:'center', gap:'4px', fontSize:'12px', fontWeight:600}}><Icon name="arrow" size={14}/> Download PDF</button>
             </div>
           ) : status === "paying" ? (
-            <div className="cc-simulation-box" style={{background:'rgba(255,255,255,0.4)',border:'1px solid var(--line)',borderRadius:'12px',padding:'16px',display:'flex',flexDirection:'column',gap:'12px'}}>
+            <div className="settling-box" style={{background:'rgba(255,255,255,0.4)',border:'1px solid var(--line)',borderRadius:'12px',padding:'16px',display:'flex',flexDirection:'column',gap:'12px'}}>
               <button className="pay-action" disabled>Settling on-chain…</button>
             </div>
           ) : invoice.isStream ? (
@@ -355,12 +350,20 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
             </div>
           ) : (
             <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
-              <button className="pay-action" onClick={()=>handlePay()} disabled={(invoice.isPrivate && decryptedAmount === null) || !!invoice.githubPrUrl}>
-                {invoice.githubPrUrl ? "Waiting for PR Merge..." : `Pay ${(decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()} USDC`} <Icon name="arrow" size={18}/>
-              </button>
-              <button className="button button-outline" style={{width:'100%',justifyContent:'center',height:'48px'}} onClick={()=>setIsClawUpModalOpen(true)} disabled={(invoice.isPrivate && decryptedAmount === null) || !!invoice.githubPrUrl}>
-                Pay with Any Network (ClawUp Routing)
-              </button>
+              {isEscrowInvoice && invoice.escrowStatus === 'funded' ? (
+                <button className="pay-action" disabled style={{opacity:0.75, cursor:'default'}}>
+                  <Icon name="lock" size={16}/> Funds Locked — Released on PR Merge / Arbitration
+                </button>
+              ) : (
+                <>
+                  <button className="pay-action" onClick={()=>handlePay()} disabled={invoice.isPrivate && decryptedAmount === null}>
+                    {isEscrowInvoice ? `Lock ${(decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()} USDC in Escrow` : `Pay ${(decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()} USDC`} <Icon name="arrow" size={18}/>
+                  </button>
+                  <button className="button button-outline" style={{width:'100%',justifyContent:'center',height:'48px'}} onClick={()=>setIsClawUpModalOpen(true)} disabled={(invoice.isPrivate && decryptedAmount === null) || !!invoice.githubPrUrl}>
+                    Pay with Any Network (ClawUp Routing)
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -399,7 +402,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
           </div>
         )}
 
-        <p className="wallet-note" style={{marginTop: '24px'}}><Icon name="lock" size={12}/>Direct non-custodial transfer on GOAT Network</p>
+        <p className="wallet-note" style={{marginTop: '24px'}}><Icon name="lock" size={12}/>{isEscrowInvoice ? 'Funds locked non-custodially in the on-chain escrow contract on GOAT Network' : 'Direct non-custodial transfer on GOAT Network'}</p>
       </>
     )}
   </div>

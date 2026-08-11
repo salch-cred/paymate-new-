@@ -54,7 +54,7 @@ export async function GET(
   
   <rect width="300" height="400" rx="20" fill="url(#bg)" stroke="${color1}" stroke-width="2"/>
   
-  <!-- Network Logo Placeholder -->
+  <!-- PayMate mark -->
   <circle cx="150" cy="80" r="40" fill="none" stroke="url(#badgeGlow)" stroke-width="4" filter="url(#glow)"/>
   <path d="M 135 70 L 165 70 L 150 95 Z" fill="url(#badgeGlow)"/>
   

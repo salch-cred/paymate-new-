@@ -13,6 +13,11 @@ export async function autonomousAgentPay(invoice: Invoice): Promise<string> {
   }
 
   // 1. EIP-712 Safety Proof Verification
+  // SECURITY (audit fix, 2026-08-11): the signature must be from the CLIENT
+  // (the payer) — the party authorizing the money movement — never the
+  // freelancer (payee). A freelancer can always self-sign their own invoice,
+  // so verifying against the payee would let anyone drain the agent wallet.
+  // This mirrors the fixed /api/clawup/intent route (same signer model).
   if (!invoice.signature) {
     throw new Error("SECURITY FAULT: Invoice is missing EIP-712 safety proof signature. Aborting payout.")
   }
@@ -21,7 +26,7 @@ export async function autonomousAgentPay(invoice: Invoice): Promise<string> {
     invoice.client,
     invoice.amountUsd,
     invoice.signature as `0x${string}`,
-    invoice.freelancer // We expect the freelancer to have signed it
+    invoice.client // expected signer is the PAYER (authorizes the spend)
   )
 
   if (!isSignatureValid) {

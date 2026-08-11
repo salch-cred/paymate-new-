@@ -30,10 +30,10 @@ export async function POST(request: Request) {
       return Response.json({ error: "Agent negotiation failed" }, { status: 400 });
     }
 
-    // If accepted, we would automatically trigger the createInvoice and autonomousAgentPay pipeline here
-    if (parsed.decision === "ACCEPT") {
-        // execute autonomous GOAT Network funding...
-    }
+    // NOTE: this endpoint only negotiates. Settlement is deliberately NOT
+    // automatic: accepting a counter-offer must go through the standard
+    // invoice → payUrl flow so the human client reviews before signing, and
+    // autonomousAgentPay stays gated by its own budget + sybil checks.
 
     return Response.json({ success: true, agentResponse: parsed });
   } catch (error) {
