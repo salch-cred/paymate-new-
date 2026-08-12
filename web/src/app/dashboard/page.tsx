@@ -2,9 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
-import { useAccount, useEnsName } from "wagmi"
-import { mainnet } from "wagmi/chains"
-import { usePrivy } from "@privy-io/react-auth"
+import { useAccount } from "wagmi"
 import { isAddress } from "viem"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Icon } from "@/components/icons"
@@ -39,8 +37,8 @@ declare global {
 }
 
 export default function DashboardPage(){
- const {address,isConnected}=useAccount();const {logout}=usePrivy()
- const {data:ensName}=useEnsName({address:address as `0x${string}`,chainId:mainnet.id})
+  const {address,isConnected}=useAccount();
+  // removed logout and ensName as they are handled in layout-client.tsx
  const queryClient=useQueryClient()
  const [client,setClient]=useState("");const [title,setTitle]=useState("");const [description,setDescription]=useState("");const [amount,setAmount]=useState("");const [dueDate,setDueDate]=useState("")
  const [splits,setSplits]=useState<{address:string,amountUsd:string}[]>([])
@@ -207,5 +205,5 @@ export default function DashboardPage(){
      <div style={{fontSize:'12px', color:'var(--text-muted)'}}>No new notifications. When your invoices settle, Push Protocol will alert your wallet.</div>
    )}
  </div>
-  </aside></div></motion.div>}</section></div></>
+  </aside></div></motion.div>}</>
 }
