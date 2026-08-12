@@ -43,9 +43,7 @@ export default function GrowthPage() {
   const feedback = data?.feedback ?? []
 
   return (
-    <main className="app-shell">
-      <div className="app-frame" style={{ gridTemplateColumns: "1fr", maxWidth: 1100 }}>
-        <section className="app-main">
+    <>
           <header className="app-topbar">
             <div>
               <span className="workspace-label">STAGE 2 · GROWTH REPORT</span>
@@ -97,8 +95,6 @@ export default function GrowthPage() {
               </section>
             </>
           )}
-        </section>
-      </div>
-    </main>
+    </>
   )
 }

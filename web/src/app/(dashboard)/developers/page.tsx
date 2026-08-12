@@ -121,25 +121,7 @@ export default function DevelopersPage() {
   const totalUsed = activeKeys.reduce((s, k) => s + k.usedUsd, 0)
 
   return (
-    <main className="app-shell">
-      <div className="app-frame">
-        <aside className="app-sidebar">
-          <Link className="brand" href="/"><span className="brand-mark"><span/></span><b>PayMate</b></Link>
-          <nav className="side-nav">
-            <span className="nav-label">WORKSPACE</span>
-            <Link href="/dashboard"><Icon name="chart"/><span>Overview</span></Link>
-            <Link className="active" href="/developers"><Icon name="network"/><span>Developers</span></Link>
-            <span className="nav-label">PROTOCOL</span>
-            <Link href="/treasury"><Icon name="receipt"/><span>Treasury</span></Link>
-            <Link href="/growth"><Icon name="chart"/><span>Growth</span></Link>
-            <Link href="/docs"><Icon name="send"/><span>Docs</span></Link>
-          </nav>
-          <div className="sidebar-foot">
-            <div className="network-chip"><i/><span>GOAT Network · Live</span></div>
-          </div>
-        </aside>
-
-        <section className="app-main">
+    <>
           <header className="app-topbar">
             <div>
               <span className="workspace-label">AGENT PLATFORM</span>
@@ -289,8 +271,6 @@ export default function DevelopersPage() {
               </div>
             </>
           )}
-        </section>
-      </div>
-    </main>
+    </>
   )
 }

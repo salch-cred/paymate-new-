@@ -29,7 +29,7 @@ export default function TreasuryPage() {
   }, [])
 
   return (
-    <main style={{background:'#0a0a0a', minHeight:'100vh', color:'white', fontFamily:'monospace', padding:'40px'}}>
+    <div style={{background:'#0a0a0a', color:'white', fontFamily:'monospace', padding:'40px', borderRadius:'16px'}}>
       <header style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #333', paddingBottom:'20px', marginBottom:'40px'}}>
         <Link href="/" style={{color:'white', textDecoration:'none', fontWeight:800, fontSize:'24px', display:'flex', alignItems:'center', gap:'8px'}}>
           <Icon name="spark"/> PAYMATE NEURAL TREASURY
@@ -78,6 +78,6 @@ export default function TreasuryPage() {
           50% { opacity: 0; }
         }
       `}</style>
-    </main>
+    </div>
   )
 }

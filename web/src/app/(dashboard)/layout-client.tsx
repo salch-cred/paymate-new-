@@ -20,7 +20,7 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
       <div className="app-frame">
         <aside className="app-sidebar">
           <Link className="brand" href="/">
-            <span className="brand-mark"><span/></span><b>PayMate</b>
+            <img src="/logo-app-v2.png" alt="PayMate Logo" className="brand-mark" style={{background: 'transparent', padding: 0}} /><b>PayMate</b>
           </Link>
           <nav className="side-nav">
             <span className="nav-label">WORKSPACE</span>

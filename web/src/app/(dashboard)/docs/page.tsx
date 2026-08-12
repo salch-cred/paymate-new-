@@ -16,11 +16,8 @@ import {
 
 export default function DocsPage() {
   return (
-    <div className="site-shell" style={{ background: "var(--paper)", color: "var(--ink)" }}>
-      <div className="ambient ambient-one"></div>
-      <div className="ambient ambient-two"></div>
-      
-      <div className="relative z-10 max-w-[1400px] mx-auto pt-16 lg:pt-32 pb-24 px-4 lg:px-8 flex flex-col lg:flex-row gap-12 items-start">
+    <div style={{ color: "var(--ink)" }}>
+      <div className="relative z-10 max-w-[1400px] mx-auto pt-8 pb-24 px-4 flex flex-col lg:flex-row gap-12 items-start">
         
         {/* Sidebar Navigation */}
         <aside className="w-64 flex-shrink-0 sticky top-32 glass rounded-2xl p-6 hidden lg:flex flex-col gap-8">
