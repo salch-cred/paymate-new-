@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Icon } from "@/components/icons"
@@ -14,14 +15,24 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
   const { logout } = usePrivy()
   const { data: ensName } = useEnsName({ address: address as `0x${string}`, chainId: mainnet.id })
   const pathname = usePathname()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [pathname])
 
   return (
     <main className="app-shell">
       <div className="app-frame">
-        <aside className="app-sidebar">
-          <Link className="brand" href="/">
-            <img src="/logo-app-v2.png" alt="PayMate Logo" className="brand-mark" style={{background: 'transparent', padding: 0}} /><b>PayMate</b>
-          </Link>
+        <aside className={`app-sidebar ${mobileMenuOpen ? "open" : ""}`}>
+          <div className="sidebar-mobile-header">
+            <Link className="brand" href="/">
+              <img src="/logo-app-v2.png" alt="PayMate Logo" className="brand-mark" style={{background: 'transparent', padding: 0}} /><b>PayMate</b>
+            </Link>
+            <button className="mobile-menu-close" onClick={() => setMobileMenuOpen(false)}>
+              <Icon name="close" size={20} />
+            </button>
+          </div>
           <nav className="side-nav">
             <span className="nav-label">WORKSPACE</span>
             <Link href="/dashboard" className={pathname === "/dashboard" ? "active" : ""}><Icon name="chart"/><span>Dashboard</span></Link>
@@ -43,6 +54,9 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
         
         <section className="app-main">
           <header className="app-topbar">
+            <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen(true)}>
+              <Icon name="menu" size={20} />
+            </button>
             <div>
               <span className="workspace-label">PAYMATE CONTROL CENTER</span>
               <h1>Money, proof, momentum.</h1>
