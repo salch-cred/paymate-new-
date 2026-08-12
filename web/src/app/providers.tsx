@@ -9,7 +9,7 @@ import { WagmiProvider, createConfig } from '@privy-io/wagmi'
 
 export const config = createConfig({
   chains: supportedChains,
-  transports: supportedChains.reduce((acc, chain) => ({ ...acc, [chain.id]: http() }), {} as Record<number, any>),
+  transports: supportedChains.reduce((acc, chain) => ({ ...acc, [chain.id]: http() }), {} as Record<number, ReturnType<typeof http>>),
 })
 
 export default function Providers({ children }: { children: React.ReactNode }) {
@@ -24,7 +24,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           accentColor: '#fb744d',
           logo: 'https://paymateagent.xyz/logo-app-v2.png',
         },
-        supportedChains: supportedChains as any,
+        supportedChains: [...supportedChains],
         defaultChain: goatChain,
         walletConnectCloudProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "d5e89d14fc04d744f4ccbb715bb99a53",
         loginMethods: ['wallet', 'email', 'passkey'],

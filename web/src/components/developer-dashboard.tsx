@@ -2,9 +2,6 @@
 
 import { Icon } from '@/components/icons';
 
-// Demo developer address (matches the ShipBot Labs seed plugin).
-const DEV_ADDRESS = '0x1a2b3c4d5e6f7890abcdef1234567890abcdef12';
-
 // Note: In a real app we'd fetch this from the store, but for the client component
 // we can either pass it as props or fetch via API. We'll simulate it here to match the dashboard.
 export function DeveloperDashboard() {

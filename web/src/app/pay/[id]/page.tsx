@@ -357,7 +357,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
               ) : (
                 <>
                   <button className="pay-action" onClick={()=>handlePay()} disabled={invoice.isPrivate && decryptedAmount === null}>
-                    {isEscrowInvoice ? `Lock ${(decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()} USDC in Escrow` : `Pay ${(decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()} USDC`} <Icon name="arrow" size={18}/>
+                    {isEscrowInvoice ? `Lock ${invoice.isPrivate && decryptedAmount === null ? "███" : (decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()} USDC in Escrow` : `Pay ${invoice.isPrivate && decryptedAmount === null ? "███" : (decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()} USDC`} <Icon name="arrow" size={18}/>
                   </button>
                   <button className="button button-outline" style={{width:'100%',justifyContent:'center',height:'48px'}} onClick={()=>setIsClawUpModalOpen(true)} disabled={(invoice.isPrivate && decryptedAmount === null) || !!invoice.githubPrUrl}>
                     Pay with Any Network (ClawUp Routing)

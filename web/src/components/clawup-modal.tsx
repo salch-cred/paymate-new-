@@ -15,14 +15,14 @@ interface ClawUpModalProps {
 
 // Real mainnet chain IDs supported by the cross-chain settlement verifier.
 const chains = [
-  { id: 56, name: "Binance (BSC)", icon: "🟡", symbol: "BNB", decimals: 18 },
-  { id: 8453, name: "Base", icon: "🌐", symbol: "ETH", decimals: 18 },
-  { id: 10, name: "Optimism", icon: "🔴", symbol: "ETH", decimals: 18 },
-  { id: 42161, name: "Arbitrum", icon: "🔵", symbol: "ETH", decimals: 18 },
-  { id: 137, name: "Polygon", icon: "🟣", symbol: "POL", decimals: 18 },
-  { id: 43114, name: "Avalanche", icon: "🔺", symbol: "AVAX", decimals: 18 },
-  { id: 250, name: "Fantom", icon: "👻", symbol: "FTM", decimals: 18 },
-  { id: 42220, name: "Celo", icon: "🌱", symbol: "CELO", decimals: 18 },
+  { id: 56, name: "Binance (BSC)", icon: <img src="https://cryptologos.cc/logos/bnb-bnb-logo.svg" alt="BNB" style={{width: 20, height: 20}} />, symbol: "BNB", decimals: 18 },
+  { id: 8453, name: "Base", icon: <img src="https://avatars.githubusercontent.com/u/108554348?v=4" alt="Base" style={{width: 20, height: 20, borderRadius: '50%'}} />, symbol: "ETH", decimals: 18 },
+  { id: 10, name: "Optimism", icon: <img src="https://cryptologos.cc/logos/optimism-ethereum-op-logo.svg" alt="OP" style={{width: 20, height: 20}} />, symbol: "ETH", decimals: 18 },
+  { id: 42161, name: "Arbitrum", icon: <img src="https://cryptologos.cc/logos/arbitrum-arb-logo.svg" alt="ARB" style={{width: 20, height: 20}} />, symbol: "ETH", decimals: 18 },
+  { id: 137, name: "Polygon", icon: <img src="https://cryptologos.cc/logos/polygon-matic-logo.svg" alt="POL" style={{width: 20, height: 20}} />, symbol: "POL", decimals: 18 },
+  { id: 43114, name: "Avalanche", icon: <img src="https://cryptologos.cc/logos/avalanche-avax-logo.svg" alt="AVAX" style={{width: 20, height: 20}} />, symbol: "AVAX", decimals: 18 },
+  { id: 250, name: "Fantom", icon: <img src="https://cryptologos.cc/logos/fantom-ftm-logo.svg" alt="FTM" style={{width: 20, height: 20}} />, symbol: "FTM", decimals: 18 },
+  { id: 42220, name: "Celo", icon: <img src="https://cryptologos.cc/logos/celo-celo-logo.svg" alt="CELO" style={{width: 20, height: 20}} />, symbol: "CELO", decimals: 18 },
 ];
 
 /** Adds a 3% buffer so the settlement covers the invoice amount even if the
@@ -37,7 +37,7 @@ export function ClawUpModal({ isOpen, onClose, onSuccess, amountUsd, freelancerA
   
   const { switchChainAsync } = useSwitchChain();
   const { sendTransactionAsync } = useSendTransaction();
-  const { isConnected } = useAccount();
+  const { isConnected, chainId } = useAccount();
 
   const selectChain = async (chainId: number) => {
     setSelectedChain(chainId);
@@ -70,13 +70,19 @@ export function ClawUpModal({ isOpen, onClose, onSuccess, amountUsd, freelancerA
     try {
       setStep("bridging");
       
-      // 1. Physically switch the wallet to the external network
-      await switchChainAsync({ chainId: selectedChain });
+      // 1. Physically switch the wallet to the external network if needed
+      if (chainId !== selectedChain) {
+        if (switchChainAsync) {
+          await switchChainAsync({ chainId: selectedChain });
+        } else {
+          throw new Error("Your wallet does not support automatic network switching. Please switch manually.");
+        }
+      }
       
       // 2. Send the invoice's REAL value in the source chain's native token to
-      // the freelancer's wallet. The backend verifies the on-chain value
-      // against the live price before settling — dust is rejected.
+      // the freelancer's wallet.
       const txHash = await sendTransactionAsync({
+        chainId: selectedChain,
         to: freelancerAddress as `0x${string}`,
         value: parseEther(amountOut),
       });
@@ -85,10 +91,10 @@ export function ClawUpModal({ isOpen, onClose, onSuccess, amountUsd, freelancerA
       setStep("done");
       setTimeout(() => onSuccess(txHash, selectedChain), 1500);
 
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
       setStep("select");
-      alert("Cross-chain transaction failed or was rejected.");
+      alert(`Transaction failed: ${e?.shortMessage || e?.message || "User rejected or insufficient funds."}`);
     }
   };
 

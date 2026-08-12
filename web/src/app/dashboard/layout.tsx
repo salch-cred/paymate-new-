@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { DashboardLayoutClient } from "./layout-client"
 
 export const metadata: Metadata = {
   title: "PayMate | Dashboard",
@@ -7,5 +8,5 @@ export const metadata: Metadata = {
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return children
+  return <DashboardLayoutClient>{children}</DashboardLayoutClient>
 }
