@@ -20,7 +20,7 @@ export default async function PluginDetailPage({ params }: { params: Promise<{ i
     <div style={{ padding: '34px 24px 90px', position: 'relative', zIndex: 1 }}>
       <div className="mp-detail">
         <div className="mp-detail-main">
-          <Link href="/marketplace/plugins" className="mp-back">
+          <Link href="/dashboard/marketplace/plugins" className="mp-back">
             <Icon name="arrow" size={15} style={{ transform: 'rotate(180deg)' }} />
             Back to Marketplace
           </Link>
@@ -105,7 +105,7 @@ export default async function PluginDetailPage({ params }: { params: Promise<{ i
               </div>
               <span className="mp-x402-pill">VIA x402</span>
             </div>
-            <Link href="/marketplace/publish" className="mp-use-btn">
+            <Link href="/dashboard/marketplace/publish" className="mp-use-btn">
               Use in your agent <Icon name="arrow" size={16} />
             </Link>
             <p className="mp-purchase-note">Pay per use via x402 micropayments. No API key needed. Royalties flow to the developer automatically.</p>

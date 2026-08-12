@@ -21,7 +21,7 @@ export default function MarketplaceHeader() {
 
   return (
     <nav className="mp-nav glass" aria-label="Marketplace navigation">
-      <Link href="/marketplace" className="mp-brand" onClick={() => setOpen(false)}>
+      <Link href="/dashboard/marketplace" className="mp-brand" onClick={() => setOpen(false)}>
         <span className="brand-mark"><span /></span>
         <span>
           <b>SkillMint</b>
@@ -40,7 +40,7 @@ export default function MarketplaceHeader() {
 
       <div className="mp-nav-actions">
         <span className="mp-live-chip"><i />GOAT LIVE</span>
-        <Link href="/marketplace/publish" className="mp-nav-cta">Publish plugin <Icon name="arrow" size={14} /></Link>
+        <Link href="/dashboard/marketplace/publish" className="mp-nav-cta">Publish plugin <Icon name="arrow" size={14} /></Link>
         <button className="mp-menu-btn" onClick={() => setOpen(!open)} aria-label="Toggle menu" aria-expanded={open}>
           <Icon name={open ? 'close' : 'menu'} size={20} />
         </button>

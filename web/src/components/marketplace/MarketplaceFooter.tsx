@@ -7,7 +7,7 @@ export default function MarketplaceFooter() {
       <div className="mp-footer-inner">
         <div className="mp-footer-top">
           <div className="mp-footer-brand">
-            <Link href="/marketplace" className="mp-brand">
+            <Link href="/dashboard/marketplace" className="mp-brand">
               <span className="brand-mark"><span /></span>
               <b>SkillMint</b>
             </Link>
@@ -18,15 +18,15 @@ export default function MarketplaceFooter() {
           </div>
           <div className="mp-footer-col">
             <h4>Marketplace</h4>
-            <Link href="/marketplace/plugins">Browse all plugins</Link>
-            <Link href="/marketplace/plugins?category=logistics">Logistics</Link>
-            <Link href="/marketplace/plugins?category=finance">Finance</Link>
-            <Link href="/marketplace/plugins?category=data">Data</Link>
+            <Link href="/dashboard/marketplace/plugins">Browse all plugins</Link>
+            <Link href="/dashboard/marketplace/plugins?category=logistics">Logistics</Link>
+            <Link href="/dashboard/marketplace/plugins?category=finance">Finance</Link>
+            <Link href="/dashboard/marketplace/plugins?category=data">Data</Link>
           </div>
           <div className="mp-footer-col">
             <h4>Build</h4>
-            <Link href="/marketplace/publish">Publish a plugin</Link>
-            <Link href="/marketplace/dashboard">Developer dashboard</Link>
+            <Link href="/dashboard/marketplace/publish">Publish a plugin</Link>
+            <Link href="/dashboard/marketplace/dashboard">Developer dashboard</Link>
             <a href="https://goat.network" target="_blank" rel="noopener noreferrer">GOAT Network</a>
             <a href="https://x402.org" target="_blank" rel="noopener noreferrer">x402 Protocol</a>
           </div>

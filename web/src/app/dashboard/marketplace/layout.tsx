@@ -1,7 +1,5 @@
 import type { Metadata } from 'next';
 import './marketplace.css';
-import MarketplaceHeader from '@/components/marketplace/MarketplaceHeader';
-import MarketplaceFooter from '@/components/marketplace/MarketplaceFooter';
 
 export const metadata: Metadata = {
   title: { default: 'Marketplace — Mint New Abilities', template: '%s · SkillMint' },
@@ -16,13 +14,8 @@ export const metadata: Metadata = {
 
 export default function MarketplaceLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mp-shell">
-      <div className="mp-ambient mp-ambient-one" />
-      <div className="mp-ambient mp-ambient-two" />
-      <div className="mp-ambient mp-ambient-three" />
-      <MarketplaceHeader />
+    <div className="mp-dashboard-shell">
       <main>{children}</main>
-      <MarketplaceFooter />
     </div>
   );
 }

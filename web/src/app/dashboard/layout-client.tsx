@@ -20,7 +20,7 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
     { label: "Activity", href: "/dashboard/activity", icon: "chart" as const },
     { label: "Swap", href: "/dashboard/swap", icon: "network" as const },
     { label: "Stake", href: "/dashboard/stake", icon: "shield" as const },
-    { label: "Marketplace", href: "/marketplace", icon: "spark" as const },
+    { label: "Marketplace", href: "/dashboard/marketplace", icon: "spark" as const },
     { label: "Bridge", href: "/dashboard/bridge", icon: "network" as const },
     { label: "Identity", href: "/dashboard/identity", icon: "users" as const },
     { label: "Chat", href: "/dashboard/chat", icon: "send" as const },

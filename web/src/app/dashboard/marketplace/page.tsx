@@ -38,10 +38,10 @@ export default async function MarketplaceHomePage() {
             and pay autonomously via x402 — no API keys, no subscriptions.
           </p>
           <div className="mp-hero-actions">
-            <Link href="/marketplace/plugins" className="button button-primary">
+            <Link href="/dashboard/marketplace/plugins" className="button button-primary">
               Browse plugins <Icon name="arrow" size={15} />
             </Link>
-            <Link href="/marketplace/publish" className="button button-outline">
+            <Link href="/dashboard/marketplace/publish" className="button button-outline">
               Publish a plugin
             </Link>
           </div>
@@ -109,7 +109,7 @@ export default async function MarketplaceHomePage() {
               <span className="section-kicker">BROWSE BY CATEGORY</span>
               <h2 className="mp-section-title">Find the exact capability</h2>
             </div>
-            <Link href="/marketplace/plugins" className="mp-see-all">
+            <Link href="/dashboard/marketplace/plugins" className="mp-see-all">
               See all plugins <Icon name="arrow" size={14} />
             </Link>
           </div>
@@ -136,7 +136,7 @@ export default async function MarketplaceHomePage() {
               <span className="section-kicker">FEATURED PLUGINS</span>
               <h2 className="mp-section-title">Battle-tested by agents</h2>
             </div>
-            <Link href="/marketplace/plugins" className="mp-see-all">
+            <Link href="/dashboard/marketplace/plugins" className="mp-see-all">
               Browse all <Icon name="arrow" size={14} />
             </Link>
           </div>
@@ -176,7 +176,7 @@ export default async function MarketplaceHomePage() {
               <h2>Publish a plugin.<br />Earn on every use.</h2>
               <p>Join {stats.totalDevelopers} developers already earning on SkillMint. Takes under 10 minutes to go live.</p>
             </div>
-            <Link href="/marketplace/publish" className="button button-dark">
+            <Link href="/dashboard/marketplace/publish" className="button button-dark">
               Start publishing <Icon name="arrow" size={16} />
             </Link>
           </div>

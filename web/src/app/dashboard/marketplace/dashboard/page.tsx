@@ -77,7 +77,7 @@ export default async function DashboardPage() {
             </h2>
             {myPlugins.length === 0 ? (
               <div className="mp-empty-plugins">
-                <p>No plugins yet. <a href="/marketplace/publish">Publish your first plugin.</a></p>
+                <p>No plugins yet. <a href="/dashboard/marketplace/publish">Publish your first plugin.</a></p>
               </div>
             ) : (
               myPlugins.map((p) => (
