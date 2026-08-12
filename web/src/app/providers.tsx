@@ -3,15 +3,13 @@
 import React, { useState } from 'react'
 import { http } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { goatChain } from '@/lib/chain'
+import { goatChain, supportedChains } from '@/lib/chain'
 import { PrivyProvider } from '@privy-io/react-auth'
 import { WagmiProvider, createConfig } from '@privy-io/wagmi'
 
 export const config = createConfig({
-  chains: [goatChain],
-  transports: {
-    [goatChain.id]: http(),
-  },
+  chains: supportedChains,
+  transports: supportedChains.reduce((acc, chain) => ({ ...acc, [chain.id]: http() }), {} as Record<number, any>),
 })
 
 export default function Providers({ children }: { children: React.ReactNode }) {
@@ -26,7 +24,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           accentColor: '#fb744d',
           logo: 'https://paymateagent.xyz/logo-app-v2.png',
         },
-        supportedChains: [goatChain],
+        supportedChains: supportedChains as any,
         defaultChain: goatChain,
         walletConnectCloudProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "d5e89d14fc04d744f4ccbb715bb99a53",
         loginMethods: ['wallet', 'email', 'passkey'],

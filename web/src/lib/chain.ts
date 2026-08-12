@@ -5,6 +5,10 @@ import { goat, base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo }
 
 export const goatChain = goat
 
+export const supportedChains: readonly [Chain, ...Chain[]] = [
+  goatChain,
+  base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo
+]
 const RPC_URL = process.env.RPC_GOAT_MAINNET || goatChain.rpcUrls.default.http[0]
 
 const REPUTATION_ABI = [
