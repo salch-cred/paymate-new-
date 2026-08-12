@@ -11,7 +11,11 @@ export function requireBearerAuth(request: Request, secret: string | undefined):
   if (!secret) {
     return Response.json({ detail: "Server misconfigured" }, { status: 500 })
   }
-  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
+  const provided = request.headers.get("authorization") || ""
+  const expected = `Bearer ${secret}`
+  const a = Buffer.from(provided)
+  const b = Buffer.from(expected)
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return Response.json({ detail: "Unauthorized" }, { status: 401 })
   }
   return null

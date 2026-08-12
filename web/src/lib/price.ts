@@ -11,6 +11,7 @@
  * If prices cannot be fetched, verification fails closed (no silent settlement).
  */
 const COIN_ID_BY_CHAIN_ID: Record<number, string> = {
+  1: "ethereum",          // ETH (Mainnet)
   56: "binancecoin",      // BNB (BSC)
   8453: "ethereum",       // ETH (Base)
   10: "ethereum",         // ETH (Optimism)
@@ -19,6 +20,10 @@ const COIN_ID_BY_CHAIN_ID: Record<number, string> = {
   43114: "avalanche-2",   // AVAX
   250: "fantom",          // FTM (Fantom)
   42220: "celo",          // CELO
+  324: "ethereum",        // ETH (zkSync)
+  59144: "ethereum",      // ETH (Linea)
+  534352: "ethereum",     // ETH (Scroll)
+  81457: "ethereum",      // ETH (Blast)
 }
 
 let cache: { at: number; prices: Record<string, number> } | null = null
