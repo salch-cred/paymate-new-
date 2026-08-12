@@ -1,13 +1,13 @@
 import { createPublicClient, createWalletClient, http, getAddress, isAddress, decodeFunctionData, type Chain } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import type { Invoice } from "./db"
-import { goat, base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo } from "viem/chains"
+import { goat, base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo, mainnet, zksync, linea, scroll, blast } from "viem/chains"
 
 export const goatChain = goat
 
 export const supportedChains: readonly [Chain, ...Chain[]] = [
   goatChain,
-  base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo
+  base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo, mainnet, zksync, linea, scroll, blast
 ]
 const RPC_URL = process.env.RPC_GOAT_MAINNET || goatChain.rpcUrls.default.http[0]
 
@@ -124,6 +124,7 @@ export function usdcAmount(amountUsd: number): bigint {
 
 // Source chains accepted for CROSSCHAIN_ settlement receipts.
 const CROSS_CHAIN_CLIENTS: Record<number, Chain> = {
+  1: mainnet,
   56: bsc,
   8453: base,
   10: optimism,
@@ -132,6 +133,10 @@ const CROSS_CHAIN_CLIENTS: Record<number, Chain> = {
   43114: avalanche,
   250: fantom,
   42220: celo,
+  324: zksync,
+  59144: linea,
+  534352: scroll,
+  81457: blast,
 }
 
 /** Returns a public client for a supported cross-chain settlement, or null. */

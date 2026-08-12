@@ -15,6 +15,7 @@ interface ClawUpModalProps {
 
 // Real mainnet chain IDs supported by the cross-chain settlement verifier.
 const chains = [
+  { id: 1, name: "Ethereum", icon: <img src="https://cryptologos.cc/logos/ethereum-eth-logo.svg" alt="ETH" style={{width: 20, height: 20}} />, symbol: "ETH", decimals: 18 },
   { id: 56, name: "Binance (BSC)", icon: <img src="https://cryptologos.cc/logos/bnb-bnb-logo.svg" alt="BNB" style={{width: 20, height: 20}} />, symbol: "BNB", decimals: 18 },
   { id: 8453, name: "Base", icon: <img src="https://avatars.githubusercontent.com/u/108554348?v=4" alt="Base" style={{width: 20, height: 20, borderRadius: '50%'}} />, symbol: "ETH", decimals: 18 },
   { id: 10, name: "Optimism", icon: <img src="https://cryptologos.cc/logos/optimism-ethereum-op-logo.svg" alt="OP" style={{width: 20, height: 20}} />, symbol: "ETH", decimals: 18 },
@@ -23,6 +24,10 @@ const chains = [
   { id: 43114, name: "Avalanche", icon: <img src="https://cryptologos.cc/logos/avalanche-avax-logo.svg" alt="AVAX" style={{width: 20, height: 20}} />, symbol: "AVAX", decimals: 18 },
   { id: 250, name: "Fantom", icon: <img src="https://cryptologos.cc/logos/fantom-ftm-logo.svg" alt="FTM" style={{width: 20, height: 20}} />, symbol: "FTM", decimals: 18 },
   { id: 42220, name: "Celo", icon: <img src="https://cryptologos.cc/logos/celo-celo-logo.svg" alt="CELO" style={{width: 20, height: 20}} />, symbol: "CELO", decimals: 18 },
+  { id: 324, name: "zkSync", icon: <img src="https://cryptologos.cc/logos/zksync-logo.png" alt="zkSync" style={{width: 20, height: 20}} />, symbol: "ETH", decimals: 18 },
+  { id: 59144, name: "Linea", icon: <div style={{width: 20, height: 20, background: '#121212', borderRadius: '50%', color: '#fff', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>L</div>, symbol: "ETH", decimals: 18 },
+  { id: 534352, name: "Scroll", icon: <div style={{width: 20, height: 20, background: '#FFE6A5', borderRadius: '50%', color: '#101010', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>S</div>, symbol: "ETH", decimals: 18 },
+  { id: 81457, name: "Blast", icon: <div style={{width: 20, height: 20, background: '#FCFC03', borderRadius: '50%', color: '#000', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'}}>B</div>, symbol: "ETH", decimals: 18 },
 ];
 
 /** Adds a 3% buffer so the settlement covers the invoice amount even if the
