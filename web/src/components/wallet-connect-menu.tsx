@@ -6,7 +6,14 @@ export function WalletConnectMenu({ triggerClassName, triggerLabel }: { triggerC
   const { login, ready } = usePrivy()
 
   return (
-    <button type="button" disabled={!ready} className={triggerClassName} onClick={() => login()}>
+    <button 
+      type="button" 
+      className={triggerClassName} 
+      onClick={() => {
+        if (!ready) console.warn("Privy not fully ready yet, but attempting login anyway.");
+        login();
+      }}
+    >
       {triggerLabel}
     </button>
   )
