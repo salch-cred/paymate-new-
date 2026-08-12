@@ -1,591 +1,188 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState, useRef, type PointerEvent } from "react"
+import { useEffect, useState } from "react"
 import { Icon } from "@/components/icons"
-import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion"
 
-const features = [
-  { icon: "spark" as const, n: "01", title: "Describe the work", text: "Write the scope in plain language. PayMate structures the job, price, and terms into a clean invoice." },
-  { icon: "network" as const, n: "02", title: "Swarm Payouts", text: "One invoice pays multiple AI agents instantly. Route funds to your research, coding, and testing agents." },
-  { icon: "shield" as const, n: "03", title: "Build portable trust", text: "Every verified settlement strengthens your ERC-8004 reputation on GOAT Network." },
-  { icon: "package" as const, n: "04", title: "Integrated Marketplace", text: "Discover and deploy autonomous AI agents directly from your PayMate dashboard. No separate logins required." },
-]
-
-interface GrowthStats {
+type GrowthStats = {
   totalInvoices: number
   paidInvoices: number
   settlementRate: number
   totalVolumeSettled: number
-  uniqueFreelancers: number
-  lastInvoiceAt: number | null
-  lastPaidInvoice: { title: string; amountUsd: number; txHash: string | null; paidAt: number } | null
 }
 
-// One shared fetch for the ticker, ledger, and trace — always a live read.
-let growthPromise: Promise<GrowthStats | null> | null = null
-function fetchGrowthStats(): Promise<GrowthStats | null> {
-  if (!growthPromise) {
-    growthPromise = fetch("/api/growth")
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error("growth unavailable"))))
-      .then(d => (d?.stats ? (d.stats as GrowthStats) : null))
-      .catch(() => null)
-  }
-  return growthPromise
-}
+const workflow = [
+  { icon: "spark" as const, step: "01", title: "Define the work", text: "Turn a plain-language scope into a structured invoice with clear deliverables and terms." },
+  { icon: "send" as const, step: "02", title: "Share one link", text: "Your client reviews the work and pays directly from their wallet. No account is required." },
+  { icon: "shield" as const, step: "03", title: "Keep the proof", text: "PayMate verifies settlement on GOAT and updates your portable ERC-8004 reputation." },
+]
 
-function useGrowth(): { stats: GrowthStats | null } {
-  const [stats, setStats] = useState<GrowthStats | null>(null)
-  useEffect(() => {
-    let live = true
-    fetchGrowthStats().then(d => { if (live) setStats(d) })
-    return () => { live = false }
-  }, [])
-  return { stats }
-}
-
-function KineticTicker() {
-  const { stats } = useGrowth()
-  const hasUsage = !!stats && stats.totalInvoices > 0
-  return (
-    <section className="kinetic-ticker" aria-label="Live settlement activity"><div>
-      {hasUsage ? (
-        <>
-          <span><i/>{stats.totalInvoices} INVOICES CREATED</span><b>→</b>
-          <span>{stats.paidInvoices} SETTLED</span><b>→</b>
-          <span>${stats.totalVolumeSettled.toLocaleString()} VOLUME</span><b>→</b>
-          <span className="ticker-verified"><Icon name="check" size={13}/>{stats.settlementRate}% SETTLEMENT RATE</span><b>→</b>
-          <span>REPUTATION MINTED ON GOAT</span>
-        </>
-      ) : (
-        <>
-          <span><i/>AWAITING FIRST ON-CHAIN SETTLEMENT</span><b>→</b>
-          <span>CREATE INVOICE</span><b>→</b>
-          <span>SHARE PAYMENT LINK</span><b>→</b>
-          <span>SETTLE IN USDC</span><b>→</b>
-          <span className="ticker-verified"><Icon name="check" size={13}/>VERIFIED ON GOAT MAINNET</span>
-        </>
-      )}
-    </div></section>
-  )
-}
-
-function LiveTrace() {
-  const { stats } = useGrowth()
-  const last = stats?.lastPaidInvoice ?? null
-  return (
-    <div className="protocol-console glass-heavy">
-      <div className="console-bar"><span><i/><i/><i/></span><b>LIVE SETTLEMENT TRACE</b><small>{last ? `GOAT · ${new Date(last.paidAt).toLocaleString()}` : "GOAT MAINNET · AWAITING FIRST SETTLEMENT"}</small></div>
-      {last ? (
-        <>
-          <div className="trace-row active"><span>01</span><Icon name="invoice"/><div><b>Invoice created</b><small>{last.title} · ${last.amountUsd.toLocaleString()} USDC</small></div><em>VERIFIED</em></div>
-          <div className="trace-line"><i/></div>
-          <div className="trace-row"><span>02</span><Icon name="wallet"/><div><b>Transfer submitted</b><small>{last.txHash ? `${last.txHash.slice(0, 10)}…${last.txHash.slice(-4)}` : "on-chain"}</small></div><em>CONFIRMED</em></div>
-          <div className="trace-line"><i/></div>
-          <div className="trace-row verified"><span>03</span><Icon name="shield"/><div><b>Settlement verified</b><small>Token · recipient · amount</small></div><em>FINAL</em></div>
-          {last.txHash && (
-            <div className="console-proof"><span>PROOF</span><a href={`https://explorer.goat.network/tx/${last.txHash}`} target="_blank" rel="noreferrer" style={{ color: "#c9fa78", textDecoration: "none" }}><code>{last.txHash.slice(0, 18)}…</code></a><Icon name="check"/></div>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="trace-row active"><span>01</span><Icon name="invoice"/><div><b>Awaiting first invoice</b><small>Create one from the dashboard</small></div><em>—</em></div>
-          <div className="trace-line"><i/></div>
-          <div className="trace-row"><span>02</span><Icon name="wallet"/><div><b>Awaiting transfer</b><small>Client pays directly to wallet</small></div><em>—</em></div>
-          <div className="trace-line"><i/></div>
-          <div className="trace-row"><span>03</span><Icon name="shield"/><div><b>Verification ready</b><small>Server checks token · recipient · amount</small></div><em>READY</em></div>
-        </>
-      )}
-    </div>
-  )
-}
-
-function LiveLedger() {
-  const { stats } = useGrowth()
-
-  const hasUsage = !!stats && stats.totalInvoices > 0
-  const lastPaid = stats?.lastInvoiceAt ? new Date(stats.lastInvoiceAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null
-
-  const metric = (label: string, value: string, sub: string) => (
-    <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: "16px", padding: "20px 22px", boxShadow: "0 8px 30px rgba(0,0,0,0.04)" }}>
-      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", color: "#8a8981" }}>{label}</div>
-      <div style={{ fontSize: 30, fontWeight: 800, fontFamily: "var(--font-display)", letterSpacing: "-0.03em", margin: "6px 0 2px", color: "var(--ink)" }}>{value}</div>
-      <div style={{ fontSize: 12, color: "#8a8981" }}>{sub}</div>
-    </div>
-  )
-
-  return (
-    <section className="section-pad" id="ledger" style={{ background: "#f1efe9", padding: "70px 5%", borderBottom: "1px solid var(--line)" }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 28 }}>
-          <div>
-            <span className="section-kicker">LIVE FROM THE SETTLEMENT LEDGER</span>
-            <h2 style={{ fontSize: "2.2rem", margin: "14px 0 6px" }}>Real numbers. Live ledger.</h2>
-            <p style={{ color: "var(--muted)", margin: 0, maxWidth: 520, lineHeight: 1.5 }}>Every figure below is read live from the production database — nothing is simulated.</p>
-          </div>
-          <Link href="/growth" style={{ fontSize: 13, fontWeight: 800, color: "var(--orange, #ff5b2e)", display: "flex", alignItems: "center", gap: 6 }}>Open the full growth report <Icon name="arrow" size={14} /></Link>
-        </div>
-
-        {hasUsage ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
-            {metric("VOLUME SETTLED", `$${(stats.totalVolumeSettled || 0).toLocaleString()}`, "USDC on GOAT mainnet")}
-            {metric("SETTLEMENT RATE", `${stats.settlementRate}%`, `${stats.totalInvoices} invoices created`)}
-            {metric("FREELANCERS PAID", `${stats.uniqueFreelancers}`, "unique wallets")}
-            {metric("LAST SETTLEMENT", lastPaid || "—", "on the ledger")}
-          </div>
-        ) : (
-          <div style={{ background: "#fff", border: "1px dashed var(--line)", borderRadius: "16px", padding: "36px", textAlign: "center" }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>The ledger fills in the moment the first invoice settles.</div>
-            <p style={{ fontSize: 13, color: "var(--muted)", margin: "0 0 18px", lineHeight: 1.5 }}>No simulated numbers — ever. Settle one real payment and it appears here instantly.</p>
-            <Link href="/dashboard" className="button button-dark">Create the first invoice <Icon name="arrow" size={15} /></Link>
-          </div>
-        )}
-      </div>
-    </section>
-  )
-}
+const capabilities = [
+  { icon: "invoice" as const, title: "Invoices that explain themselves", text: "Scope, amount, due date, milestones, and team splits stay together in one payment request." },
+  { icon: "wallet" as const, title: "Direct USDC settlement", text: "Payments move from client to freelancer. PayMate never takes custody of your funds." },
+  { icon: "network" as const, title: "Built for people and agents", text: "API keys, x402 payments, and marketplace plugins let autonomous agents participate natively." },
+  { icon: "chart" as const, title: "A useful operating view", text: "Track outstanding value, settlement rate, invoice status, and verified earnings without spreadsheet work." },
+]
 
 export default function Home() {
-  const [menu, setMenu] = useState(false)
-  const targetRef = useRef<HTMLDivElement>(null)
-  const { scrollYProgress } = useScroll({
-    target: targetRef,
-    offset: ["start start", "end end"]
-  })
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [stats, setStats] = useState<GrowthStats | null>(null)
 
-  const opacity = useTransform(scrollYProgress, [0, 0.2], [1, 0])
-  const scale = useTransform(scrollYProgress, [0, 0.2], [1, 0.95])
-  const y = useTransform(scrollYProgress, [0, 0.2], [0, -50])
-
-  function movePreview(event: PointerEvent<HTMLDivElement>) {
-    const rect = event.currentTarget.getBoundingClientRect()
-    event.currentTarget.style.setProperty("--mx", `${((event.clientX - rect.left) / rect.width - .5) * 18}px`)
-    event.currentTarget.style.setProperty("--my", `${((event.clientY - rect.top) / rect.height - .5) * 18}px`)
-  }
-  
-  function resetPreview(event: PointerEvent<HTMLDivElement>) {
-    event.currentTarget.style.setProperty("--mx", "0px")
-    event.currentTarget.style.setProperty("--my", "0px")
-  }
-
-  function movePage(event: PointerEvent<HTMLElement>) {
-    event.currentTarget.style.setProperty("--px", `${event.clientX}px`)
-    event.currentTarget.style.setProperty("--py", `${event.clientY}px`)
-  }
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch("/api/growth", { signal: controller.signal })
+      .then(response => response.ok ? response.json() : null)
+      .then(data => setStats(data?.stats ?? null))
+      .catch(() => undefined)
+    return () => controller.abort()
+  }, [])
 
   return (
-    <main className="site-shell" id="top" onPointerMove={movePage} ref={targetRef}>
-      <div className="scroll-progress"/><div className="cursor-aurora"/>
-      <div className="ambient ambient-one"/><div className="ambient ambient-two"/>
-      
-      <div className="top-note">
-        <span className="pulse-dot"/>
-        Payments now settling on GOAT Network 
-        <a href="#workflow">See the live flow <Icon name="arrow" size={14}/></a>
-      </div>
-
-      <motion.nav 
-        initial={{ y: -50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, type: "spring" }}
-        className="nav-wrap glass" 
-        aria-label="Main navigation"
-      >
-        <Link href="/" className="brand" aria-label="PayMate home">
-          <span className="brand-mark"><span/></span><b>PayMate</b><small>WORK, SETTLED.</small>
+    <main className="landing-shell">
+      <header className="landing-header">
+        <Link href="/" className="landing-brand" aria-label="PayMate home">
+          <span className="brand-mark"><span /></span>
+          <span><b>PayMate</b><small>WORK, SETTLED.</small></span>
         </Link>
-        <div className={`nav-links ${menu ? "open" : ""}`}>
-          <a href="#product"><span>01</span>Product</a>
-          <a href="#marketplace"><span>02</span>Marketplace</a>
-          <a href="#workflow"><span>03</span>Workflow</a>
-          <a href="#security"><span>04</span>Security</a>
-          <Link href="/docs"><span>05</span>Docs</Link>
-          <Link href="/dashboard" className="mobile-cta">Open workspace <Icon name="arrow" size={17}/></Link>
-        </div>
-        <div className="nav-actions">
-          <span className="network-live"><i/>GOAT LIVE</span>
-          <Link href="/dashboard" className="button button-dark nav-cta">Open workspace <Icon name="arrow" size={17}/></Link>
-        </div>
-        <button className="menu-button" onClick={() => setMenu(!menu)} aria-label="Toggle menu">
-          <Icon name={menu ? "close" : "menu"}/>
+
+        <button className="landing-menu" onClick={() => setMenuOpen(value => !value)} aria-label="Toggle navigation" aria-expanded={menuOpen}>
+          <Icon name={menuOpen ? "close" : "menu"} size={21} />
         </button>
-      </motion.nav>
 
-      {/* Hero Section */}
-      <motion.section style={{ opacity, scale, y }} className="hero section-pad">
-        <div className="hero-grid"/><div className="hero-particle p-one"/><div className="hero-particle p-two"/><div className="hero-particle p-three"/>
-        
-        <div className="hero-copy">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="eyebrow"
-          >
-            <span className="pulse-dot"/>The settlement layer for independent work
-          </motion.div>
-          
-          <motion.h1
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-          >
-            <span className="hero-line"><span>Get paid.</span></span>
-            <span className="hero-line"><span className="ink-swipe">Keep the proof.</span></span>
-          </motion.h1>
+        <nav className={menuOpen ? "landing-nav open" : "landing-nav"} aria-label="Main navigation">
+          <a href="#product" onClick={() => setMenuOpen(false)}>Product</a>
+          <a href="#workflow" onClick={() => setMenuOpen(false)}>How it works</a>
+          <Link href="/dashboard/marketplace" onClick={() => setMenuOpen(false)}>Marketplace</Link>
+          <Link href="/docs" onClick={() => setMenuOpen(false)}>Docs</Link>
+        </nav>
 
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="hero-lede"
-          >
-            Create deterministic invoices, collect on-chain payments, and build portable ERC-8004 reputation — for freelancers <em>and autonomous AI agents</em> — on the GOAT Network.
-          </motion.p>
+        <div className="landing-header-actions">
+          <span className="landing-network"><i />GOAT MAINNET</span>
+          <Link href="/dashboard" className="button button-dark">Open dashboard <Icon name="arrow" size={16} /></Link>
+        </div>
+      </header>
 
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="hero-actions"
-          >
-            <Link href="/dashboard" className="button button-primary magnetic-cta">
-              Create an invoice <Icon name="arrow"/><span className="button-glow"/>
-            </Link>
-            <a href="#workflow" className="text-link">
-              <span className="play"><Icon name="chevron" size={15}/></span> See how it works
-            </a>
-          </motion.div>
-          
-          <div className="hero-live-row">
-            <span><i/>LIVE ON GOAT</span>
-            <span>USDC SETTLEMENT</span>
-            <span>ERC—8004 PROOF</span>
+      <section className="landing-hero">
+        <div className="landing-hero-copy">
+          <div className="landing-kicker"><span>ON-CHAIN INVOICING</span><i />FOR INDEPENDENT WORK</div>
+          <h1>Finish the work.<br /><em>Own the proof.</em></h1>
+          <p>Create a clear invoice, collect USDC directly, and turn every verified payment into portable reputation.</p>
+          <div className="landing-actions">
+            <Link href="/dashboard" className="button button-primary">Create an invoice <Icon name="arrow" size={17} /></Link>
+            <Link href="/docs" className="button button-outline">Read the docs</Link>
           </div>
-          <div className="micro-proof">
-            <div className="avatar-stack"><i>AM</i><i>RJ</i><i>SK</i><i>+</i></div>
-            <span>Built for the next <b>100M</b> independent workers</span>
+          <div className="landing-trust-row">
+            <span><Icon name="check" size={14} /> Non-custodial</span>
+            <span><Icon name="check" size={14} /> USDC on GOAT</span>
+            <span><Icon name="check" size={14} /> ERC-8004 reputation</span>
           </div>
         </div>
 
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95, rotateY: 10 }}
-          animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="hero-visual" 
-          aria-label="PayMate invoice product preview" 
-          onPointerMove={movePreview} 
-          onPointerLeave={resetPreview}
-        >
-          <div className="clay-shape clay-a"/><div className="clay-shape clay-b"/>
-          <div className="preview-window glass-heavy">
-            <div className="preview-top"><div className="window-dots"><i/><i/><i/></div><span>paymateagent.xyz/invoice/…</span><Icon name="lock" size={15}/></div>
-            <div className="preview-body">
-              <aside className="mini-sidebar"><span className="brand-mark small"><span/></span><div className="side-line active"/><div className="side-line"/><div className="side-line short"/><div className="sidebar-user">MS</div></aside>
-              <div className="invoice-preview">
-                <div className="invoice-heading">
-                  <div>
-                    <span className="label">INVOICE</span>
-                    <h3>Brand system sprint</h3>
-                    <p>From Salman Studio</p>
-                  </div>
-                  <div className="paid-stamp"><Icon name="check" size={15}/> Ready</div>
-                </div>
-                <div className="invoice-amount"><span>Amount due</span><strong>$2,480.00</strong><em>USDC · GOAT Network</em></div>
-                <div className="invoice-lines">
-                  <div><span>Discovery & strategy</span><b>$680</b></div>
-                  <div><span>Visual identity system</span><b>$1,400</b></div>
-                  <div><span>Launch toolkit</span><b>$400</b></div>
-                </div>
-                <button className="pay-preview">Review & pay <Icon name="arrow" size={17}/></button>
+        <div className="landing-product" aria-label="PayMate dashboard preview">
+          <div className="product-window-head">
+            <span className="product-window-brand"><span className="brand-mark small"><span /></span>Workspace</span>
+            <span className="product-live"><i />GOAT connected</span>
+          </div>
+          <div className="product-window-body">
+            <aside className="product-mini-nav">
+              <span className="active"><Icon name="chart" size={16} /></span>
+              <span><Icon name="invoice" size={16} /></span>
+              <span><Icon name="wallet" size={16} /></span>
+              <span><Icon name="network" size={16} /></span>
+            </aside>
+            <div className="product-content">
+              <div className="product-heading">
+                <div><small>PAYMATE CONTROL CENTER</small><h2>Good morning, Salman.</h2></div>
+                <span><Icon name="invoice" size={14} /> New invoice</span>
+              </div>
+              <div className="product-metrics">
+                <div><span>Outstanding</span><b>$6,240</b><small>3 open invoices</small></div>
+                <div><span>Collected</span><b>$18,920</b><small className="positive">+12.4% this month</small></div>
+                <div><span>Trust score</span><b>94</b><small>ERC-8004</small></div>
+              </div>
+              <div className="product-table">
+                <div className="product-table-head"><span>Recent invoices</span><small>STATUS</small></div>
+                <div><span className="table-icon"><Icon name="invoice" size={15} /></span><p><b>Brand system sprint</b><small>Northstar Labs · Today</small></p><strong>$2,480</strong><em className="paid">Paid</em></div>
+                <div><span className="table-icon"><Icon name="invoice" size={15} /></span><p><b>Research automation</b><small>Operator Co. · Aug 11</small></p><strong>$1,800</strong><em>Pending</em></div>
+                <div><span className="table-icon"><Icon name="invoice" size={15} /></span><p><b>Launch engineering</b><small>Axis Studio · Aug 08</small></p><strong>$3,200</strong><em className="paid">Paid</em></div>
               </div>
             </div>
           </div>
-          <div className="float-card float-reputation glass"><Icon name="shield"/><div><span>Reputation</span><b>94 / 100</b></div><small>+8</small></div>
-          <div className="float-card float-paid glass"><span className="success-orb"><Icon name="check" size={16}/></span><div><b>Payment verified</b><span>2,480 USDC received</span></div></div>
-          <div className="chain-orbit"><i/><i/><i/><span>GOAT</span></div>
-          <div className="compose-chip glass"><Icon name="spark" size={15}/><span><b>Deterministic draft ready</b><small>Scope · amount · terms</small></span><i/></div>
-        </motion.div>
-        
-        <a className="scroll-cue" href="#product"><span>SCROLL TO EXPLORE</span><i/></a>
-      </motion.section>
-
-      <section className="proof-strip"><div className="proof-track"><span>POWERING TRUSTED WORK ON</span><b>GOAT</b><b>OPENCLAW</b><b>ERC—8004</b><b>x402</b><b>USDC</b><span>DIRECT SETTLEMENT</span><b>PORTABLE TRUST</b></div></section>
-
-      <KineticTicker />
-
-      {/* Value Prop Cards */}
-      <section className="signal-rail section-pad" aria-label="PayMate platform capabilities">
-        <motion.article whileHover={{ y: -5, backgroundColor: "rgba(255,255,255,0.85)" }}>
-          <span>01</span><Icon name="invoice"/>
-          <div><b>Smart invoices</b><small>Clear terms, no guesswork</small></div>
-        </motion.article>
-        <motion.article whileHover={{ y: -5, backgroundColor: "rgba(255,255,255,0.85)" }}>
-          <span>02</span><Icon name="bolt"/>
-          <div><b>x402 settlement</b><small>Verified on GOAT</small></div>
-        </motion.article>
-        <motion.article whileHover={{ y: -5, backgroundColor: "rgba(255,255,255,0.85)" }}>
-          <span>03</span><Icon name="shield"/>
-          <div><b>Portable reputation</b><small>Proof that compounds</small></div>
-        </motion.article>
-        <motion.article whileHover={{ y: -5, backgroundColor: "rgba(255,255,255,0.85)" }}>
-          <span>04</span><Icon name="wallet"/>
-          <div><b>Direct to wallet</b><small>Never custodial</small></div>
-        </motion.article>
-      </section>
-
-      <LiveLedger />
-
-      {/* Bento Grid */}
-      <section className="story-section section-pad" id="product">
-        <div className="section-kicker">THE DEFINITIVE SETTLEMENT LAYER</div>
-        <div className="story-head">
-          <h2>From “done” to paid—<br/>without the admin spiral.</h2>
-          <p>PayMate connects the work, the money, and the reputation. One focused workflow instead of five disconnected tools.</p>
-        </div>
-        <div className="bento-grid">
-          <motion.article whileHover={{ y: -8 }} className="bento bento-large warm">
-            <div className="bento-copy">
-              <span className="mini-index">01 / DRAFT</span>
-              <h3>Say what you did.<br/>We’ll handle the invoice.</h3>
-              <p>Describe the work naturally. PayMate turns it into a clear, client-ready payment request in seconds.</p>
-            </div>
-            <div className="prompt-card glass">
-              <div className="prompt-top"><Icon name="spark"/><span>Invoice composer</span><kbd>⌘ ↵</kbd></div>
-              <p>“Brand strategy and launch system for Northstar, including two workshops and final asset handoff...”</p>
-              <div className="prompt-footer"><span>Scope detected · 3 line items</span><button><Icon name="arrow" size={16}/></button></div>
-            </div>
-          </motion.article>
-          
-          <motion.article whileHover={{ y: -8 }} className="bento dark-card">
-            <div className="orbit">
-              <div className="orbit-ring one"/><div className="orbit-ring two"/><div className="orbit-center"><Icon name="network" size={30}/></div>
-              <span className="orbit-node n1">01</span><span className="orbit-node n2">02</span><span className="orbit-node n3">03</span>
-            </div>
-            <div className="bento-copy">
-              <span className="mini-index">02 / PROVE</span>
-              <h3>Reputation that compounds.</h3>
-              <p>Verified work becomes a portable credential—not a screenshot buried in a profile.</p>
-            </div>
-          </motion.article>
-          
-          <motion.article whileHover={{ y: -8 }} className="bento mint">
-            <div className="bento-copy">
-              <span className="mini-index">03 / SETTLE</span>
-              <h3>Fast money.<br/>Final settlement.</h3>
-            </div>
-            <div className="settle-stack">
-              <div className="settle-row"><span className="coin">$</span><div><small>CLIENT SENT</small><b>2,480.00 USDC</b></div><Icon name="check"/></div>
-              <div className="settle-line"><i/><i/><i/></div>
-              <div className="settle-row muted"><Icon name="wallet"/><div><small>YOUR WALLET</small><b>Funds available</b></div><span className="live-dot"/></div>
-            </div>
-          </motion.article>
         </div>
       </section>
 
-      {/* NEW: Plugin Marketplace Explanation Section */}
-      <section className="story-section section-pad" id="marketplace" style={{ background: "linear-gradient(180deg, #f8f6f1 0%, #faf9f6 100%)", borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>
-        <div className="section-kicker">AUTONOMOUS PLUGIN HUB</div>
-        <div className="story-head">
-          <h2>Deploy capabilities.<br/>Collect royalties.</h2>
-          <p>Developers publish agent plugins to the marketplace. AI agents discover and buy them via x402 micropayments on GOAT Network — with zero human in the loop.</p>
-        </div>
-        
-        <div className="bento-grid" style={{ marginTop: "40px" }}>
-          <motion.article whileHover={{ y: -6 }} className="bento" style={{ background: "white", padding: "30px", border: "1px solid var(--line)", borderRadius: "20px" }}>
-            <div style={{ color: "var(--orange)", marginBottom: "15px" }}><Icon name="network" size={24}/></div>
-            <h3 style={{ fontSize: "1.4rem", fontWeight: 800, marginBottom: "12px", fontFamily: "var(--font-display)" }}>Publish Skills</h3>
-            <p style={{ color: "var(--muted)", fontSize: "13px", lineHeight: 1.6 }}>Write TypeScript plugins, assign a price, and host them on IPFS. Your plugin is registered as an on-chain asset, locking in your authorship.</p>
-          </motion.article>
-          
-          <motion.article whileHover={{ y: -6 }} className="bento" style={{ background: "white", padding: "30px", border: "1px solid var(--line)", borderRadius: "20px" }}>
-            <div style={{ color: "var(--orange)", marginBottom: "15px" }}><Icon name="bolt" size={24}/></div>
-            <h3 style={{ fontSize: "1.4rem", fontWeight: 800, marginBottom: "12px", fontFamily: "var(--font-display)" }}>x402 Micropayments</h3>
-            <p style={{ color: "var(--muted)", fontSize: "13px", lineHeight: 1.6 }}>AI agents pay per call dynamically using the non-custodial x402 payment protocol. Settle in milliseconds, directly wallet-to-wallet on GOAT Network.</p>
-          </motion.article>
-          
-          <motion.article whileHover={{ y: -6 }} className="bento" style={{ background: "white", padding: "30px", border: "1px solid var(--line)", borderRadius: "20px" }}>
-            <div style={{ color: "var(--orange)", marginBottom: "15px" }}><Icon name="shield" size={24}/></div>
-            <h3 style={{ fontSize: "1.4rem", fontWeight: 800, marginBottom: "12px", fontFamily: "var(--font-display)" }}>ERC-8004 Identity</h3>
-            <p style={{ color: "var(--muted)", fontSize: "13px", lineHeight: 1.6 }}>Track trust scores, ratings, and usage logs via ERC-8004 on-chain credentials. Developers build a verifiable resume of code performance.</p>
-          </motion.article>
-        </div>
-
-        <div style={{ marginTop: "40px", display: "flex", justifyContent: "center" }}>
-          <Link href="/dashboard/marketplace" className="button button-dark" style={{ display: "inline-flex", gap: "8px", alignItems: "center" }}>
-            Enter Plugin Marketplace <Icon name="arrow" size={15} />
-          </Link>
-        </div>
+      <section className="landing-ledger" aria-label="Live PayMate activity">
+        <div><span>LIVE LEDGER</span><i /></div>
+        <dl>
+          <div><dt>Invoices created</dt><dd>{stats?.totalInvoices ?? "—"}</dd></div>
+          <div><dt>Settled</dt><dd>{stats?.paidInvoices ?? "—"}</dd></div>
+          <div><dt>Volume</dt><dd>{stats ? `$${stats.totalVolumeSettled.toLocaleString()}` : "—"}</dd></div>
+          <div><dt>Settlement rate</dt><dd>{stats ? `${stats.settlementRate}%` : "—"}</dd></div>
+        </dl>
       </section>
 
-      {/* Machine Economy Section */}
-      <section className="machine-economy section-pad" style={{background: '#1d1e1a', color: 'white', padding: '100px 5%'}}>
-        <div style={{maxWidth: '1200px', margin: '0 auto'}}>
-          <span className="section-kicker" style={{color: 'var(--lime)'}}>THE MACHINE ECONOMY, FULLY REALIZED</span>
-          <h2 style={{fontSize: '3rem', margin: '20px 0'}}>Zero human approvals.<br/><em>Infinite execution.</em></h2>
-          
-          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px', marginTop: '60px'}}>
-            <motion.article whileHover={{ y: -5 }} style={{background: 'rgba(255,255,255,0.03)', padding: '30px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)'}}>
-              <div style={{color: 'var(--lime)', marginBottom: '15px'}}><Icon name="shield" size={24}/></div>
-              <h3 style={{fontSize: '1.4rem', marginBottom: '15px', fontFamily: "var(--font-display)"}}>Proof-of-Code Settlement</h3>
-              <p style={{color: '#aaa', fontSize: "13px", lineHeight: '1.6'}}>PayMate doesn&apos;t trust humans to verify work. We trust cryptographic execution. Merge the GitHub PR, execute the tests, and route the money automatically. Zero human approvals required.</p>
-            </motion.article>
-            <motion.article whileHover={{ y: -5 }} style={{background: 'rgba(255,255,255,0.03)', padding: '30px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)'}}>
-              <div style={{color: 'var(--lime)', marginBottom: '15px'}}><Icon name="spark" size={24}/></div>
-              <h3 style={{fontSize: '1.4rem', marginBottom: '15px', fontFamily: "var(--font-display)"}}>Intent-Based AI Invoicing</h3>
-              <p style={{color: '#aaa', fontSize: "13px", lineHeight: '1.6'}}>Invoicing shouldn&apos;t be a software tool you have to log into. Drop a prompt to our Telegram AI Agent, and PayMate parses your intent, drafts the smart invoice, and drops a Web3 payment link directly in your chat.</p>
-            </motion.article>
-            <motion.article whileHover={{ y: -5 }} style={{background: 'rgba(255,255,255,0.03)', padding: '30px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)'}}>
-              <div style={{color: 'var(--lime)', marginBottom: '15px'}}><Icon name="network" size={24}/></div>
-              <h3 style={{fontSize: '1.4rem', marginBottom: '15px', fontFamily: "var(--font-display)"}}>The Supreme AI Court</h3>
-              <p style={{color: '#aaa', fontSize: "13px", lineHeight: '1.6'}}>If a client and an AI worker disagree, we don&apos;t use human mediators. A panel of Mistral-powered AI Arbitrators analyzes the original scope, reviews the commits, and mathematically executes a binding on-chain verdict.</p>
-            </motion.article>
-          </div>
+      <section className="landing-section" id="product">
+        <div className="landing-section-head">
+          <span className="landing-kicker">THE WORKSPACE</span>
+          <h2>Payment operations,<br />without the operations team.</h2>
+          <p>PayMate removes repetitive admin while keeping every important decision visible and under your control.</p>
         </div>
-      </section>
-
-      {/* Integration Band */}
-      <section className="agent-band section-pad" style={{background: '#f1efe9', padding: '90px 5%', borderTop: '1px solid var(--line)'}}>
-        <div style={{maxWidth: '1200px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '40px', alignItems: 'center'}}>
-          <div>
-            <span className="section-kicker">BUILT FOR THE OPENCLAW ECONOMY</span>
-            <h2 style={{fontSize: '2.6rem', margin: '18px 0'}}>Every agent gets paid.<br/><em>Instant. Verified. Non-custodial.</em></h2>
-            <p style={{color: 'var(--muted)', lineHeight: 1.6, maxWidth: '480px'}}>PayMate is a native OpenClaw Skill — the billing rail for the agent economy. Any OpenClaw agent installs the skill once and can invoice clients, collect USDC on GOAT, and mint portable ERC-8004 reputation.</p>
-            <div style={{display: 'flex', gap: '12px', marginTop: '24px', flexWrap: 'wrap'}}>
-              <Link href="/docs" className="button button-dark">Integrate your agent <Icon name="arrow" size={16}/></Link>
-              <Link href="/dashboard" className="button button-outline">Open the workspace</Link>
-            </div>
-          </div>
-          <motion.div 
-            whileHover={{ scale: 1.01 }}
-            className="glass-heavy" 
-            style={{borderRadius: '20px', padding: '24px', position: 'relative'}}
-          >
-            <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px'}}>
-              <span style={{fontWeight: 800, fontSize: '13px'}}>Install the PayMate skill</span>
-              <span style={{marginLeft: 'auto', background: '#e7f5ec', color: '#317454', padding: '4px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 800}}>OPENCLAW</span>
-            </div>
-            <pre style={{background: '#171813', color: '#c9fa78', padding: '18px', borderRadius: '12px', fontSize: '13px', lineHeight: 1.7, overflowX: 'auto', margin: 0}}><code>openclaw skill install
-  https://paymateagent.xyz/openclaw-skill.json</code></pre>
-            <p style={{fontSize: '12px', color: 'var(--muted)', marginTop: '14px', lineHeight: 1.5}}>Then your agent calls <b>generate_invoice</b> and returns a live settlement link to its client — no signup, no custody, no approval chain.</p>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Protocol Showcase */}
-      <section className="protocol-showcase section-pad">
-        <div className="protocol-copy">
-          <span className="section-kicker">VERIFIABLE BY DEFAULT</span>
-          <h2>Every payment leaves<br/><em>clean evidence.</em></h2>
-          <p>PayMate turns a client payment into a chain of facts: explicit terms, exact settlement, verified receipt, and portable reputation.</p>
-          <Link href="/docs" className="button button-outline">Read the protocol docs <Icon name="arrow"/></Link>
-        </div>
-        <LiveTrace />
-      </section>
-
-      {/* Workflow Section */}
-      <section className="workflow section-pad" id="workflow">
-        <div className="workflow-intro">
-          <span className="section-kicker">HOW IT MOVES</span>
-          <h2>One clean line<br/>from work to wallet.</h2>
-          <p>Every step is legible. Every state is verifiable. Nothing disappears into a black box.</p>
-          <Link href="/dashboard" className="button button-outline">Start your first invoice <Icon name="arrow"/></Link>
-        </div>
-        <div className="steps">
-          {features.map((f, i)=>(
-            <motion.article 
-              whileInView={{ opacity: 1, x: 0 }}
-              initial={{ opacity: 0, x: -20 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.1 }}
-              className="step" 
-              key={f.n}
-            >
-              <div className="step-icon"><Icon name={f.icon}/></div>
-              <div>
-                <span>{f.n}</span>
-                <h3>{f.title}</h3>
-                <p>{f.text}</p>
-              </div>
-              {i < features.length-1 && <div className="step-rail"/>}
-            </motion.article>
+        <div className="capability-grid">
+          {capabilities.map((item, index) => (
+            <article key={item.title}>
+              <span className="capability-index">0{index + 1}</span>
+              <span className="capability-icon"><Icon name={item.icon} size={21} /></span>
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+            </article>
           ))}
         </div>
       </section>
 
-      <section className="security-band" id="security">
-        <div>
-          <span className="section-kicker light">BUILT ON OPEN RAILS</span>
-          <h2>Trust the transaction.<br/>Own the relationship.</h2>
+      <section className="landing-workflow" id="workflow">
+        <div className="landing-section-head compact">
+          <span className="landing-kicker light">ONE CLEAR WORKFLOW</span>
+          <h2>From delivered<br />to settled.</h2>
+          <p>No account maze, custody layer, or ambiguous payment state.</p>
         </div>
-        <div className="security-points">
-          <p><Icon name="lock"/><span><b>Non-custodial by design</b>Payments move directly wallet to wallet. PayMate never holds your funds.</span></p>
-          <p><Icon name="shield"/><span><b>Verified settlement</b>On-chain proof removes ambiguity from every completed invoice.</span></p>
-          <p><Icon name="globe"/><span><b>Portable reputation</b>Your work history goes with you, across platforms and borders.</span></p>
-        </div>
-      </section>
-
-      <section className="closing section-pad">
-        <div className="closing-mark"><span className="brand-mark giant"><span/></span></div>
-        <div>
-          <span className="section-kicker">NO MORE CHASING</span>
-          <h2>Make the work.<br/>Send the link.<br/><em>Get paid.</em></h2>
-          <Link href="/dashboard" className="button button-primary">Open PayMate <Icon name="arrow"/></Link>
+        <div className="workflow-list">
+          {workflow.map(item => (
+            <article key={item.step}>
+              <span className="workflow-number">{item.step}</span>
+              <span className="workflow-icon"><Icon name={item.icon} size={20} /></span>
+              <div><h3>{item.title}</h3><p>{item.text}</p></div>
+            </article>
+          ))}
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="site-footer">
-        <div className="footer-cta">
-          <div>
-            <span>READY WHEN THE WORK IS</span>
-            <h3>One link between<br/>finished and paid.</h3>
-          </div>
-          <div className="footer-cta-actions">
-            <Link href="/dashboard" className="button footer-primary">Create an invoice <Icon name="arrow"/></Link>
-            <Link href="/docs" className="footer-doc-link"><Icon name="invoice"/>Read project docs</Link>
-          </div>
-          <div className="footer-signal"><i/><span>GOAT NETWORK</span><b>SETTLEMENT LIVE</b></div>
+      <section className="landing-section landing-security">
+        <div className="security-copy">
+          <span className="landing-kicker">VERIFY, DON’T TRUST</span>
+          <h2>A payment record you can actually use.</h2>
+          <p>Each successful settlement connects the invoice terms, wallet transfer, and reputation update into one verifiable trail.</p>
+          <Link href="/docs" className="text-action">Explore the protocol <Icon name="arrow" size={15} /></Link>
         </div>
-        
-        <div className="footer-main">
-          <div className="footer-brand">
-            <Link href="/" className="brand"><span className="brand-mark"><span/></span><b>PayMate</b></Link>
-            <h3>Good work deserves<br/><em>a clean finish.</em></h3>
-            <p>Invoice, settle, and own the proof—without giving up control of your money or reputation.</p>
-          </div>
-          <div className="footer-links">
-            <div>
-              <span>PRODUCT</span>
-              <a href="#product">Smart invoices</a>
-              <a href="#workflow">Settlement flow</a>
-              <a href="#security">Portable trust</a>
-            </div>
-            <div>
-              <span>NETWORK</span>
-              <a href="https://www.goat.network" target="_blank" rel="noreferrer">GOAT Network</a>
-              <a href="#security">ERC-8004</a>
-              <a href="#security">x402 protocol</a>
-            </div>
-            <div>
-              <span>START</span>
-              <Link href="/dashboard">Open workspace</Link>
-              <Link href="/docs">Documentation</Link>
-              <Link href="/dashboard/marketplace">Plugin marketplace</Link>
-              <a href="mailto:hello@paymateagent.xyz">Contact</a>
-            </div>
-          </div>
+        <div className="security-receipt">
+          <div className="receipt-status"><span><i />SETTLEMENT VERIFIED</span><b>FINAL</b></div>
+          <div className="receipt-total"><small>AMOUNT RECEIVED</small><strong>2,480.00 <em>USDC</em></strong></div>
+          <div className="receipt-line"><span><Icon name="wallet" size={17} />Client wallet</span><code>0x7A2F…91C4</code></div>
+          <div className="receipt-line"><span><Icon name="network" size={17} />Network</span><b>GOAT Mainnet</b></div>
+          <div className="receipt-line"><span><Icon name="shield" size={17} />Reputation</span><b>ERC-8004 updated</b></div>
+          <div className="receipt-hash"><Icon name="check" size={16} /><span>Transaction proof</span><code>0x84c1…77af</code></div>
         </div>
-        <div className="footer-orbit"><span>PAYMATE</span><div><i/> SETTLEMENT ONLINE</div></div>
-        <div className="footer-bottom">
-          <span>© 2026 PayMate · Work, settled.</span>
-          <div className="footer-badges">
-            <span><Icon name="lock" size={12}/>Non-custodial</span>
-            <span><Icon name="network" size={12}/>GOAT Network</span>
-            <span><Icon name="shield" size={12}/>ERC-8004</span>
-          </div>
-          <div><a href="#">Privacy</a><a href="#">Terms</a><a href="#top">Back to top ↑</a></div>
-        </div>
+      </section>
+
+      <section className="landing-cta">
+        <div><span className="landing-kicker light">READY TO SETTLE?</span><h2>Make the next invoice<br />the easy one.</h2></div>
+        <Link href="/dashboard" className="button button-primary">Open your workspace <Icon name="arrow" size={17} /></Link>
+      </section>
+
+      <footer className="landing-footer">
+        <Link href="/" className="landing-brand"><span className="brand-mark"><span /></span><span><b>PayMate</b><small>WORK, SETTLED.</small></span></Link>
+        <p>On-chain invoicing and settlement for independent work.</p>
+        <nav><Link href="/dashboard">Dashboard</Link><Link href="/dashboard/marketplace">Marketplace</Link><Link href="/docs">Docs</Link></nav>
+        <small>© 2026 PayMate · GOAT Network</small>
       </footer>
     </main>
   )

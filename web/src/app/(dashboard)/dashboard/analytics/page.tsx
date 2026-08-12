@@ -3,190 +3,135 @@
 import { useAccount } from "wagmi"
 import { useQuery } from "@tanstack/react-query"
 import { Icon } from "@/components/icons"
-import { motion } from "framer-motion"
+import { WalletConnectMenu } from "@/components/wallet-connect-menu"
 
 type Invoice = {
   id: string
-  freelancer: string
   client: string
   title: string
-  description: string
   amountUsd: number
   status: "pending" | "paid" | "cancelled"
-  chain: string
   createdAt: string
-  txHash?: string
   paidAt?: string
 }
 
 export default function AnalyticsPage() {
-  const { address } = useAccount()
-  
-  const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
+  const { address, isConnected } = useAccount()
+  const { data: invoices = [], isLoading, isError } = useQuery<Invoice[]>({
     queryKey: ["invoices", address],
     queryFn: async () => {
       if (!address) return []
-      const res = await fetch(`/api/invoices?freelancer=${address}`)
-      if (!res.ok) throw new Error("Failed to fetch invoices")
-      return res.json()
+      const response = await fetch(`/api/invoices?freelancer=${address}`)
+      if (!response.ok) throw new Error("Failed to fetch invoices")
+      const data = await response.json()
+      return data.invoices ?? []
     },
     enabled: !!address,
   })
 
-  if (isLoading) {
-    return <div className="panel panel-pad">Loading analytics...</div>
-  }
+  const paid = invoices.filter(invoice => invoice.status === "paid")
+  const pending = invoices.filter(invoice => invoice.status === "pending")
+  const totalRevenue = paid.reduce((sum, invoice) => sum + invoice.amountUsd, 0)
+  const pendingAmount = pending.reduce((sum, invoice) => sum + invoice.amountUsd, 0)
+  const settlementRate = invoices.length ? Math.round((paid.length / invoices.length) * 100) : 0
 
-  // Derived stats
-  const paidInvoices = invoices.filter(i => i.status === "paid")
-  const pendingInvoices = invoices.filter(i => i.status === "pending")
-  
-  const totalRevenue = paidInvoices.reduce((sum, i) => sum + i.amountUsd, 0)
-  const pendingAmount = pendingInvoices.reduce((sum, i) => sum + i.amountUsd, 0)
-  const settlementRate = invoices.length ? (paidInvoices.length / invoices.length) * 100 : 0
-
-  // 6 months chart data
   const now = new Date()
-  const months = Array.from({length: 6}, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    return {
-      label: d.toLocaleString('default', { month: 'short' }),
-      month: d.getMonth(),
-      year: d.getFullYear(),
-      amount: 0
-    }
-  }).reverse()
-
-  paidInvoices.forEach(inv => {
-    if (!inv.paidAt) return
-    const date = new Date(inv.paidAt)
-    const m = months.find(m => m.month === date.getMonth() && m.year === date.getFullYear())
-    if (m) m.amount += inv.amountUsd
+  const months = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1)
+    return { label: date.toLocaleString("default", { month: "short" }), month: date.getMonth(), year: date.getFullYear(), amount: 0 }
   })
-
-  const maxMonthAmount = Math.max(...months.map(m => m.amount), 1)
-
-  // Top clients
-  const clientTotals: Record<string, {amount: number, count: number}> = {}
-  paidInvoices.forEach(inv => {
-    if (!clientTotals[inv.client]) clientTotals[inv.client] = { amount: 0, count: 0 }
-    clientTotals[inv.client].amount += inv.amountUsd
-    clientTotals[inv.client].count += 1
+  paid.forEach(invoice => {
+    if (!invoice.paidAt) return
+    const date = new Date(invoice.paidAt)
+    const month = months.find(item => item.month === date.getMonth() && item.year === date.getFullYear())
+    if (month) month.amount += invoice.amountUsd
   })
-  
-  const topClients = Object.entries(clientTotals)
-    .sort((a, b) => b[1].amount - a[1].amount)
-    .slice(0, 5)
+  const maxMonth = Math.max(1, ...months.map(month => month.amount))
 
-  // Payment trends (this week vs last week)
+  const clientTotals = paid.reduce<Record<string, { amount: number; count: number }>>((totals, invoice) => {
+    totals[invoice.client] ??= { amount: 0, count: 0 }
+    totals[invoice.client].amount += invoice.amountUsd
+    totals[invoice.client].count += 1
+    return totals
+  }, {})
+  const topClients = Object.entries(clientTotals).sort((a, b) => b[1].amount - a[1].amount).slice(0, 5)
+
   const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
   const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
-
-  let thisWeekAmount = 0
-  let lastWeekAmount = 0
-
-  paidInvoices.forEach(inv => {
-    if (!inv.paidAt) return
-    const d = new Date(inv.paidAt)
-    if (d >= oneWeekAgo) {
-      thisWeekAmount += inv.amountUsd
-    } else if (d >= twoWeeksAgo && d < oneWeekAgo) {
-      lastWeekAmount += inv.amountUsd
-    }
-  })
-
-  const trendChange = lastWeekAmount ? ((thisWeekAmount - lastWeekAmount) / lastWeekAmount) * 100 : (thisWeekAmount > 0 ? 100 : 0)
+  const thisWeek = paid.filter(invoice => invoice.paidAt && new Date(invoice.paidAt) >= oneWeekAgo).reduce((sum, invoice) => sum + invoice.amountUsd, 0)
+  const lastWeek = paid.filter(invoice => invoice.paidAt && new Date(invoice.paidAt) >= twoWeeksAgo && new Date(invoice.paidAt) < oneWeekAgo).reduce((sum, invoice) => sum + invoice.amountUsd, 0)
+  const trend = lastWeek ? ((thisWeek - lastWeek) / lastWeek) * 100 : thisWeek > 0 ? 100 : 0
 
   return (
-    <div className="panel panel-pad" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      <div>
-        <h2 className="panel-heading">Analytics Overview</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>Real-time metrics for {address?.slice(0, 6) || "..."}...{address?.slice(-4) || "..."}</p>
-      </div>
+    <>
+      <header className="app-topbar">
+        <div>
+          <span className="workspace-label">PERFORMANCE</span>
+          <h1>Analytics</h1>
+          <p>Revenue, settlement performance, and client concentration from your live invoices.</p>
+        </div>
+      </header>
 
-      <div className="metric-grid">
-        <div className="metric-card">
-          <span className="label"><Icon name="chart" size={14}/> Total Revenue</span>
-          <div className="value">${totalRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-        </div>
-        <div className="metric-card">
-          <span className="label"><Icon name="wallet" size={14}/> Pending Amount</span>
-          <div className="value">${pendingAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-        </div>
-        <div className="metric-card">
-          <span className="label"><Icon name="invoice" size={14}/> Total Invoices</span>
-          <div className="value">{invoices.length}</div>
-        </div>
-        <div className="metric-card">
-          <span className="label"><Icon name="check" size={14}/> Settlement Rate</span>
-          <div className="value">{settlementRate.toFixed(1)}%</div>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
-        {/* Monthly Earnings */}
-        <div className="panel" style={{ padding: '24px' }}>
-          <h3 className="panel-heading" style={{ marginBottom: '24px' }}>Monthly Earnings</h3>
-          <div className="mini-chart" style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '160px', paddingBottom: '24px', borderBottom: '1px solid var(--line)', position: 'relative' }}>
-            {months.map((m, i) => {
-              const heightPct = (m.amount / maxMonthAmount) * 100
-              return (
-                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-                  <motion.div 
-                    initial={{ height: 0 }}
-                    animate={{ height: `${heightPct}%` }}
-                    style={{ width: '100%', backgroundColor: 'var(--orange)', borderRadius: '4px 4px 0 0', minHeight: heightPct > 0 ? '4px' : '0' }}
-                  />
-                  <span style={{ position: 'absolute', bottom: '0', fontSize: '11px', color: 'var(--text-muted)', transform: 'translateY(20px)' }}>{m.label}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Payment Trends */}
-        <div className="panel" style={{ padding: '24px' }}>
-          <h3 className="panel-heading" style={{ marginBottom: '24px' }}>Payment Trends</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div className="dashboard-page-content">
+        {!isConnected ? (
+          <section className="panel connect-empty" style={{ margin: 0 }}>
             <div>
-              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '4px' }}>This Week</div>
-              <div style={{ fontSize: '24px', fontWeight: '500' }}>${thisWeekAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+              <div className="empty-orb"><Icon name="chart" size={30} /></div>
+              <h2>Connect your wallet to view analytics</h2>
+              <p>Your reporting is generated from invoices owned by the connected wallet.</p>
+              <WalletConnectMenu triggerClassName="button button-primary" triggerLabel={<>Connect wallet <Icon name="arrow" /></>} />
             </div>
-            <div>
-              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '4px' }}>Last Week</div>
-              <div style={{ fontSize: '18px', color: 'var(--text-muted)' }}>${lastWeekAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-            </div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '100px', backgroundColor: trendChange >= 0 ? 'rgba(0, 200, 83, 0.1)' : 'rgba(255, 91, 46, 0.1)', color: trendChange >= 0 ? '#00c853' : 'var(--orange)', width: 'fit-content', fontSize: '13px', fontWeight: '500' }}>
-              <Icon name="arrow" size={12} style={{ transform: trendChange >= 0 ? 'rotate(-45deg)' : 'rotate(45deg)' }}/>
-              {Math.abs(trendChange).toFixed(1)}% {trendChange >= 0 ? 'Increase' : 'Decrease'}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Top Clients */}
-      <div className="panel" style={{ padding: '24px' }}>
-        <h3 className="panel-heading" style={{ marginBottom: '16px' }}>Top Clients</h3>
-        {topClients.length === 0 ? (
-          <div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No payment data available yet.</div>
+          </section>
+        ) : isLoading ? (
+          <div className="activity-empty">Loading analytics…</div>
+        ) : isError ? (
+          <div className="error-box">Analytics could not be loaded. Try again shortly.</div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', paddingBottom: '12px', borderBottom: '1px solid var(--line)', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              <span>Client Address</span>
-              <span style={{ textAlign: 'right' }}>Invoices</span>
-              <span style={{ textAlign: 'right' }}>Total Paid</span>
+          <>
+            <div className="metric-grid analytics-metrics">
+              <div className="metric-card"><span>Total revenue</span><b>${totalRevenue.toLocaleString()}</b><small>{paid.length} settled invoices</small></div>
+              <div className="metric-card"><span>Outstanding</span><b>${pendingAmount.toLocaleString()}</b><small>{pending.length} awaiting payment</small></div>
+              <div className="metric-card"><span>Settlement rate</span><b>{settlementRate}%</b><small>{invoices.length} invoices total</small></div>
+              <div className="metric-card"><span>This week</span><b>${thisWeek.toLocaleString()}</b><small className={trend >= 0 ? "trend-up" : "trend-down"}>{trend >= 0 ? "+" : ""}{trend.toFixed(1)}% vs last week</small></div>
             </div>
-            {topClients.map(([client, data], i) => (
-              <div key={client} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', padding: '16px 0', borderBottom: i < topClients.length - 1 ? '1px solid var(--line)' : 'none', fontSize: '14px' }}>
-                <span style={{ fontFamily: 'monospace' }}>{client.slice(0, 8)}...{client.slice(-6)}</span>
-                <span style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{data.count}</span>
-                <span style={{ textAlign: 'right', fontWeight: '500' }}>${data.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-              </div>
-            ))}
-          </div>
+
+            <div className="analytics-grid">
+              <section className="panel panel-pad analytics-chart-panel">
+                <div className="panel-heading"><div><h2>Revenue by month</h2><p>Verified settlement over the last six months.</p></div><span className="icon-box"><Icon name="chart" size={17} /></span></div>
+                <div className="analytics-chart">
+                  {months.map(month => (
+                    <div key={`${month.month}-${month.year}`}>
+                      <span>${month.amount.toLocaleString()}</span>
+                      <i style={{ height: `${Math.max(month.amount ? 8 : 2, (month.amount / maxMonth) * 100)}%` }} />
+                      <small>{month.label}</small>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="panel panel-pad analytics-trend-panel">
+                <div className="panel-heading"><div><h2>Weekly pace</h2><p>Current seven-day settlement.</p></div><span className="icon-box"><Icon name="bolt" size={17} /></span></div>
+                <strong>${thisWeek.toLocaleString()}</strong>
+                <span>This week</span>
+                <div className="analytics-comparison"><span>Previous week</span><b>${lastWeek.toLocaleString()}</b></div>
+                <div className={trend >= 0 ? "trend-badge positive" : "trend-badge negative"}><Icon name="arrow" size={13} />{Math.abs(trend).toFixed(1)}% {trend >= 0 ? "increase" : "decrease"}</div>
+              </section>
+            </div>
+
+            <section className="panel panel-pad analytics-clients">
+              <div className="panel-heading"><div><h2>Top clients</h2><p>Settled revenue by client wallet.</p></div><span className="activity-count">{topClients.length}</span></div>
+              {topClients.length === 0 ? <div className="activity-empty">Client data appears after your first verified payment.</div> : (
+                <div className="analytics-table">
+                  <div className="analytics-table-head"><span>Client wallet</span><span>Invoices</span><span>Total paid</span></div>
+                  {topClients.map(([client, data]) => (
+                    <div key={client}><code>{client.slice(0, 8)}…{client.slice(-6)}</code><span>{data.count}</span><strong>${data.amount.toLocaleString()}</strong></div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
         )}
       </div>
-
-    </div>
+    </>
   )
 }

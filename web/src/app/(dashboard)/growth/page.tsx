@@ -56,6 +56,7 @@ export default function GrowthPage() {
             </div>
           </header>
 
+          <div className="dashboard-page-content">
           {isLoading || !stats ? (
             <div className="activity-empty">Loading live data…</div>
           ) : (
@@ -95,6 +96,7 @@ export default function GrowthPage() {
               </section>
             </>
           )}
+          </div>
     </>
   )
 }

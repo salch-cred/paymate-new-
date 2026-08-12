@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import localFont from "next/font/local"
 import "./globals.css"
+import "./(dashboard)/dashboard/marketplace/marketplace.css"
+import "./redesign.css"
 import Providers from "./providers"
 
 const manrope = localFont({ src: "../../public/fonts/NotoSans-Variable.ttf", variable: "--font-manrope", display: "swap" })
@@ -13,9 +15,8 @@ export const metadata: Metadata = {
 }
 
 export const viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
 }
 
 const softwareApplicationSchema = {

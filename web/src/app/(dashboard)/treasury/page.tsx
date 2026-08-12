@@ -44,6 +44,7 @@ export default function TreasuryPage() {
         </div>
       </header>
 
+      <div className="dashboard-page-content">
       <div className="metric-grid">
         <div className="metric-card">
           <span>Current Balance (USDC)</span>
@@ -76,6 +77,8 @@ export default function TreasuryPage() {
           <div style={{color:'var(--muted)', animation:'blink 1s infinite'}}>_</div>
         </div>
       </section>
+
+      </div>
 
       <style>{`
         @keyframes blink {

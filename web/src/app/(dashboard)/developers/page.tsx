@@ -134,8 +134,9 @@ export default function DevelopersPage() {
             </div>
           </header>
 
+          <div className="dashboard-page-content">
           {!isConnected ? (
-            <section className="panel connect-empty">
+            <section className="panel connect-empty" style={{ margin: 0 }}> 
               <div>
                 <div className="empty-orb"><Icon name="network" size={34}/></div>
                 <h2>Connect your wallet to mint API keys</h2>
@@ -271,6 +272,7 @@ export default function DevelopersPage() {
               </div>
             </>
           )}
+          </div>
     </>
   )
 }

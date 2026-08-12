@@ -188,7 +188,7 @@ export default function DashboardPage(){
   ))}
  </div>}
  </div>
- <div style={{marginTop:'12px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px'}}>
+ <div className="invoice-options-grid" style={{marginTop:'12px'}}>
    <label className="field" style={{flexDirection:'row',alignItems:'center',gap:'8px',padding:'12px',background:'rgba(255,255,255,0.4)',borderRadius:'8px',border:'1px solid var(--line)',cursor:'pointer'}}>
      <input type="checkbox" checked={privacyMode} onChange={e=>setPrivacyMode(e.target.checked)} style={{width:'auto'}}/>
      <div style={{display:'flex',flexDirection:'column'}}>

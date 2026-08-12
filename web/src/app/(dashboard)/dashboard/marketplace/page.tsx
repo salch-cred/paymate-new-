@@ -59,7 +59,7 @@ export default async function MarketplaceHomePage() {
 
         {/* What is the Marketplace — explanation panel */}
         <section className="panel panel-pad" style={{ marginBottom: 24, background: 'linear-gradient(135deg, #1d1e1a 0%, #2a2b25 100%)', borderRadius: 20, border: 'none', color: 'white', padding: 32 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24 }}>
+          <div className="marketplace-explainer-grid">
             <div>
               <div style={{ color: 'var(--lime)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em' }}>
                 <Icon name="network" size={14} /> HOW IT WORKS
@@ -107,7 +107,7 @@ export default async function MarketplaceHomePage() {
             </div>
             <span className="icon-box"><Icon name="spark" /></span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginTop: 16 }}>
+          <div className="marketplace-steps-grid">
             {[
               { n: '01', icon: 'send' as const, title: 'Developer Publishes', text: 'Write TypeScript plugin → upload to IPFS → register with a price. ERC-8004 identity minted on GOAT chain.' },
               { n: '02', icon: 'network' as const, title: 'Agent Discovers', text: 'AI agent queries marketplace by capability. Gets back plugins with ratings, prices, and on-chain trust scores.' },
