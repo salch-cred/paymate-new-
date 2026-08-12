@@ -22,8 +22,10 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
   
   const [decryptedAmount, setDecryptedAmount] = useState<number | null>(null)
   const [viewKeyInput, setViewKeyInput] = useState("")
+  const [fiatRates, setFiatRates] = useState<Record<string, number> | null>(null)
   
   useEffect(()=>{
+    fetch('/api/fiat-rates').then(r=>r.json()).then(d=>setFiatRates(d.rates)).catch(console.error);
     fetch(`/api/invoices/${id}`).then(r=>{if(!r.ok)throw new Error("Invoice not found");return r.json()}).then((inv) => {
       setInvoice(inv);
       // Decrypt the view key from the URL fragment once the invoice is known.
@@ -64,21 +66,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
     }
     return () => clearInterval(interval);
   }, [isStreaming, invoice, id, address]);
-  async function downloadPDF() {
-    try {
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
-      const element = document.querySelector('.payment-card') as HTMLElement;
-      if (!element) return;
-      const canvas = await html2canvas(element, { scale: 2 });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [canvas.width / 2, canvas.height / 2] });
-      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
-      pdf.save(`Invoice_${invoice?.id.split('-')[0] || 'Receipt'}.pdf`);
-    } catch (e) {
-      console.error(e);
-    }
-  }
+
 
  async function submitDispute(){
    if(!disputeMsg.trim())return;
@@ -152,12 +140,31 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
           <p>{invoice.description}</p>
         </div>
 
-        <div className="amount-due">
+        <div className="amount-due" style={{marginBottom: '24px'}}>
           <span>TOTAL DUE</span>
           <h1 style={{fontSize:'32px', fontFamily:'var(--font-display)', fontWeight:800, margin:0, letterSpacing:'-0.5px'}}>
             {invoice.isPrivate && decryptedAmount === null ? "█ █ █" : `$${(decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()}`} USDC
           </h1>
+          {fiatRates && (invoice.isPrivate && decryptedAmount === null ? null : (
+            <div style={{fontSize: '12px', color: 'var(--muted)', marginTop: '8px', fontWeight: 600}}>
+              ≈ {new Intl.NumberFormat('en-US', {style: 'currency', currency: 'EUR', maximumFractionDigits: 0}).format((decryptedAmount !== null ? decryptedAmount : invoice.amountUsd) * fiatRates['EUR'])} · {new Intl.NumberFormat('en-US', {style: 'currency', currency: 'GBP', maximumFractionDigits: 0}).format((decryptedAmount !== null ? decryptedAmount : invoice.amountUsd) * fiatRates['GBP'])} · {new Intl.NumberFormat('en-IN', {style: 'currency', currency: 'INR', maximumFractionDigits: 0}).format((decryptedAmount !== null ? decryptedAmount : invoice.amountUsd) * fiatRates['INR'])} · {new Intl.NumberFormat('ja-JP', {style: 'currency', currency: 'JPY', maximumFractionDigits: 0}).format((decryptedAmount !== null ? decryptedAmount : invoice.amountUsd) * fiatRates['JPY'])}
+            </div>
+          ))}
         </div>
+        
+        {!paid && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '24px 0', padding: '24px', background: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--line)' }}>
+            <div style={{ background: 'white', padding: '12px', borderRadius: '12px', border: '1px solid var(--line)', display: 'inline-block' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}`} 
+                alt="QR Code for payment link" 
+                style={{ width: '140px', height: '140px', display: 'block' }} 
+              />
+            </div>
+            <span style={{ marginTop: '12px', fontSize: '14px', fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Scan to pay</span>
+          </div>
+        )}
         
         {invoice.githubPrUrl && !paid && (
           <div style={{marginBottom:'24px', padding:'16px', background: invoice.escrowStatus === 'funded' ? 'linear-gradient(to right, rgba(49, 130, 93, 0.1), rgba(49, 130, 93, 0.05))' : 'rgba(255,255,255,0.8)', borderRadius:'12px', border:'1px solid ' + (invoice.escrowStatus === 'funded' ? 'rgba(49, 130, 93, 0.3)' : 'var(--line)')}}>
@@ -300,7 +307,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
               <Icon name="check" size={18}/>
               <b>Payment Verified</b>
               <a href={`https://explorer.goat.network/tx/${invoice.txHash||'0x0'}`} target="_blank" style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:'4px', color:'inherit'}}>View on GOAT <Icon name="arrow" size={14}/></a>
-              <button onClick={downloadPDF} style={{marginLeft:'10px', background:'none', border:'none', color:'#8a8981', cursor:'pointer', display:'flex', alignItems:'center', gap:'4px', fontSize:'12px', fontWeight:600}}><Icon name="arrow" size={14}/> Download PDF</button>
+              <a href={`/api/invoices/${id}/pdf`} className="button button-dark" style={{marginLeft:'10px'}} download>Download Receipt</a>
             </div>
           ) : status === "paying" ? (
             <div className="settling-box" style={{background:'rgba(255,255,255,0.4)',border:'1px solid var(--line)',borderRadius:'12px',padding:'16px',display:'flex',flexDirection:'column',gap:'12px'}}>

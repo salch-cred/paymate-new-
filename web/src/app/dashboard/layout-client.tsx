@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Icon } from "@/components/icons"
+import { NotificationCenter } from "@/components/notification-center"
 import { WalletConnectMenu } from "@/components/wallet-connect-menu"
 import { useAccount, useEnsName } from "wagmi"
 import { mainnet } from "wagmi/chains"
@@ -16,6 +17,7 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
 
   const navItems = [
     { label: "Dashboard", href: "/dashboard", icon: "chart" as const },
+    { label: "Analytics", href: "/dashboard/analytics", icon: "chart" as const },
     { label: "Assets", href: "/dashboard/assets", icon: "wallet" as const },
     { label: "Activity", href: "/dashboard/activity", icon: "chart" as const },
     { label: "Swap", href: "/dashboard/swap", icon: "network" as const },
@@ -61,6 +63,7 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
               <p>Create invoices and track verified settlement from one workspace.</p>
             </div>
             <div className="topbar-actions">
+              <NotificationCenter />
               <Link href="/docs" className="topbar-icon"><Icon name="invoice" size={17}/></Link>
               {isConnected ? (
                 <button className="wallet-button" onClick={() => logout()}>
