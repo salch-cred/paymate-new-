@@ -15,13 +15,13 @@ export default async function DashboardPage() {
   const totalEarnings = myPlugins.reduce((s, p) => s + p.usageCount * p.price * 0.8, 0);
   const avgRating = myPlugins.length > 0 ? myPlugins.reduce((s, p) => s + p.rating, 0) / myPlugins.length : 0;
 
-  const weeklyData = [12.4, 18.7, 15.2, 22.1, 19.8, 28.4, 31.2];
+  const weeklyData = [0, 0, 0, 0, 0, 0, 0];
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const maxVal = Math.max(...weeklyData);
+  const maxVal = 100; // prevent division by zero
 
   const stats = [
-    { label: 'Total earnings', value: formatUSDC(totalEarnings), icon: 'wallet' as const, bg: '#e7f5ec', color: '#317454', trend: '+23% this week' },
-    { label: 'Total uses', value: formatNumber(totalInstalls), icon: 'chart' as const, bg: '#f2dfd3', color: '#e6532c', trend: '+18% this week' },
+    { label: 'Total earnings', value: formatUSDC(totalEarnings), icon: 'wallet' as const, bg: '#e7f5ec', color: '#317454' },
+    { label: 'Total uses', value: formatNumber(totalInstalls), icon: 'chart' as const, bg: '#f2dfd3', color: '#e6532c' },
     { label: 'Published plugins', value: String(myPlugins.length), icon: 'package' as const, bg: '#e8edf7', color: '#4f46e5' },
     { label: 'Avg rating', value: avgRating.toFixed(1), icon: 'shield' as const, bg: '#f5f0dc', color: '#a16207' },
   ];
@@ -33,7 +33,7 @@ export default async function DashboardPage() {
         <h1 className="mp-page-title">Developer dashboard</h1>
         <p className="mp-page-sub">Track your plugin performance, earnings, and usage.</p>
         <div style={{ marginTop: 22 }}>
-          <span className="mp-dev-badge"><Icon name="user" size={15} /> ShipBot Labs · {DEV_ADDRESS.slice(0, 8)}…</span>
+          <span className="mp-dev-badge"><Icon name="user" size={15} /> Developer · {DEV_ADDRESS.slice(0, 8)}…</span>
         </div>
       </div>
 
