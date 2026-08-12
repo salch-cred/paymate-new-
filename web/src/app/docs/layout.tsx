@@ -17,7 +17,6 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         </Link>
         <div className="docs-nav-links">
           <Link href="/docs" className={pathname === "/docs" ? "active" : ""}>Documentation</Link>
-          <a href="https://github.com/salman" target="_blank" rel="noreferrer">GitHub <Icon name="arrow" size={12}/></a>
           <a href="https://discord.com" target="_blank" rel="noreferrer">Discord <Icon name="arrow" size={12}/></a>
           <Link href="/dashboard" style={{color:'#317454'}}>Dashboard</Link>
         </div>

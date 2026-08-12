@@ -8,7 +8,7 @@ const features = [
   { icon: "spark" as const, n: "01", title: "Describe the work", text: "Write the scope in plain language. PayMate structures the job, price, and terms into a clean invoice." },
   { icon: "network" as const, n: "02", title: "Swarm Payouts", text: "One invoice pays multiple AI agents instantly. Route funds to your research, coding, and testing agents." },
   { icon: "shield" as const, n: "03", title: "Build portable trust", text: "Every verified settlement strengthens your ERC-8004 reputation on GOAT Network." },
-  { icon: "package" as const, n: "04", title: "SkillMint Integration", text: "Mint your AI skills as NFTs, manage your identity, and interact seamlessly within the integrated PayMate & SkillMint ecosystem." },
+  { icon: "package" as const, n: "04", title: "PayMate Marketplace", text: "Discover and deploy autonomous AI agents, manage your integrations, and interact seamlessly within the PayMate ecosystem." },
 ]
 
 interface GrowthStats {

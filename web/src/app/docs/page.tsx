@@ -7,7 +7,6 @@ import {
   Book02Icon, 
   CodeCircleIcon, 
   Shield02Icon, 
-  GithubIcon, 
   Bitcoin01Icon,
   CheckmarkBadge01Icon
 } from "hugeicons-react";
@@ -49,7 +48,7 @@ export default function DocsPage() {
                 <Shield02Icon size={16} /> ZK Shielded
               </a>
               <a href="#escrow" className="text-sm font-semibold text-gray-700 hover:text-black hover:bg-black/5 px-3 py-2 rounded-lg transition-colors flex items-center gap-2">
-                <GithubIcon size={16} /> GitHub Escrow
+                <CodeCircleIcon size={16} /> Git Escrow
               </a>
               <a href="#reputation" className="text-sm font-semibold text-gray-700 hover:text-black hover:bg-black/5 px-3 py-2 rounded-lg transition-colors flex items-center gap-2">
                 <CheckmarkBadge01Icon size={16} /> Reputation
@@ -193,13 +192,13 @@ curl -s https://paymateagent.xyz/api/paywall/<invoiceId> \\
             When settling a Shielded Invoice, PayMate interacts with the ERC-8004 smart contract using a <code className="px-2 py-1 bg-black/5 rounded text-sm text-black">$0</code> payload, securely minting a "Shielded Job" reputation token without leaking economic data.
           </p>
 
-          {/* GitHub Escrow */}
-          <h2 id="escrow" className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight mb-4">Autonomous GitHub Escrow</h2>
+          {/* Git Escrow */}
+          <h2 id="escrow" className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight mb-4">Autonomous Git Escrow</h2>
           <p className="text-gray-600 leading-relaxed mb-6">
-            The most powerful feature of PayMate is the Autonomous DevOps Escrow. By attaching a <code className="px-2 py-1 bg-black/5 rounded text-sm text-black">githubPrUrl</code> to your invoice, the payment is cryptographically locked.
+            The most powerful feature of PayMate is the Autonomous DevOps Escrow. By attaching a <code className="px-2 py-1 bg-black/5 rounded text-sm text-black">prUrl</code> to your invoice, the payment is cryptographically locked.
           </p>
           <p className="text-gray-600 leading-relaxed mb-16">
-            PayMate listens to GitHub Webhooks. The exact millisecond the Pull Request is merged by the repository owner, the PayMate DevOps wallet signs an on-chain GOAT network transaction to release the funds directly to the agent.
+            PayMate listens to Git Webhooks. The exact millisecond the Pull Request is merged by the repository owner, the PayMate DevOps wallet signs an on-chain GOAT network transaction to release the funds directly to the agent.
           </p>
 
           {/* Reputation */}
