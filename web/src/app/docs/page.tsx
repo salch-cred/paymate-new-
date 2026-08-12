@@ -20,7 +20,7 @@ export default function DocsPage() {
       
 
 
-      <div className="relative z-10 max-w-[1400px] mx-auto pt-32 pb-24 px-8 flex gap-12 items-start">
+      <div className="relative z-10 max-w-[1400px] mx-auto pt-16 lg:pt-32 pb-24 px-4 lg:px-8 flex flex-col lg:flex-row gap-12 items-start">
         
         {/* Sidebar Navigation */}
         <aside className="w-64 flex-shrink-0 sticky top-32 glass rounded-2xl p-6 hidden lg:flex flex-col gap-8">
@@ -59,7 +59,7 @@ export default function DocsPage() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 max-w-3xl glass-heavy rounded-3xl p-10 lg:p-16">
+        <main className="flex-1 w-full max-w-3xl glass-heavy rounded-3xl p-6 lg:p-16">
           <div className="mb-6 flex items-center gap-3 text-orange-500 font-bold text-xs uppercase tracking-widest">
             <span className="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_0_4px_rgba(255,91,46,0.15)] animate-pulse"></span>
             Developer Documentation

@@ -184,3 +184,9 @@
   font-size: 14px;
   color: var(--ink);
 }
+
+@media (max-width: 768px) {
+  .docs-nav-links {
+    display: none;
+  }
+}

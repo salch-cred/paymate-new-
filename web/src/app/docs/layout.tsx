@@ -23,38 +23,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         </div>
       </nav>
 
-      <div className="docs-layout">
-        <aside className="docs-sidebar">
-          <div className="docs-sidebar-group">
-            <h4>Getting Started</h4>
-            <div className="docs-sidebar-links">
-              <Link href="/docs" className={pathname === "/docs" ? "active" : ""}>Introduction</Link>
-              <Link href="#quickstart">Quickstart</Link>
-            </div>
-          </div>
-          <div className="docs-sidebar-group">
-            <h4>Core Concepts</h4>
-            <div className="docs-sidebar-links">
-              <Link href="#x402">x402 Streaming Payments</Link>
-              <Link href="#zk">ZK Shielded Invoices</Link>
-              <Link href="#escrow">Autonomous GitHub Escrow</Link>
-              <Link href="#reputation">ERC-8004 Reputation</Link>
-            </div>
-          </div>
-          <div className="docs-sidebar-group">
-            <h4>API Reference</h4>
-            <div className="docs-sidebar-links">
-              <Link href="#api-invoices">POST /api/invoices</Link>
-              <Link href="#api-settle">POST /api/pay/:id/settle</Link>
-              <Link href="#api-stream">POST /api/pay/:id/stream</Link>
-            </div>
-          </div>
-        </aside>
-
-        <main className="docs-content">
-          {children}
-        </main>
-      </div>
+      {children}
     </div>
   )
 }
