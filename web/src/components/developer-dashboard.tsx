@@ -16,11 +16,11 @@ export function DeveloperDashboard() {
   return (
     <section className="panel panel-pad dev-portal-section" style={{ marginTop: '16px' }} id="developer">
       <style>{`
-        .dev-portal-section .metric-grid { margin-top: 16px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+        .dev-portal-section .metric-grid { margin-top: 16px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
         .dev-portal-section .dev-cols { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
         @media (max-width: 768px) {
           .dev-portal-section .dev-cols { grid-template-columns: 1fr; }
-          .dev-portal-section .metric-grid { grid-template-columns: 1fr 1fr; }
+          .dev-portal-section .metric-grid { grid-template-columns: 1fr; }
         }
       `}</style>
       <div className="panel-heading">
