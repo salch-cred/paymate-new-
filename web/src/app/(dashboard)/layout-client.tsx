@@ -10,6 +10,38 @@ import { useAccount, useEnsName } from "wagmi"
 import { mainnet } from "wagmi/chains"
 import { usePrivy } from "@privy-io/react-auth"
 
+const NAV = [
+  {
+    label: "WORKSPACE",
+    items: [
+      { href: "/dashboard", icon: "chart" as const, label: "Dashboard" },
+      { href: "/dashboard/analytics", icon: "chart" as const, label: "Analytics" },
+      { href: "/developers", icon: "network" as const, label: "Developers" },
+    ],
+  },
+  {
+    label: "MARKETPLACE",
+    items: [
+      { href: "/dashboard/marketplace", icon: "spark" as const, label: "Plugin Hub" },
+      { href: "/dashboard/marketplace/plugins", icon: "package" as const, label: "Browse Plugins" },
+      { href: "/dashboard/marketplace/publish", icon: "send" as const, label: "Publish Plugin" },
+    ],
+  },
+  {
+    label: "PROTOCOL",
+    items: [
+      { href: "/treasury", icon: "receipt" as const, label: "Treasury" },
+      { href: "/growth", icon: "bolt" as const, label: "Growth" },
+      { href: "/docs", icon: "invoice" as const, label: "Docs" },
+    ],
+  },
+]
+
+function isActive(pathname: string, href: string) {
+  if (href === "/dashboard") return pathname === "/dashboard"
+  return pathname.startsWith(href)
+}
+
 export function DashboardLayoutClient({ children }: { children: React.ReactNode }) {
   const { address, isConnected } = useAccount()
   const { logout } = usePrivy()
@@ -24,59 +56,95 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
   return (
     <main className="app-shell">
       <div className="app-frame">
+        {/* Mobile overlay backdrop */}
+        {mobileMenuOpen && (
+          <div
+            onClick={() => setMobileMenuOpen(false)}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 9999 }}
+          />
+        )}
+
         <aside className={`app-sidebar ${mobileMenuOpen ? "open" : ""}`}>
+          {/* Logo */}
           <div className="sidebar-mobile-header">
-            <Link className="brand" href="/">
-              <img src="/logo-app-v2.png" alt="PayMate Logo" className="brand-mark" style={{background: 'transparent', padding: 0}} /><b>PayMate</b>
+            <Link className="brand" href="/" style={{ flex: 1 }}>
+              <img
+                src="/logo-app-v2.png"
+                alt="PayMate"
+                className="brand-mark"
+                style={{ background: "transparent", padding: 0 }}
+              />
+              <b>PayMate</b>
             </Link>
             <button className="mobile-menu-close" onClick={() => setMobileMenuOpen(false)}>
-              <Icon name="close" size={20} />
+              <Icon name="close" size={18} />
             </button>
           </div>
+
+          {/* Desktop logo (hidden on mobile, shown via CSS) */}
+          <Link className="brand sidebar-desktop-brand" href="/">
+            <img
+              src="/logo-app-v2.png"
+              alt="PayMate"
+              className="brand-mark"
+              style={{ background: "transparent", padding: 0 }}
+            />
+            <b>PayMate</b>
+          </Link>
+
+          {/* Navigation */}
           <nav className="side-nav">
-            <span className="nav-label">WORKSPACE</span>
-            <Link href="/dashboard" className={pathname === "/dashboard" ? "active" : ""}><Icon name="chart"/><span>Dashboard</span></Link>
-            <Link href="/dashboard/analytics" className={pathname === "/dashboard/analytics" ? "active" : ""}><Icon name="chart"/><span>Analytics</span></Link>
-            <Link href="/developers" className={pathname === "/developers" ? "active" : ""}><Icon name="network"/><span>Developers</span></Link>
-            
-            <span className="nav-label" style={{marginTop: '16px'}}>PROTOCOL</span>
-            <Link href="/treasury" className={pathname === "/treasury" ? "active" : ""}><Icon name="receipt"/><span>Treasury</span></Link>
-            <Link href="/dashboard/marketplace" className={pathname === "/dashboard/marketplace" ? "active" : ""}><Icon name="spark"/><span>Marketplace</span></Link>
-            <Link href="/docs" className={pathname === "/docs" ? "active" : ""}><Icon name="send"/><span>Docs</span></Link>
+            {NAV.map(group => (
+              <div key={group.label}>
+                <span className="nav-label">{group.label}</span>
+                {group.items.map(item => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={isActive(pathname, item.href) ? "active" : ""}
+                  >
+                    <Icon name={item.icon} size={16} />
+                    <span>{item.label}</span>
+                  </Link>
+                ))}
+              </div>
+            ))}
           </nav>
+
+          {/* Footer */}
           <div className="sidebar-foot">
-            <div className="network-chip"><i/><span>GOAT Network · Live</span></div>
-            <a href="https://clawup.org/?ref=f3508f7af8" target="_blank" rel="noreferrer" style={{display:'flex', alignItems:'center', gap:'6px', marginTop:'12px', fontSize:'12px', color:'var(--text-muted)', textDecoration:'none'}}>
-              <Icon name="spark" size={12}/>Powered by ClawUp
-            </a>
+            <div className="network-chip">
+              <i />
+              <span>GOAT Network · Live</span>
+            </div>
           </div>
         </aside>
-        
+
         <section className="app-main">
-          <header className="app-topbar">
+          {/* Slim top bar — wallet + menu toggle only on mobile */}
+          <div className="app-topbar-slim">
             <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen(true)}>
               <Icon name="menu" size={20} />
             </button>
-            <div>
-              <span className="workspace-label">PAYMATE CONTROL CENTER</span>
-              <h1>Money, proof, momentum.</h1>
-              <p>Create invoices and track verified settlement from one workspace.</p>
-            </div>
+            <div style={{ flex: 1 }} />
             <div className="topbar-actions">
               <NotificationCenter />
-              <Link href="/docs" className="topbar-icon"><Icon name="invoice" size={17}/></Link>
               {isConnected ? (
                 <button className="wallet-button" onClick={() => logout()}>
-                  <span className="live-dot"/>{ensName || `${address?.slice(0,6)}…${address?.slice(-4)}`}
+                  <span className="live-dot" />
+                  {ensName || `${address?.slice(0, 6)}…${address?.slice(-4)}`}
                 </button>
               ) : (
-                <WalletConnectMenu triggerClassName="wallet-button primary" triggerLabel={<><Icon name="wallet" size={17}/>Connect wallet</>} />
+                <WalletConnectMenu
+                  triggerClassName="wallet-button primary"
+                  triggerLabel={<><Icon name="wallet" size={15} />Connect wallet</>}
+                />
               )}
             </div>
-          </header>
-          <div className="app-content">
-            {children}
           </div>
+
+          {/* Page content fills the rest */}
+          {children}
         </section>
       </div>
     </main>
