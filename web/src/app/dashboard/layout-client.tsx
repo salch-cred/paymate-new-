@@ -15,20 +15,6 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
   const { data: ensName } = useEnsName({ address: address as `0x${string}`, chainId: mainnet.id })
   const pathname = usePathname()
 
-  const navItems = [
-    { label: "Dashboard", href: "/dashboard", icon: "chart" as const },
-    { label: "Analytics", href: "/dashboard/analytics", icon: "chart" as const },
-    { label: "Assets", href: "/dashboard/assets", icon: "wallet" as const },
-    { label: "Activity", href: "/dashboard/activity", icon: "chart" as const },
-    { label: "Swap", href: "/dashboard/swap", icon: "network" as const },
-    { label: "Stake", href: "/dashboard/stake", icon: "shield" as const },
-    { label: "Marketplace", href: "/dashboard/marketplace", icon: "spark" as const },
-    { label: "Bridge", href: "/dashboard/bridge", icon: "network" as const },
-    { label: "Identity", href: "/dashboard/identity", icon: "users" as const },
-    { label: "Chat", href: "/dashboard/chat", icon: "send" as const },
-    { label: "Cat AI", href: "/dashboard/ai", icon: "spark" as const },
-  ]
-
   return (
     <main className="app-shell">
       <div className="app-frame">
@@ -37,15 +23,15 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
             <span className="brand-mark"><span/></span><b>PayMate</b>
           </Link>
           <nav className="side-nav">
-            {navItems.map(item => (
-              <Link 
-                key={item.label} 
-                href={item.href} 
-                className={pathname === item.href ? "active" : ""}
-              >
-                <Icon name={item.icon}/><span>{item.label}</span>
-              </Link>
-            ))}
+            <span className="nav-label">WORKSPACE</span>
+            <Link href="/dashboard" className={pathname === "/dashboard" ? "active" : ""}><Icon name="chart"/><span>Dashboard</span></Link>
+            <Link href="/dashboard/analytics" className={pathname === "/dashboard/analytics" ? "active" : ""}><Icon name="chart"/><span>Analytics</span></Link>
+            <Link href="/developers" className={pathname === "/developers" ? "active" : ""}><Icon name="network"/><span>Developers</span></Link>
+            
+            <span className="nav-label" style={{marginTop: '16px'}}>PROTOCOL</span>
+            <Link href="/treasury" className={pathname === "/treasury" ? "active" : ""}><Icon name="receipt"/><span>Treasury</span></Link>
+            <Link href="/dashboard/marketplace" className={pathname === "/dashboard/marketplace" ? "active" : ""}><Icon name="spark"/><span>Marketplace</span></Link>
+            <Link href="/docs" className={pathname === "/docs" ? "active" : ""}><Icon name="send"/><span>Docs</span></Link>
           </nav>
           <div className="sidebar-foot">
             <div className="network-chip"><i/><span>GOAT Network · Live</span></div>
