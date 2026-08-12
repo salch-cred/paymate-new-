@@ -60,7 +60,9 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
               )}
             </div>
           </header>
-          {children}
+          <div className="app-content">
+            {children}
+          </div>
         </section>
       </div>
     </main>
