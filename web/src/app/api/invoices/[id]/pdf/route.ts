@@ -210,13 +210,13 @@ export async function GET(
         </div>
       </body>
       </html>
-    \`;
+    `;
 
     return new NextResponse(htmlContent, {
       status: 200,
       headers: {
         'Content-Type': 'text/html',
-        'Content-Disposition': \`attachment; filename="paymate-invoice-\${invoice.id.split('-')[0]}.html"\`,
+        'Content-Disposition': `attachment; filename="paymate-invoice-${invoice.id.split('-')[0]}.html"`,
       },
     });
   } catch (error) {

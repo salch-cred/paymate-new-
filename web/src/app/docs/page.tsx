@@ -10,7 +10,7 @@ import {
   Bitcoin01Icon,
   CheckmarkBadge01Icon,
   Globe02Icon,
-  Cpu01Icon,
+  CpuIcon,
   Link02Icon
 } from "hugeicons-react";
 
@@ -40,7 +40,7 @@ export default function DocsPage() {
             <span className="text-[9px] uppercase tracking-widest font-extrabold text-gray-500 mb-4 block">Core Features</span>
             <nav className="flex flex-col gap-2">
               <a href="#ai-drafting" className="text-sm font-semibold text-gray-700 hover:text-black hover:bg-black/5 px-3 py-2 rounded-lg transition-colors flex items-center gap-2">
-                <Cpu01Icon size={16} /> AI Voice & Drafting
+                <CpuIcon size={16} /> AI Voice & Drafting
               </a>
               <a href="#cross-chain" className="text-sm font-semibold text-gray-700 hover:text-black hover:bg-black/5 px-3 py-2 rounded-lg transition-colors flex items-center gap-2">
                 <Globe02Icon size={16} /> Cross-Chain (ClawUp)

@@ -19,11 +19,11 @@ export default async function DashboardPage() {
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const maxVal = 100; // prevent division by zero
 
-  const stats = [
-    { label: 'Total earnings', value: formatUSDC(totalEarnings), icon: 'wallet' as const, bg: '#e7f5ec', color: '#317454' },
-    { label: 'Total uses', value: formatNumber(totalInstalls), icon: 'chart' as const, bg: '#f2dfd3', color: '#e6532c' },
-    { label: 'Published plugins', value: String(myPlugins.length), icon: 'package' as const, bg: '#e8edf7', color: '#4f46e5' },
-    { label: 'Avg rating', value: avgRating.toFixed(1), icon: 'shield' as const, bg: '#f5f0dc', color: '#a16207' },
+  const stats: { label: string; value: string; icon: 'wallet' | 'chart' | 'package' | 'shield'; bg: string; color: string; trend?: string }[] = [
+    { label: 'Total earnings', value: formatUSDC(totalEarnings), icon: 'wallet', bg: '#e7f5ec', color: '#317454' },
+    { label: 'Total uses', value: formatNumber(totalInstalls), icon: 'chart', bg: '#f2dfd3', color: '#e6532c' },
+    { label: 'Published plugins', value: String(myPlugins.length), icon: 'package', bg: '#e8edf7', color: '#4f46e5' },
+    { label: 'Avg rating', value: avgRating.toFixed(1), icon: 'shield', bg: '#f5f0dc', color: '#a16207' },
   ];
 
   return (
