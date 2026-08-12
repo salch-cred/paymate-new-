@@ -131,11 +131,11 @@ export function ClawUpModal({ isOpen, onClose, onSuccess, amountUsd, freelancerA
           {step === "select" && (
             <div>
               <p style={{ marginBottom: '16px', color: 'var(--muted)', fontSize: '14px' }}>
-                Pay from any network. Your wallet will send <b>${amountUsd.toLocaleString()}</b> worth of the
+                Pay from any network. Your wallet will send <b>${amountUsd.toLocaleString()}</b>{" "}worth of the
                 network&apos;s native token directly to the freelancer, and our backend cryptographically verifies
                 the value on-chain before settling on GOAT.
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '35vh', overflowY: 'auto', padding: '2px' }}>
                 {chains.map(c => (
                   <button 
                     key={c.id} 
@@ -145,7 +145,8 @@ export function ClawUpModal({ isOpen, onClose, onSuccess, amountUsd, freelancerA
                       padding: '16px', borderRadius: '12px',
                       border: selectedChain === c.id ? '2px solid var(--ink)' : '1px solid var(--line)',
                       background: selectedChain === c.id ? 'rgba(0,0,0,0.02)' : 'white',
-                      cursor: 'pointer', fontSize: '16px', fontWeight: 600
+                      cursor: 'pointer', fontSize: '16px', fontWeight: 600,
+                      flexShrink: 0
                     }}
                   >
                     <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
