@@ -50,6 +50,19 @@ export async function POST(request: Request) {
       return Response.json({ detail: "Invoice already paid" }, { status: 400 })
     }
 
+    // SECURITY (audit fix 2026-08-13): self-service API keys are minted with
+    // no vetting (see /api/apikeys). Cap a single autonomous payout triggered
+    // via an API key well below the shared MAX_AUTO_PAY used by the trusted
+    // admin-bearer-secret path, so a freshly self-issued key cannot alone
+    // drain a large single payout even before the hourly budget kicks in.
+    const API_KEY_MAX_SINGLE_PAYOUT_USD = 500
+    if (viaApiKey && invoice.amountUsd > API_KEY_MAX_SINGLE_PAYOUT_USD) {
+      return Response.json(
+        { detail: `Payouts via a self-service API key are capped at $${API_KEY_MAX_SINGLE_PAYOUT_USD} per invoice. Use the admin-authenticated path for larger amounts.` },
+        { status: 403 }
+      )
+    }
+
     // 1. Global payout budget check, independent of the per-invoice cap
     // already enforced inside autonomousAgentPay (same guard clawup/intent uses).
     const budgetOk = await checkAndConsumeIntentBudget(invoice.amountUsd)

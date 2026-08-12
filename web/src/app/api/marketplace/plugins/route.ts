@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAllPlugins, searchPlugins, getPluginsByCategory, CATEGORY_META } from '@/lib/marketplace/store';
 import { initStore, addPluginPersisted } from '@/lib/marketplace/serverStore';
 import type { PublishPluginPayload } from '@/lib/marketplace/types';
+import { verifyFreshWalletProof } from '@/lib/walletProof';
+import { checkAndConsumeRequestBudget } from '@/lib/rateLimit';
 
 const MAX_BODY_BYTES = 64 * 1024; // 64 KB
 const MAX_TAGS = 10;
@@ -79,6 +81,28 @@ export async function POST(request: NextRequest) {
 
   if (!ETH_ADDRESS_RE.test(body.authorAddress as string)) {
     return NextResponse.json({ error: 'authorAddress must be a valid 0x… Ethereum address' }, { status: 400 });
+  }
+
+  // SECURITY (audit fix 2026-08-13): publishing used to accept ANY
+  // authorAddress with zero proof of ownership, letting anyone impersonate a
+  // legitimate developer's wallet in the public marketplace. Require the
+  // same wallet-signed, timestamp-bound proof used by /api/apikeys.
+  const authorAddress = (body.authorAddress as string).toLowerCase();
+  const authorProof = (body as { authorProof?: { message?: unknown; signature?: unknown; ts?: unknown } }).authorProof;
+  const expectedMessage = `PayMate marketplace publish by ${authorAddress} at ${authorProof?.ts}`;
+  const validProof = await verifyFreshWalletProof(
+    { wallet: authorAddress, message: authorProof?.message, signature: authorProof?.signature, ts: authorProof?.ts },
+    expectedMessage
+  );
+  if (!validProof) {
+    return NextResponse.json(
+      { error: `Wallet ownership proof required. Sign exactly: "PayMate marketplace publish by ${authorAddress} at <ts>" and provide authorProof: { message, signature, ts }.` },
+      { status: 401 }
+    );
+  }
+
+  if (!(await checkAndConsumeRequestBudget('marketplace-publish', 100, 60 * 60 * 1000))) {
+    return NextResponse.json({ error: 'Too many plugin publishes recently. Please try again later.' }, { status: 429 });
   }
 
   const tags = Array.isArray(body.tags) ? body.tags : [];

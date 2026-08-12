@@ -30,10 +30,26 @@ export async function POST(request: Request) {
     const item = payload.pull_request || payload.issue;
     const body = item.body || "";
 
+    // SECURITY (audit fix 2026-08-13): a valid GitHub HMAC signature only
+    // proves the request came from GitHub, not that the PR/issue *content* is
+    // trustworthy — on any public repo wired to this webhook, any GitHub user
+    // could previously get an "official" bounty invoice minted for their own
+    // wallet just by writing a wallet/amount into an issue/PR body. Require a
+    // trusted label (only addable by repo collaborators) before minting.
+    const bountyLabel = process.env.GITHUB_BOUNTY_LABEL || "paymate-bounty";
+    const labels: { name?: string }[] = Array.isArray(item.labels) ? item.labels : [];
+    const hasBountyLabel = labels.some((l) => (l?.name || "").toLowerCase() === bountyLabel.toLowerCase());
+    if (!hasBountyLabel) {
+      return NextResponse.json({ ok: true, message: `Ignored: no "${bountyLabel}" label present.` });
+    }
+
     // Look for a wallet address and amount in the PR/Issue body
     // e.g., "Wallet: 0x123... Amount: $500"
+    // SECURITY (audit fix 2026-08-13): require an explicit "$" prefix on the
+    // amount so an arbitrary number elsewhere in the body (issue #, line
+    // number, version string) can't be misread as the bounty amount.
     const walletMatch = body.match(/0x[a-fA-F0-9]{40}/);
-    const amountMatch = body.match(/\$?(\d+(\.\d{1,2})?)/);
+    const amountMatch = body.match(/\$(\d{1,7}(?:\.\d{1,2})?)\b/);
 
     if (!walletMatch || !amountMatch) {
       return NextResponse.json({ ok: true, message: "No bounty info found in body" });

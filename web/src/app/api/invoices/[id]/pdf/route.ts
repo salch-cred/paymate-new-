@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getInvoice } from '@/lib/db';
 
+// SECURITY (audit fix 2026-08-13): invoice.title/description are free-text
+// fields set by the public, unauthenticated POST /api/invoices. Without
+// escaping, an attacker-controlled title/description containing HTML/script
+// tags would execute as stored XSS when this "receipt" is opened. Escape
+// every user-controlled value before interpolating it into the HTML string.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -11,6 +25,13 @@ export async function GET(
     if (!invoice) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
+
+    // SECURITY (audit fix 2026-08-13): never reveal the real amount for a
+    // "private" invoice through this alternate read path either — mirrors
+    // the same fix applied to GET /api/invoices/[id].
+    const displayAmount = invoice.isPrivate ? null : invoice.amountUsd;
+    const safeTitle = escapeHtml(invoice.title || 'Untitled Invoice');
+    const safeDescription = escapeHtml(invoice.description || '');
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -178,11 +199,11 @@ export async function GET(
           </div>
 
           <div class="summary">
-            <h3>${invoice.title || 'Untitled Invoice'}</h3>
-            <p>${invoice.description}</p>
+            <h3>${safeTitle}</h3>
+            <p>${safeDescription}</p>
             <div class="amount-row">
               <span>Total Amount</span>
-              <span>$${invoice.amountUsd.toLocaleString()} USDC</span>
+              <span>${displayAmount === null ? 'Private — view via secure link' : `$${displayAmount.toLocaleString()} USDC`}</span>
             </div>
           </div>
 

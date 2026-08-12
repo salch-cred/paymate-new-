@@ -3,7 +3,12 @@ import { isAddress, getAddress } from "viem"
 import { createApiKey, listApiKeys, revokeApiKey } from "@/lib/db"
 import { generateApiKey, verifyWalletSignature } from "@/lib/apikey"
 
-const MAX_QUOTA = 100_000
+// SECURITY (audit fix 2026-08-13): this endpoint is fully self-service —
+// anyone can mint a key for any wallet they can sign a message with, with no
+// vetting. $100,000 of autonomous-payout quota per key (up to 5 keys/wallet)
+// was wildly disproportionate to that trust level. $500/key is still enough
+// for real testing/demo traffic; raise it manually (DB) for a vetted partner.
+const MAX_QUOTA = 500
 
 /** Freshness window for wallet-signed proofs (replay protection). */
 const PROOF_TTL_MS = 5 * 60 * 1000
@@ -96,7 +101,7 @@ export async function POST(request: Request) {
 
   const name = typeof auth.body.name === "string" ? auth.body.name.trim().slice(0, 60) : "My Agent"
   let quotaUsd = Number(auth.body.quotaUsd)
-  if (!Number.isFinite(quotaUsd) || quotaUsd <= 0) quotaUsd = 1000
+  if (!Number.isFinite(quotaUsd) || quotaUsd <= 0) quotaUsd = 100
   quotaUsd = Math.min(quotaUsd, MAX_QUOTA)
 
   const keyCount = (await listApiKeys(auth.wallet)).filter(k => !k.revokedAt).length

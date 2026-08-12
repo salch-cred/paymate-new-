@@ -1,6 +1,7 @@
 import { getInvoice, createDispute, countDisputesForInvoice, markEscrowPaid, markEscrowRefunded, addTreasuryRevenue, type DisputeResolution } from "@/lib/db"
 import { resolveDisputeOnChain, isEscrowInvoice, mintReputation, PaymentError } from "@/lib/chain"
 import { mistralJsonText, parseJsonResponse } from "@/lib/mistral"
+import { verifyFreshWalletProof } from "@/lib/walletProof"
 
 const RESOLUTION_TO_ENUM: Record<DisputeResolution, number> = {
   PAY_FREELANCER: 0,
@@ -49,6 +50,29 @@ export async function POST(request: Request) {
     const invoice = await getInvoice(invoiceId)
     if (!invoice) {
       return Response.json({ detail: "Invoice not found" }, { status: 404 })
+    }
+
+    // SECURITY (audit fix 2026-08-13): this endpoint enforces a binding
+    // verdict that can move real escrowed USDC on-chain. It previously had no
+    // check that the caller was actually a party to the invoice — anyone who
+    // knew the invoiceId could file a dispute. Require a wallet-signed,
+    // timestamp-bound proof (same pattern as /api/apikeys) that the caller
+    // controls either the client or freelancer address.
+    const callerAddress = typeof body?.callerAddress === "string" ? body.callerAddress.toLowerCase() : ""
+    const isParty = callerAddress === invoice.client.toLowerCase() || callerAddress === invoice.freelancer.toLowerCase()
+    if (!isParty) {
+      return Response.json({ detail: "callerAddress must be this invoice's client or freelancer." }, { status: 403 })
+    }
+    const expectedMessage = `PayMate dispute invoice ${invoiceId} at ${body?.ts}`
+    const validProof = await verifyFreshWalletProof(
+      { wallet: callerAddress, message: body?.message, signature: body?.signature, ts: body?.ts },
+      expectedMessage
+    )
+    if (!validProof) {
+      return Response.json(
+        { detail: `Wallet ownership proof required. Sign exactly: "PayMate dispute invoice ${invoiceId} at <ts>" and provide { callerAddress, message, signature, ts }.` },
+        { status: 401 }
+      )
     }
 
     const priorRounds = await countDisputesForInvoice(invoiceId)

@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { Octokit } from "octokit";
 import { mistralJsonText, parseJsonResponse } from "@/lib/mistral";
+import { checkAndConsumeRequestBudget } from "@/lib/rateLimit";
 
 export async function POST(request: Request) {
   try {
+    // SECURITY (audit fix 2026-08-13): this endpoint has no auth and calls two
+    // paid third-party APIs (GitHub, Mistral) per request — cap total abuse.
+    if (!(await checkAndConsumeRequestBudget("github-auto-invoice", 100, 60 * 60 * 1000))) {
+      return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+    }
+
     const { repoUrl, prNumber } = await request.json();
     const apiKey = process.env.MISTRAL_API_KEY;
 
@@ -11,12 +18,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing MISTRAL_API_KEY" }, { status: 500 });
     }
 
-    if (!repoUrl || !prNumber) {
-      return NextResponse.json({ error: "Missing repoUrl or prNumber" }, { status: 400 });
+    if (typeof repoUrl !== "string" || repoUrl.length > 300 || !prNumber || !Number.isFinite(Number(prNumber))) {
+      return NextResponse.json({ error: "Missing or invalid repoUrl or prNumber" }, { status: 400 });
     }
 
-    // Parse owner and repo from URL (e.g. https://github.com/owner/repo)
-    const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    // Parse owner and repo from a genuine github.com URL (audit fix
+    // 2026-08-13: anchor to the start of the hostname so a crafted string
+    // like "evil.com/github.com/x/y" can't slip through the old loose match).
+    const match = repoUrl.match(/^https:\/\/(?:www\.)?github\.com\/([^\/\s]+)\/([^\/\s]+)/);
     if (!match) {
       return NextResponse.json({ error: "Invalid GitHub URL" }, { status: 400 });
     }

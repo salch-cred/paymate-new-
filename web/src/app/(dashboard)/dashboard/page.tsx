@@ -2,8 +2,8 @@
 
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
-import { useAccount } from "wagmi"
-import { isAddress } from "viem"
+import { useAccount, useWalletClient } from "wagmi"
+import { isAddress, getAddress } from "viem"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Icon } from "@/components/icons"
 import { WalletConnectMenu } from "@/components/wallet-connect-menu"
@@ -13,6 +13,10 @@ import { motion } from "framer-motion"
 import { DeveloperDashboard } from "@/components/developer-dashboard"
 
 type Invoice={id:string;freelancer:string;client:string;title?:string;description:string;amountUsd:number;status:"pending"|"paid"|"cancelled";chain:string;createdAt:string;txHash?:string}
+
+// SECURITY (audit fix 2026-08-13): cancellation now requires a wallet-signed,
+// timestamp-bound proof — mirrors the pattern already used on /developers.
+const CANCEL_MESSAGE = (invoiceId: string, ts: number) => `PayMate cancel invoice ${invoiceId} at ${ts}`
 type Reputation={score:number;jobsCompleted:number;totalEarnedUsd:number}
 
 // Minimal Web Speech API typings (not in the standard TS DOM lib) so we can
@@ -38,6 +42,7 @@ declare global {
 
 export default function DashboardPage(){
   const {address,isConnected}=useAccount();
+  const {data:walletClient}=useWalletClient();
   // removed logout and ensName as they are handled in layout-client.tsx
  const queryClient=useQueryClient()
  const [client,setClient]=useState("");const [title,setTitle]=useState("");const [description,setDescription]=useState("");const [amount,setAmount]=useState("");const [dueDate,setDueDate]=useState("")
@@ -126,7 +131,7 @@ export default function DashboardPage(){
  const invoices=invoicesQuery.data??[];const reputation=reputationQuery.data??null
  const error=formError??((invoicesQuery.isError||reputationQuery.isError)?"Could not reach the PayMate API.":null)
  const createInvoiceMutation=useMutation({mutationFn:async()=>{const splitsPayload=splits.length>0?splits.map(s=>({address:s.address,amountUsd:Number(s.amountUsd)})):undefined;const msPayload=milestones.length>0?milestones.map(m=>({id:m.id,title:m.title,amountUsd:Number(m.amountUsd),status:"pending"})):undefined;const calculatedAmount=milestones.length>0?milestones.reduce((s,m)=>s+Number(m.amountUsd),0):Number(amount);const res=await fetch(`/api/invoices`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({freelancer:address,client,title,description,amountUsd:calculatedAmount,dueDate:dueDate||null,splits:splitsPayload,milestones:msPayload,isPrivate:privacyMode})});const data=await res.json();if(!res.ok)throw new Error(data.detail||"Invoice creation failed");return {...data.invoice,payUrl:`${location.origin}${data.payUrl}`} as Invoice},onSuccess:(created)=>{queryClient.setQueryData<Invoice[]>(["invoices",address],(prev)=>[created,...(prev??[])]);setClient("");setTitle("");setDescription("");setAmount("");setDueDate("");setSplits([]);setMilestones([]);setFormError(null)},onError:(e)=>setFormError(e instanceof Error?e.message:"Could not create invoice")})
- const cancelInvoiceMutation=useMutation({mutationFn:async(id:string)=>{const res=await fetch(`/api/invoices/${id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"cancelled",freelancer:address})});const data=await res.json();if(!res.ok)throw new Error(data.detail||"Cancel failed");return data},onSuccess:(updated)=>{queryClient.setQueryData<Invoice[]>(["invoices",address],(prev)=>(prev??[]).map(i=>i.id===updated.id?updated:i));},onError:(e)=>setFormError(e instanceof Error?e.message:"Could not cancel invoice")})
+ const cancelInvoiceMutation=useMutation({mutationFn:async(id:string)=>{if(!address||!walletClient)throw new Error("Connect your wallet first.");const ts=Date.now();const message=CANCEL_MESSAGE(id,ts);const signature=await walletClient.signMessage({message,account:address as `0x${string}`});const res=await fetch(`/api/invoices/${id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"cancelled",freelancer:getAddress(address),message,signature,ts})});const data=await res.json();if(!res.ok)throw new Error(data.detail||"Cancel failed");return data},onSuccess:(updated)=>{queryClient.setQueryData<Invoice[]>(["invoices",address],(prev)=>(prev??[]).map(i=>i.id===updated.id?updated:i));},onError:(e)=>setFormError(e instanceof Error?e.message:"Could not cancel invoice")})
  function generateDraft(){if(draftPrompt.trim().length<12)return setFormError("Describe the work, price, and any deadline in a little more detail.");draftMutation.mutate(draftPrompt)}
  function createInvoice(e:React.FormEvent){e.preventDefault();if(!address)return setFormError("Connect your wallet first.");if(!isAddress(client))return setFormError("Enter a valid client wallet address.");if(!title.trim()||description.trim().length<5)return setFormError("Complete the title and work description.");const calcAmt=milestones.length>0?milestones.reduce((s,m)=>s+Number(m.amountUsd),0):Number(amount);if(calcAmt<=0)return setFormError("Invoice amount must be greater than zero.");if(splits.length>0){const splitTotal=splits.reduce((sum,s)=>sum+Number(s.amountUsd),0);if(Math.abs(splitTotal-calcAmt)>0.01)return setFormError(`Total of splits ($${splitTotal}) must equal total invoice amount ($${calcAmt}).`)}createInvoiceMutation.mutate()}
  async function copyInvoice(inv:Invoice){const url=`${location.origin}/pay/${inv.id}`;await navigator.clipboard.writeText(url);setCopied(inv.id);setTimeout(()=>setCopied(null),1500)}

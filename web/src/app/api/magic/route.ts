@@ -1,11 +1,18 @@
 import { mistralJsonText, parseJsonResponse } from "@/lib/mistral";
+import { checkAndConsumeRequestBudget } from "@/lib/rateLimit";
 
 export async function POST(request: Request) {
   try {
+    // SECURITY (audit fix 2026-08-13): no auth on this route, and it calls a
+    // paid third-party LLM — cap abuse.
+    if (!(await checkAndConsumeRequestBudget("magic", 300, 60 * 60 * 1000))) {
+      return Response.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+    }
+
     const { prompt } = await request.json();
 
-    if (!prompt) {
-      return Response.json({ error: "Missing prompt" }, { status: 400 });
+    if (typeof prompt !== "string" || prompt.trim().length < 3 || prompt.length > 6000) {
+      return Response.json({ error: "prompt must be a string between 3 and 6000 characters" }, { status: 400 });
     }
 
     const apiKey = process.env.MISTRAL_API_KEY;

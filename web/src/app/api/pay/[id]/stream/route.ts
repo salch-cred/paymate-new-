@@ -59,6 +59,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!Number.isFinite(addAmount) || addAmount <= 0) {
     return Response.json({ detail: "Invalid stream amount" }, { status: 400 })
   }
+  // SECURITY (audit fix 2026-08-13): a tick only proves the caller knows the
+  // (public) client address, not a fresh cryptographic authorization per
+  // tick — signing every tick would require a wallet popup every second,
+  // which isn't viable UX. Real money movement still independently requires
+  // a verified on-chain transfer at settle time regardless of this value, so
+  // this is a display/bookkeeping guard, not a funds-movement guard: bound
+  // each increment to a small multiple of the agreed per-tick rate so a
+  // third party who knows the client address can't instantly max out the
+  // displayed progress in one call.
+  if (invoice.streamRateUsd && addAmount > invoice.streamRateUsd * 5) {
+    return Response.json({ detail: "Stream tick amount exceeds the allowed per-tick rate." }, { status: 400 })
+  }
 
   const updatedInvoice = await updateStreamAmount(id, addAmount)
 

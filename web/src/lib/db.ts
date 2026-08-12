@@ -30,6 +30,7 @@ export interface Invoice {
   txHash: string | null
   createdAt: number
   paidAt: number | null
+  cancelledAt: number | null
   webhookUrl: string | null
   signature: string | null
   ipfsReceipt: string | null
@@ -95,6 +96,7 @@ interface InvoiceRow {
   tx_hash: string | null
   created_at: string
   paid_at: string | null
+  cancelled_at: string | null
   webhook_url: string | null
   signature: string | null
   ipfs_receipt: string | null
@@ -170,7 +172,29 @@ async function ready(): Promise<void> {
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS api_key_id TEXT`.catch(()=>null)
       await sql`CREATE INDEX IF NOT EXISTS idx_invoices_api_key ON invoices(api_key_id, created_at DESC)`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paywall_content TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS cancelled_at BIGINT`.catch(()=>null)
       await sql`CREATE INDEX IF NOT EXISTS idx_invoices_freelancer ON invoices(freelancer, created_at DESC)`
+      // SECURITY (audit fix 2026-08-13): global ledger of on-chain tx hashes
+      // already consumed to settle an invoice or milestone. markPaid/
+      // markMilestonePaid both reserve the tx hash here atomically (INSERT ...
+      // ON CONFLICT DO NOTHING) before touching the invoice row, so the exact
+      // same on-chain transfer can never be replayed to settle a second
+      // invoice or a second milestone.
+      await sql`CREATE TABLE IF NOT EXISTS used_settlement_tx (
+        tx_hash TEXT PRIMARY KEY,
+        invoice_id TEXT NOT NULL,
+        milestone_id TEXT,
+        created_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint
+      )`
+      // SECURITY (audit fix 2026-08-13): generic request-budget log backing
+      // checkAndConsumeRequestBudget() in lib/rateLimit.ts — coarse abuse/cost
+      // control for public AI-calling and invoice/plugin-creation endpoints.
+      await sql`CREATE TABLE IF NOT EXISTS request_budget_log (
+        id SERIAL PRIMARY KEY,
+        bucket TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_request_budget_log ON request_budget_log(bucket, created_at DESC)`.catch(()=>null)
       await sql`CREATE TABLE IF NOT EXISTS treasury (
         id TEXT PRIMARY KEY,
         balance_usd DOUBLE PRECISION DEFAULT 0,
@@ -234,6 +258,7 @@ function rowToInvoice(row: InvoiceRow): Invoice {
     txHash: row.tx_hash,
     createdAt: Number(row.created_at),
     paidAt: row.paid_at === null ? null : Number(row.paid_at),
+    cancelledAt: row.cancelled_at === null || row.cancelled_at === undefined ? null : Number(row.cancelled_at),
     webhookUrl: row.webhook_url || null,
     signature: row.signature || null,
     ipfsReceipt: row.ipfs_receipt || null,
@@ -291,6 +316,22 @@ export async function createInvoice(input: {
 }): Promise<Invoice> {
   await ready()
   const sql = getSql()
+
+  // SECURITY (audit fix 2026-08-13): a client's EIP-712 authorization signs
+  // only {freelancer, client, amountUsd} — it carries no invoice id/nonce.
+  // Without this check, one captured/leaked signature could be replayed by
+  // attaching it verbatim to N brand-new invoices sharing that exact triple,
+  // each of which could then be autonomously paid (see lib/agent.ts). Reject
+  // reuse of a signature that is already attached to any other invoice.
+  let safeSignature = input.signature || null
+  if (safeSignature) {
+    const reused = await sql`SELECT 1 FROM invoices WHERE signature = ${safeSignature} LIMIT 1`
+    if (reused.length > 0) {
+      console.warn("[createInvoice] Rejected reused EIP-712 signature on invoice creation.")
+      safeSignature = null
+    }
+  }
+
   const invoice: Invoice = {
     id: crypto.randomUUID(),
     freelancer: input.freelancer,
@@ -304,8 +345,9 @@ export async function createInvoice(input: {
     txHash: null,
     createdAt: Date.now(),
     paidAt: null,
+    cancelledAt: null,
     webhookUrl: input.webhookUrl || null,
-    signature: input.signature || null,
+    signature: safeSignature,
     ipfsReceipt: null,
     splits: input.splits || null,
     recurring: input.recurring || null,
@@ -391,8 +433,17 @@ export async function listInvoices(freelancer: string, limit = 50): Promise<Invo
 export async function markPaid(id: string, txHash: string, ipfsCid: string | null = null): Promise<Invoice | null> {
   await ready()
   const sql = getSql()
-  const reusedElsewhere = await sql`SELECT 1 FROM invoices WHERE tx_hash = ${txHash} AND id != ${id}`
-  if (reusedElsewhere.length > 0) return null
+  // SECURITY (audit fix 2026-08-13): atomically reserve this tx hash in the
+  // global used_settlement_tx ledger before touching the invoice. The PK
+  // constraint makes this safe under concurrent/replayed requests — only the
+  // first caller to reserve a given tx hash can ever mark anything paid with
+  // it, closing the settlement-replay window that a read-then-write check
+  // (SELECT ... then UPDATE) does not.
+  const reserved = await sql`
+    INSERT INTO used_settlement_tx (tx_hash, invoice_id) VALUES (${txHash}, ${id})
+    ON CONFLICT (tx_hash) DO NOTHING RETURNING tx_hash
+  `
+  if (reserved.length === 0) return null
   const updated = (await sql`
     UPDATE invoices SET status='paid', tx_hash=${txHash}, paid_at=${Date.now()}, ipfs_receipt=${ipfsCid}
     WHERE id=${id} AND status='pending'
@@ -469,7 +520,17 @@ export async function authorizeStream(id: string, signature: string): Promise<In
 export async function markMilestonePaid(id: string, milestoneId: string, txHash: string, ipfsCid: string | null = null): Promise<Invoice | null> {
   await ready()
   const sql = getSql()
-  
+
+  // SECURITY (audit fix 2026-08-13): reserve the tx hash globally FIRST. One
+  // on-chain transfer must never be able to settle two different milestones
+  // (on this invoice or any other) — previously nothing checked tx_hash reuse
+  // for milestone payments at all.
+  const reserved = await sql`
+    INSERT INTO used_settlement_tx (tx_hash, invoice_id, milestone_id) VALUES (${txHash}, ${id}, ${milestoneId})
+    ON CONFLICT (tx_hash) DO NOTHING RETURNING tx_hash
+  `
+  if (reserved.length === 0) return null
+
   const invoice = await getInvoice(id)
   if (!invoice || !invoice.milestones) return null
 
@@ -482,16 +543,24 @@ export async function markMilestonePaid(id: string, milestoneId: string, txHash:
 
   const allPaid = invoice.milestones.every(m => m.status === "paid")
   const newStatus = allPaid ? "paid" : "pending"
-  
-  await sql`
-    UPDATE invoices SET 
-      milestones=${JSON.stringify(invoice.milestones)}, 
-      status=${newStatus}, 
-      tx_hash=${allPaid ? txHash : invoice.txHash}, 
+
+  // SECURITY (audit fix 2026-08-13): the UPDATE itself is now guarded by a
+  // JSONB containment check that the target milestone is NOT already marked
+  // paid in the row as currently stored in Postgres — this closes the
+  // read-then-write race where two concurrent requests both read "pending"
+  // and both would otherwise write "paid".
+  const notAlreadyPaidGuard = JSON.stringify([{ id: milestoneId, status: "paid" }])
+  const updated = (await sql`
+    UPDATE invoices SET
+      milestones=${JSON.stringify(invoice.milestones)},
+      status=${newStatus},
+      tx_hash=${allPaid ? txHash : invoice.txHash},
       paid_at=${allPaid ? Date.now() : invoice.paidAt},
       ipfs_receipt=${allPaid ? ipfsCid : invoice.ipfsReceipt}
-    WHERE id=${id}
-  `
+    WHERE id=${id} AND NOT (milestones @> ${notAlreadyPaidGuard}::jsonb)
+    RETURNING id
+  `) as unknown as { id: string }[]
+  if (updated.length === 0) return null
   return getInvoice(id)
 }
 
@@ -547,7 +616,7 @@ export async function cancelInvoice(id: string, freelancer: string): Promise<Inv
   await ready()
   const sql = getSql()
   const updated = (await sql`
-    UPDATE invoices SET status='cancelled'
+    UPDATE invoices SET status='cancelled', cancelled_at=${Date.now()}
     WHERE id=${id} AND lower(freelancer)=lower(${freelancer}) AND status='pending'
     RETURNING id
   `) as unknown as { id: string }[]
@@ -667,13 +736,22 @@ export async function createFeedback(input: {
   return feedback
 }
 
-export async function listFeedback(limit = 50): Promise<Feedback[]> {
+// SECURITY (audit fix 2026-08-13): `contact` is user-submitted PII
+// (email/phone). Every current caller (GET /api/feedback, GET /api/growth)
+// is a fully public, unauthenticated endpoint, so contact info is redacted
+// by default. Pass `includeContact: true` only from a trusted, authenticated
+// (e.g. admin) code path that genuinely needs to follow up with a submitter.
+export async function listFeedback(limit = 50, options?: { includeContact?: boolean }): Promise<Feedback[]> {
   await ready()
   const sql = getSql()
   const rows = (await sql`
     SELECT * FROM feedback ORDER BY created_at DESC LIMIT ${Math.min(limit, 100)}
   `) as unknown as FeedbackRow[]
-  return rows.map(rowToFeedback)
+  const includeContact = options?.includeContact === true
+  return rows.map(row => {
+    const feedback = rowToFeedback(row)
+    return includeContact ? feedback : { ...feedback, contact: null }
+  })
 }
 
 export interface GrowthStats {

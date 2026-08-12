@@ -1,6 +1,16 @@
+import { timingSafeEqual } from "crypto";
 import { runInvoiceConversation } from "@/lib/chat-invoice";
 
 const TELEGRAM_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
+
+// SECURITY (audit fix 2026-08-13): constant-time comparison, consistent with
+// the pattern already used for every other secret in lib/auth.ts.
+function secretsMatch(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
 
 // A lightweight webhook to handle incoming messages from Telegram
 export async function POST(request: Request) {
@@ -14,8 +24,8 @@ export async function POST(request: Request) {
       console.error("[telegram/webhook] TELEGRAM_WEBHOOK_SECRET is not configured. Refusing request.");
       return new Response("Server misconfigured", { status: 500 });
     }
-    const providedSecret = request.headers.get("x-telegram-bot-api-secret-token");
-    if (providedSecret !== expectedSecret) {
+    const providedSecret = request.headers.get("x-telegram-bot-api-secret-token") || "";
+    if (!secretsMatch(providedSecret, expectedSecret)) {
       return new Response("Unauthorized", { status: 401 });
     }
 

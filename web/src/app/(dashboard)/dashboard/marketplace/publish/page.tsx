@@ -2,9 +2,18 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAccount, useWalletClient } from 'wagmi';
+import { getAddress } from 'viem';
 import { CATEGORY_META } from '@/lib/marketplace/store';
 import type { Category } from '@/lib/marketplace/types';
 import { Icon } from '@/components/icons';
+import { WalletConnectMenu } from '@/components/wallet-connect-menu';
+
+// SECURITY (audit fix 2026-08-13): publishing now requires a wallet-signed,
+// timestamp-bound proof of ownership over authorAddress (mirrors /developers
+// and the invoice-cancellation fix) so nobody can publish under a wallet
+// address they don't control.
+const PUBLISH_MESSAGE = (authorAddress: string, ts: number) => `PayMate marketplace publish by ${authorAddress} at ${ts}`;
 
 const EMPTY_FORM = {
   displayName: '',
@@ -23,6 +32,8 @@ const EMPTY_FORM = {
 
 export default function PublishPage() {
   const router = useRouter();
+  const { address, isConnected } = useAccount();
+  const { data: walletClient } = useWalletClient();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -32,14 +43,24 @@ export default function PublishPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
     setError('');
+    if (!address || !walletClient) {
+      setError('Connect the wallet you want to publish under first.');
+      return;
+    }
+    setSubmitting(true);
     try {
+      const authorAddress = getAddress(address);
+      const ts = Date.now();
+      const message = PUBLISH_MESSAGE(authorAddress.toLowerCase(), ts);
+      const signature = await walletClient.signMessage({ message, account: address as `0x${string}` });
       const res = await fetch('/api/marketplace/plugins', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          authorAddress,
+          authorProof: { message, signature, ts },
           price: parseFloat(form.price),
           tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
           name: form.displayName.toLowerCase().replace(/\s+/g, '-'),
@@ -139,7 +160,8 @@ export default function PublishPage() {
                 </div>
                 <div className="field">
                   <label htmlFor="authorAddress">Wallet address (ERC-8004) *</label>
-                  <input id="authorAddress" type="text" placeholder="0x…" required value={form.authorAddress} onChange={(e) => set('authorAddress', e.target.value)} />
+                  <input id="authorAddress" type="text" placeholder="Connect your wallet" required readOnly value={isConnected && address ? address : ''} />
+                  {!isConnected && <div style={{ marginTop: 8 }}><WalletConnectMenu triggerClassName="button button-outline" triggerLabel="Connect wallet" /></div>}
                 </div>
                 <div className="field">
                   <label htmlFor="githubUrl">GitHub URL</label>

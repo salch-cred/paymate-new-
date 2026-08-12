@@ -1,13 +1,20 @@
 import { createFeedback, listFeedback, type FeedbackRole } from "@/lib/db"
+import { checkAndConsumeRequestBudget } from "@/lib/rateLimit"
 
 const VALID_ROLES: FeedbackRole[] = ["freelancer", "client", "other"]
 
 export async function GET() {
+  // SECURITY (audit fix 2026-08-13): listFeedback() now redacts `contact`
+  // (PII) by default — this route is fully public/unauthenticated.
   const feedback = await listFeedback(100)
   return Response.json({ feedback })
 }
 
 export async function POST(request: Request) {
+  // SECURITY (audit fix 2026-08-13): no auth on this route — cap spam.
+  if (!(await checkAndConsumeRequestBudget("feedback-create", 300, 60 * 60 * 1000))) {
+    return Response.json({ detail: "Too many submissions recently. Please try again later." }, { status: 429 })
+  }
   const body = await request.json().catch(() => null)
   if (!body) return Response.json({ detail: "Invalid request body" }, { status: 422 })
   const { role, name, contact, rating, comment, invoiceId } = body

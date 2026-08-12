@@ -3,6 +3,7 @@ import { paymentRequirements, verifyTransfer, verifyEscrowFunding, ensureEscrowR
 import { getNativeUsdPrice } from "@/lib/price"
 import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
 import { sendReceipt } from "@/lib/email"
+import { isSafeWebhookUrl } from "@/lib/webhookSafety"
 import { getAddress } from "viem"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -166,7 +167,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Trigger Email Receipt
   await sendReceipt("hello@paymateagent.xyz", updated.id, targetAmountUsd);
 
-  if (updated.webhookUrl) {
+  // SECURITY (audit fix 2026-08-13): defense-in-depth SSRF guard —
+  // re-validate at fetch time regardless of how/when webhookUrl was set.
+  if (updated.webhookUrl && isSafeWebhookUrl(updated.webhookUrl)) {
     try {
       await fetch(updated.webhookUrl, {
         method: "POST",

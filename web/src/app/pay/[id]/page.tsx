@@ -70,12 +70,17 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
 
  async function submitDispute(){
    if(!disputeMsg.trim())return;
+   if(!address||!walletClient){setDisputeLog([...disputeLog,{role:"ai",content:"Connect your wallet (as the client or freelancer on this invoice) to file a dispute."}]);return}
    const newLog = [...disputeLog, {role:"user",content:disputeMsg}];
    setDisputeLog(newLog);
    setDisputeMsg("");
    try{
      const transcript=newLog.map(l=>`${l.role==="user"?"Complainant":"Arbitrator"}: ${l.content}`).join("\n");
-     const res=await fetch("/api/arbitrate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({invoiceId:id,complaint:transcript})});
+     const callerAddress=address.toLowerCase();
+     const ts=Date.now();
+     const message=`PayMate dispute invoice ${id} at ${ts}`;
+     const signature=await walletClient.signMessage({message,account:address as `0x${string}`});
+     const res=await fetch("/api/arbitrate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({invoiceId:id,complaint:transcript,callerAddress,message,signature,ts})});
      const data=await res.json();
      if(!res.ok) throw new Error(data.detail||"Arbitration failed");
      const enforcement = data.onChain?.executed
@@ -94,8 +99,9 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
    if(!walletClient||!address||!invoice)return;
    setStatus("paying");
    try{
-     const signature=await walletClient.signTypedData({domain:DOMAIN,types:STREAM_ALLOWANCE_TYPES,primaryType:"StreamAllowance",message:{invoiceId:id,maxAmountUsd:BigInt(Math.round(invoice.amountUsd))},account:address});
-     const res=await fetch(`/api/pay/${id}/stream`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"authorize",signature,maxAmountUsd:invoice.amountUsd})});
+     const streamCap=decryptedAmount!==null?decryptedAmount:(invoice.amountUsd??0);
+     const signature=await walletClient.signTypedData({domain:DOMAIN,types:STREAM_ALLOWANCE_TYPES,primaryType:"StreamAllowance",message:{invoiceId:id,maxAmountUsd:BigInt(Math.round(streamCap))},account:address});
+     const res=await fetch(`/api/pay/${id}/stream`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"authorize",signature,maxAmountUsd:streamCap})});
      if(!res.ok)throw new Error("Stream authorization failed");
      const data=await res.json();
      setInvoice(data.invoice);
@@ -114,7 +120,14 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
  const isEscrowInvoice = !!invoice.githubPrUrl && !invoice.isStream && !invoice.milestones && !invoice.splits
  const isPlaceholderClient = invoice.client.toLowerCase() === OPEN_CLIENT_ADDRESS.toLowerCase() || invoice.client.toLowerCase() === "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc" // legacy bot-invoice sentinel (pre-rename)
  const isAuthorized = isConnected && address && (isPlaceholderClient || address.toLowerCase() === invoice.client.toLowerCase() || address.toLowerCase() === invoice.freelancer.toLowerCase());
- const streamComplete = invoice.isStream && (invoice.streamedAmountUsd || 0) >= invoice.amountUsd
+ // SECURITY (audit fix 2026-08-13): GET /api/invoices/[id] now returns
+ // amountUsd: null for private invoices (the real amount only exists
+ // client-side via the ZK view-key fragment, decrypted into decryptedAmount).
+ // Every numeric computation below must use this safe fallback instead of
+ // touching invoice.amountUsd directly, or it would crash/misbehave for a
+ // private invoice before the view key is known.
+ const effectiveAmount = decryptedAmount !== null ? decryptedAmount : (invoice.amountUsd ?? 0)
+ const streamComplete = invoice.isStream && (invoice.streamedAmountUsd || 0) >= effectiveAmount
 
  return <main className="payment-shell"><header className="payment-nav"><Link className="brand" href="/"><span className="brand-mark"><span/></span><b>PayMate</b></Link><span style={{fontSize:9,color:"#8a8981",background:"rgba(255,255,255,0.6)",border:"1px solid var(--line)",padding:"6px 10px",borderRadius:"12px",letterSpacing:"0.05em",fontWeight:700,backdropFilter:"blur(10px)",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:"6px"}}><Icon name="shield" size={10} /> SECURE ID · {invoice.id.split("-")[0]}</span></header><section className="payment-wrap">
   <aside className="payment-aside"><span className="section-kicker">CLIENT CHECKOUT</span><h1>A clean finish<br/>to good work.</h1><p>This payment settles directly to the freelancer&apos;s wallet and creates verifiable proof of completion.</p><div className="trust-list"><div><Icon name="lock"/>Non-custodial wallet payment</div><div><Icon name="shield"/>On-chain settlement verification</div><div><Icon name="network"/>Portable ERC-8004 reputation</div></div></aside>
@@ -174,7 +187,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
             {invoice.escrowStatus === 'funded' ? (
               <>
                 <p style={{fontSize:'12px', color:'var(--muted)', marginBottom:'12px', lineHeight:1.5}}>
-                  <b style={{color:'#317454'}}>${invoice.amountUsd.toLocaleString()} USDC is locked in the on-chain escrow contract.</b> It is released to the freelancer the exact millisecond the Pull Request merges — or by the AI arbitrator if a dispute is raised.
+                  <b style={{color:'#317454'}}>${effectiveAmount.toLocaleString()} USDC is locked in the on-chain escrow contract.</b> It is released to the freelancer the exact millisecond the Pull Request merges — or by the AI arbitrator if a dispute is raised.
                 </p>
                 {invoice.escrowTxHash && (
                   <a href={`https://explorer.goat.network/tx/${invoice.escrowTxHash}`} target="_blank" rel="noreferrer" style={{display:'inline-flex', alignItems:'center', gap:'8px', padding:'8px 12px', background:'var(--surface)', borderRadius:'6px', fontSize:'12px', fontWeight:600, color:'var(--ink)', textDecoration:'none', border:'1px solid var(--line)', marginBottom:'12px'}}>
@@ -284,7 +297,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
             <div style={{fontWeight:800, marginBottom:'8px', color:'var(--ink)', display:'flex', alignItems:'center', gap:'4px'}}><Icon name="network" size={12}/> Smart Contract Settlement Routing:</div>
             <div style={{display:'flex',justifyContent:'space-between',marginBottom:'4px',color:'var(--muted)'}}>
               <span>Freelancer ({invoice.freelancer.slice(0,6)}...)</span>
-              <span>${(invoice.amountUsd - invoice.splits.reduce((sum,s)=>sum+s.amountUsd,0)).toLocaleString()} USDC</span>
+              <span>${(effectiveAmount - invoice.splits.reduce((sum,s)=>sum+s.amountUsd,0)).toLocaleString()} USDC</span>
             </div>
             {invoice.splits.map((split, i) => (
               <div key={i} style={{display:'flex',justifyContent:'space-between',marginBottom:'4px',color:'var(--muted)'}}>
@@ -323,10 +336,10 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
                   </span>
                 </div>
                 <div style={{fontSize:'24px', fontWeight:800, fontFamily:'var(--font-display)', marginBottom:'8px'}}>
-                  ${invoice.streamedAmountUsd?.toFixed(2) || "0.00"} / ${invoice.amountUsd.toFixed(2)}
+                  ${invoice.streamedAmountUsd?.toFixed(2) || "0.00"} / ${effectiveAmount.toFixed(2)}
                 </div>
                 <div style={{width:'100%', height:'8px', background:'var(--line)', borderRadius:'4px', overflow:'hidden'}}>
-                  <div style={{width: `${Math.min(100, ((invoice.streamedAmountUsd || 0) / invoice.amountUsd) * 100)}%`, height:'100%', background:'var(--ink)', transition:'width 1s linear'}} />
+                  <div style={{width: `${Math.min(100, ((invoice.streamedAmountUsd || 0) / (effectiveAmount || 1)) * 100)}%`, height:'100%', background:'var(--ink)', transition:'width 1s linear'}} />
                 </div>
                 {streamComplete && (
                   <p style={{fontSize:'12px', color:'#317454', fontWeight:700, margin:'12px 0 0'}}>
@@ -416,7 +429,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
   <ClawUpModal 
     isOpen={isClawUpModalOpen} 
     onClose={() => setIsClawUpModalOpen(false)} 
-    amountUsd={invoice.amountUsd}
+    amountUsd={effectiveAmount}
     freelancerAddress={invoice.freelancer}
     onSuccess={async (txHash, chainId) => {
       setIsClawUpModalOpen(false);

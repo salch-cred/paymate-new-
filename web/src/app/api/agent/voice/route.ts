@@ -1,13 +1,26 @@
 import { draftInvoice } from "@/lib/draft"
+import { checkAndConsumeRequestBudget } from "@/lib/rateLimit"
+
+// SECURITY (audit fix 2026-08-13): bound the audio upload size — no auth on
+// this route, so an unbounded blob is a cheap way to burn GEMINI_API_KEY
+// quota/bandwidth. 10MB is generous for a few minutes of compressed speech.
+const MAX_AUDIO_BYTES = 10 * 1024 * 1024
 
 export async function POST(request: Request) {
   try {
+    if (!(await checkAndConsumeRequestBudget("agent-voice", 100, 60 * 60 * 1000))) {
+      return Response.json({ error: "Too many requests. Please try again later." }, { status: 429 })
+    }
+
     const formData = await request.formData()
     const audio = formData.get("audio") as Blob | null
     const history = formData.get("history") as string | null
 
     if (!audio) {
       return Response.json({ error: "No audio provided" }, { status: 400 })
+    }
+    if (audio.size > MAX_AUDIO_BYTES) {
+      return Response.json({ error: "Audio too large." }, { status: 413 })
     }
 
     const apiKey = process.env.GEMINI_API_KEY

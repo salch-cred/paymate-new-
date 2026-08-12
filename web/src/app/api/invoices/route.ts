@@ -1,6 +1,8 @@
 import { isAddress, getAddress } from "viem"
 import { createInvoice, listInvoices } from "@/lib/db"
 import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
+import { isSafeWebhookUrl } from "@/lib/webhookSafety"
+import { checkAndConsumeRequestBudget } from "@/lib/rateLimit"
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -25,7 +27,20 @@ export async function POST(request: Request) {
   // callers must never be able to self-grant that multiplier by simply
   // passing the magic string. Only PayMate's own authenticated /api/clawup/
   // intent route may set this value (server-side, not from request body).
-  const safeWebhookUrl = webhookUrl === REFERRAL_MULTIPLIER_TAG ? null : webhookUrl
+  // SECURITY (audit fix 2026-08-13): this is also the only line of defense
+  // against SSRF via a malicious webhookUrl on this public endpoint. Drop
+  // (rather than hard-reject) anything that isn't a safe http(s) URL — this
+  // field is best-effort and callers already omit it most of the time.
+  const safeWebhookUrl = webhookUrl === REFERRAL_MULTIPLIER_TAG
+    ? null
+    : (typeof webhookUrl === "string" && isSafeWebhookUrl(webhookUrl) ? webhookUrl : null)
+
+  // SECURITY (audit fix 2026-08-13): coarse abuse control — this endpoint has
+  // no auth and writes a DB row per call.
+  if (!(await checkAndConsumeRequestBudget("invoice-create", 500, 60 * 60 * 1000))) {
+    return Response.json({ detail: "Too many invoices created recently. Please try again later." }, { status: 429 })
+  }
+
   if (typeof freelancer !== "string" || !isAddress(freelancer) || typeof client !== "string" || !isAddress(client)) {
     return Response.json({ detail: "Invalid wallet address" }, { status: 422 })
   }

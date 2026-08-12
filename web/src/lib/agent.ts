@@ -12,6 +12,19 @@ export async function autonomousAgentPay(invoice: Invoice): Promise<string> {
     throw new Error("Agent identity (PRIVATE_KEY) not configured.")
   }
 
+  // 0. SECURITY (audit fix 2026-08-13): reject self-dealing outright. A real
+  // invoice always has a distinct payer and payee; freelancer === client is
+  // an unambiguous fraud signal that lets whoever creates an invoice both
+  // name themselves as the "client" AND sign the client-authorization
+  // themselves, defeating the entire point of requiring the payer's
+  // signature. This does not fully solve "who really controls the client
+  // wallet" (two different self-controlled wallets still pass this check),
+  // but it closes the trivial single-wallet case and is a hard floor no
+  // legitimate invoice should ever trip.
+  if (invoice.freelancer.toLowerCase() === invoice.client.toLowerCase()) {
+    throw new Error("SECURITY FAULT: freelancer and client are the same address (self-dealing). Aborting payout.")
+  }
+
   // 1. EIP-712 Safety Proof Verification
   // SECURITY (audit fix, 2026-08-11): the signature must be from the CLIENT
   // (the payer) — the party authorizing the money movement — never the

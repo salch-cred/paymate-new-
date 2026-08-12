@@ -36,12 +36,14 @@ export async function GET(req: NextRequest) {
       }
       
       if (inv.status === 'cancelled') {
+        // (audit fix 2026-08-13) use the real cancellation timestamp now
+        // tracked on the invoice, instead of fabricating createdAt + 1000.
         events.push({
           id: `${inv.id}-cancelled`,
           icon: 'close',
           title: 'Invoice cancelled',
           message: inv.title,
-          timestamp: inv.createdAt + 1000,
+          timestamp: inv.cancelledAt ?? inv.createdAt,
           isRead: false
         })
       }

@@ -1,7 +1,7 @@
 import { getInvoiceByGithubPrUrl, markPaid, markEscrowPaid, addTreasuryRevenue } from "@/lib/db"
 import { createWalletClient, http, getAddress } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
-import { goatChain, ERC20_TRANSFER_ABI, getPublicClient, usdcAmount, resolveEscrowOnChain, isEscrowInvoice, mintReputation, PaymentError } from "@/lib/chain"
+import { goatChain, ERC20_TRANSFER_ABI, getPublicClient, usdcAmount, resolveEscrowOnChain, isEscrowInvoice, mintReputation, assertProductionSafeToken, PaymentError } from "@/lib/chain"
 import { verifyHmacSignature } from "@/lib/auth"
 
 const RPC_URL = process.env.RPC_GOAT_MAINNET || goatChain.rpcUrls.default.http[0]
@@ -34,6 +34,20 @@ export async function POST(request: Request) {
       const invoice = await getInvoiceByGithubPrUrl(prUrl)
       if (!invoice) {
         return Response.json({ status: "ignored", detail: "No pending invoice found for this PR" })
+      }
+
+      // SECURITY (audit fix 2026-08-13): GitHub retries webhook deliveries on
+      // timeout/5xx, and there is no delivery-ID dedup here. Without this
+      // guard, a retried delivery of the SAME valid, signed payload could
+      // process twice: the first delivery moves the escrow status out of
+      // "funded" (into "resolved"), so a retry would fall through past the
+      // escrow branch below into the legacy direct-transfer branch and pay
+      // out a SECOND time from the admin wallet for one PR merge. Bail out
+      // immediately if this invoice is no longer pending — getInvoiceByGithubPrUrl
+      // already filters to status='pending', but re-check explicitly here so
+      // this stays correct even if that query is ever relaxed.
+      if (invoice.status !== "pending") {
+        return Response.json({ status: "ignored", detail: "Invoice already settled — ignoring duplicate/replayed webhook delivery." })
       }
 
       // 2. Autonomous GitHub Escrow: if the client already funded the on-chain
@@ -91,11 +105,19 @@ export async function POST(request: Request) {
       // 3. Legacy fallback (non-escrow invoices, or escrow invoices that were
       // created before escrow was configured): the DevOps Escrow wallet pays
       // the freelancer directly.
+      // SECURITY (audit fix 2026-08-13): this direct-transfer path was missing
+      // the mainnet test-token safety check every other direct-transfer path
+      // enforces (see lib/agent.ts).
+      assertProductionSafeToken()
       if (!usdcToken) throw new Error("USDC_TOKEN not configured")
       const adminKey = process.env.ADMIN_PRIVATE_KEY
       if (!adminKey) throw new Error("ADMIN_PRIVATE_KEY not configured for DevOps Escrow")
-      
-      const account = privateKeyToAccount(`0x${adminKey}`)
+
+      // SECURITY (audit fix 2026-08-13): don't blindly prepend "0x" — if the
+      // env var already includes it, this would double-prefix and crash
+      // privateKeyToAccount. Normalize instead, matching getIssuerAccount().
+      const normalizedAdminKey = (adminKey.startsWith("0x") ? adminKey : `0x${adminKey}`) as `0x${string}`
+      const account = privateKeyToAccount(normalizedAdminKey)
       const publicClient = getPublicClient()
       const walletClient = createWalletClient({ account, chain: goatChain, transport: http(RPC_URL) })
 
@@ -103,6 +125,14 @@ export async function POST(request: Request) {
       let txHash: `0x${string}` | "" = "";
 
       if (invoice.isSwarm && invoice.swarmWallets && invoice.swarmWallets.length > 0) {
+        // SECURITY (audit fix 2026-08-13): validate shares sum to ≤ 1 before
+        // paying anyone — an unvalidated/malformed swarmWallets array could
+        // otherwise overpay the total invoice amount.
+        const totalShare = invoice.swarmWallets.reduce((sum, a) => sum + (Number(a.share) || 0), 0)
+        if (totalShare <= 0 || totalShare > 1.01) {
+          return Response.json({ status: "error", detail: `Invalid swarm shares (sum=${totalShare}); refusing to pay out.` }, { status: 500 })
+        }
+
         console.log(`[GitHub Webhook] Executing Swarm Payout to ${invoice.swarmWallets.length} agents...`)
         
         for (const agent of invoice.swarmWallets) {
