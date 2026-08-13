@@ -45,6 +45,14 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      // Stale dev/test routes: redirect to home instead of 404. A 404 page
+      // makes the Coinbase/Base SDKs' COOP check fail (they fetch the current
+      // URL and log "HTTP error! status: 404" in the console).
+      { source: "/clawup-test", destination: "/", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;
