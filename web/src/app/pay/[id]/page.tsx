@@ -22,6 +22,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
   const [isStreaming, setIsStreaming] = useState(false)
   
   const [decryptedAmount, setDecryptedAmount] = useState<number | null>(null)
+  const [viewKey, setViewKey] = useState<string>("")
   const [viewKeyInput, setViewKeyInput] = useState("")
   const [fiatRates, setFiatRates] = useState<Record<string, number> | null>(null)
   
@@ -34,7 +35,10 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
         const hash = window.location.hash.replace("#key=", "")
         if (hash) {
           const decrypted = decryptViewKey(hash);
-          if (decrypted) setDecryptedAmount(decrypted.amountUsd);
+          if (decrypted && decrypted.amountUsd > 0) {
+            setDecryptedAmount(decrypted.amountUsd);
+            setViewKey(hash);
+          }
         }
       }
     }).catch(e=>setError(e.message||"Could not load invoice")).finally(()=>setLoading(false))
@@ -114,7 +118,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
    }
  }
 
- async function handlePay(milestoneId?: string){if(!isConnected||!address||!walletClient)return;setStatus("paying");if(milestoneId)setActiveMilestone(milestoneId);setError(null);try{if(chain?.id!==goatChain.id)await switchChainAsync({chainId:goatChain.id});const res=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({milestoneId})});if(res.status!==402){if(res.ok){setStatus("paid");setActiveMilestone(null);setInvoice(v=>v?{...v,status:"paid"}:v);return}throw new Error(`Unexpected settlement status: ${res.status}`)}const requirements=await res.json();if(!requirements.accepts||requirements.accepts.length===0)throw new Error("No valid payment options returned.");const txHashes=[];for(const option of requirements.accepts){if(!option.token)throw new Error("Payment requirements missing the USDC token address");if(!option.maxAmountRequired)throw new Error("Payment requirements missing the exact settlement amount");const amount=BigInt(option.maxAmountRequired);const hash=await walletClient.writeContract({address:option.token as `0x${string}`,abi:[{inputs:[{name:"recipient",type:"address"},{name:"amount",type:"uint256"}],name:"transfer",outputs:[{name:"",type:"bool"}],stateMutability:"nonpayable",type:"function"}],functionName:"transfer",args:[option.payTo as `0x${string}`,amount],account:address,chain:goatChain});txHashes.push(hash);}const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":txHashes.join(",")},body:JSON.stringify({milestoneId})});if(!settle.ok)throw new Error("Payment verification failed.");const updatedInvoice=await settle.json();setStatus("idle");setActiveMilestone(null);setInvoice(updatedInvoice.invoice)}catch(e){setStatus("error");setActiveMilestone(null);setError(e instanceof Error?e.message:"Payment failed")}}
+ async function handlePay(milestoneId?: string){if(!isConnected||!address||!walletClient)return;setStatus("paying");if(milestoneId)setActiveMilestone(milestoneId);setError(null);try{if(chain?.id!==goatChain.id)await switchChainAsync({chainId:goatChain.id});const res=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({milestoneId,viewKey:viewKey||undefined})});if(res.status!==402){if(res.ok){setStatus("paid");setActiveMilestone(null);setInvoice(v=>v?{...v,status:"paid"}:v);return}throw new Error(`Unexpected settlement status: ${res.status}`)}const requirements=await res.json();if(!requirements.accepts||requirements.accepts.length===0)throw new Error("No valid payment options returned.");const txHashes=[];for(const option of requirements.accepts){if(!option.token)throw new Error("Payment requirements missing the USDC token address");if(!option.maxAmountRequired)throw new Error("Payment requirements missing the exact settlement amount");const amount=BigInt(option.maxAmountRequired);const hash=await walletClient.writeContract({address:option.token as `0x${string}`,abi:[{inputs:[{name:"recipient",type:"address"},{name:"amount",type:"uint256"}],name:"transfer",outputs:[{name:"",type:"bool"}],stateMutability:"nonpayable",type:"function"}],functionName:"transfer",args:[option.payTo as `0x${string}`,amount],account:address,chain:goatChain});txHashes.push(hash);}const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":txHashes.join(",")},body:JSON.stringify({milestoneId,viewKey:viewKey||undefined})});if(!settle.ok)throw new Error("Payment verification failed.");const updatedInvoice=await settle.json();setStatus("idle");setActiveMilestone(null);setInvoice(updatedInvoice.invoice)}catch(e){setStatus("error");setActiveMilestone(null);setError(e instanceof Error?e.message:"Payment failed")}}
  if(loading)return <main className="loading-page"><div className="loader"/></main>
  if(!invoice)return <main className="loading-page"><div style={{textAlign:"center"}}><h1 style={{fontFamily:"var(--font-display)"}}>Invoice unavailable</h1><p>{error}</p><Link className="button button-dark" href="/">Return home</Link></div></main>
  const paid=invoice.status==="paid"||status==="paid"
@@ -251,8 +255,9 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
                   <input type="text" className="input" placeholder="Paste View Key..." value={viewKeyInput} onChange={e=>setViewKeyInput(e.target.value)} style={{flex:1, height:'36px'}}/>
                   <button className="button" style={{height:'36px', background:'var(--ink)', color:'white'}} onClick={() => {
                     const decrypted = decryptViewKey(viewKeyInput);
-                    if (decrypted) {
+                    if (decrypted && decrypted.amountUsd > 0) {
                       setDecryptedAmount(decrypted.amountUsd);
+                      setViewKey(viewKeyInput);
                       window.location.hash = `#key=${viewKeyInput}`;
                     } else {
                       alert("Invalid View Key");
@@ -460,7 +465,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
         const settle = await fetch(`/api/pay/${id}/settle`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-PAYMENT": `CROSSCHAIN_${chainId}_${txHash}` },
-          body: JSON.stringify({})
+          body: JSON.stringify({ viewKey: viewKey || undefined })
         });
         const updatedInvoice = await settle.json();
         setStatus("idle");

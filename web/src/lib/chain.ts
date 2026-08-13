@@ -385,7 +385,7 @@ export async function getReputationData(freelancer: string) {
   }
 }
 
-export function paymentRequirements(invoice: Invoice, milestoneId?: string) {
+export function paymentRequirements(invoice: Invoice, milestoneId?: string, privateRevealed?: boolean) {
   // SECURITY (2026-07-30, mainnet audit): this used to silently fall back to
   // a hardcoded dummy token address ("0x98bb...") if USDC_TOKEN wasn't set.
   // On mainnet that is a real-money hazard: a missing/misconfigured env var
@@ -439,14 +439,20 @@ export function paymentRequirements(invoice: Invoice, milestoneId?: string) {
     const settleAmount = invoice.isStream && invoice.streamedAmountUsd > 0
       ? Math.min(invoice.streamedAmountUsd, invoice.amountUsd)
       : invoice.amountUsd
+    // ZK Shielded invoices: the amount is masked by default (price "$0.00",
+    // amount 0). It is revealed ONLY to a payer who presents the matching view
+    // key from the pay-link URL fragment — the settle route verifies it against
+    // the real amount + stored SHA-256 commitment and passes privateRevealed
+    // here. Without it, the endpoint stays silent about how much to pay.
+    const masked = invoice.isPrivate && !privateRevealed
     accepts = [{
       scheme: "exact",
       network: "goat",
       asset: getAddress(usdcToken),
       token: getAddress(usdcToken),
       payTo: invoice.freelancer,
-      price: invoice.isPrivate ? "$0.00" : `$${settleAmount.toFixed(2)}`,
-      maxAmountRequired: invoice.isPrivate ? "0" : usdcAmount(settleAmount).toString(),
+      price: masked ? "$0.00" : `$${settleAmount.toFixed(2)}`,
+      maxAmountRequired: masked ? "0" : usdcAmount(settleAmount).toString(),
     }]
   }
 

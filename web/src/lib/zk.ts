@@ -38,3 +38,32 @@ export function decryptViewKey(viewKey: string): { amountUsd: number, salt: stri
     return null;
   }
 }
+
+/**
+ * Server-side check for a private (ZK-shielded) invoice: the client presents
+ * the view key from the pay-link URL fragment, and the backend accepts it only
+ * if it decrypts to the invoice's real amount (tolerance for float rounding)
+ * AND matches the stored SHA-256 commitment when one was captured at creation.
+ * This is what lets the requirements endpoint reveal the true settlement amount
+ * to the authorized payer while keeping it masked from everyone else.
+ */
+export async function verifyViewKeyForInvoice(
+  viewKey: string | null | undefined,
+  amountUsd: number,
+  zkCommitment: string | null | undefined
+): Promise<boolean> {
+  if (!viewKey) return false
+  const decrypted = decryptViewKey(viewKey)
+  if (!decrypted) return false
+  if (typeof decrypted.amountUsd !== "number" || !Number.isFinite(decrypted.amountUsd) || decrypted.amountUsd <= 0) return false
+  if (Math.abs(decrypted.amountUsd - amountUsd) > 0.01) return false
+  if (zkCommitment) {
+    // The commitment is SHA-256(`${amountUsd}_${salt}`) — re-derive it to prove
+    // the key actually belongs to this invoice, not just any matching amount.
+    const encoder = new TextEncoder()
+    const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(`${decrypted.amountUsd}_${decrypted.salt}`))
+    const recomputed = toHex(hashBuffer)
+    if (recomputed !== zkCommitment.toLowerCase()) return false
+  }
+  return true
+}

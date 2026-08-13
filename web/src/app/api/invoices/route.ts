@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   if (!body) return Response.json({ detail: "Invalid request body" }, { status: 422 })
 
-  const { freelancer, client, title, description, amountUsd, dueDate, webhookUrl, splits, recurring, isPrivate, signature } = body
+  const { freelancer, client, title, description, amountUsd, dueDate, webhookUrl, splits, recurring, isPrivate, zkCommitment, signature } = body
 
   // SECURITY (audit fix H-4): the reputation-mint multiplier is granted
   // based on webhookUrl === REFERRAL_MULTIPLIER_TAG. This is a public API —
@@ -105,6 +105,10 @@ export async function POST(request: Request) {
     splits: validatedSplits,
     recurring: validatedRecurring,
     isPrivate: isPrivate === true,
+    // ZK Shielded invoices: the client-side SHA-256 commitment ("${amountUsd}_${salt}")
+    // is stored so the settle endpoint can prove a presented view key belongs to
+    // this invoice. The amount itself stays hidden — only the hash is persisted.
+    zkCommitment: typeof zkCommitment === "string" && /^[0-9a-f]{64}$/i.test(zkCommitment) ? zkCommitment.toLowerCase() : null,
     // The client's EIP-712 authorization is stored verbatim. The autonomous
     // pay path (lib/agent.ts) verifies it against the CLIENT (payer) before
     // moving funds — see the audit fix there. This is a public endpoint, so

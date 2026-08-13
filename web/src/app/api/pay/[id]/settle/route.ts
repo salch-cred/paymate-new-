@@ -5,6 +5,7 @@ import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
 import { sendReceipt } from "@/lib/email"
 import { isSafeWebhookUrl } from "@/lib/webhookSafety"
 import { screenWallets, simulatePaymentSafety } from "@/lib/security"
+import { verifyViewKeyForInvoice } from "@/lib/zk"
 import { getAddress, isAddress, type Address } from "viem"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -14,6 +15,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const body = await request.json().catch(() => null);
   const milestoneId = body?.milestoneId;
+
+  // ZK Shielded invoices: the real amount is only revealed to a payer who
+  // presents the view key from the pay-link URL fragment (#key=...). Verified
+  // against the invoice's real amount + stored SHA-256 commitment before any
+  // requirements are quoted or any payment is accepted.
+  const privateRevealed = invoice.isPrivate
+    ? await verifyViewKeyForInvoice(body?.viewKey, invoice.amountUsd, invoice.zkCommitment)
+    : false;
 
   if (invoice.status === "paid") return Response.json({ ok: true, invoice, alreadySettled: true })
   
@@ -27,11 +36,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const txHash = request.headers.get("X-PAYMENT")
   if (!txHash) {
     try {
-      return Response.json(paymentRequirements(invoice, milestoneId), { status: 402 })
+      return Response.json(paymentRequirements(invoice, milestoneId, privateRevealed), { status: 402 })
     } catch (error) {
       if (error instanceof PaymentError) return Response.json({ detail: error.message }, { status: error.status })
       throw error
     }
+  }
+
+  // A private (ZK-shielded) invoice must not settle without the matching view
+  // key — otherwise the masking could be bypassed by paying through a side
+  // path and the payment requirements were never honestly quoted.
+  if (invoice.isPrivate && !privateRevealed) {
+    return Response.json(
+      { detail: "This is a ZK-shielded invoice. The pay link must include the #key=<view key> fragment to settle." },
+      { status: 402 }
+    )
   }
 
   // Autonomous GitHub Escrow: the client's payment is locked into the on-chain

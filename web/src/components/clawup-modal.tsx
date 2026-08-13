@@ -14,49 +14,50 @@ interface ClawUpModalProps {
 }
 
 // Real mainnet chain IDs supported by the cross-chain settlement verifier
-// (chain.ts CROSS_CHAIN_CLIENTS + price.ts). Logos come from DefiLlama's
-// chain-icon CDN — verified to resolve for every entry below.
-const chainIcon = (folder: string) =>
-  `https://icons.llamao.fi/icons/chains/rsz_${folder}.jpg`
+// (chain.ts CROSS_CHAIN_CLIENTS + price.ts). Logos are the chains' OFFICIAL
+// brand marks, vendored locally in /public/chain-logos (sources: Trust Wallet
+// assets repo, CoinGecko, cryptologos) so they never depend on a third-party CDN.
+const chainIcon = (name: string) =>
+  `/chain-logos/${name}${name === "mode" || name === "zora" ? ".jpg" : ".png"}`
 
 const chains = [
-  { id: 1, name: "Ethereum", folder: "ethereum", symbol: "ETH", decimals: 18 },
-  { id: 56, name: "BNB Smart Chain", folder: "bsc", symbol: "BNB", decimals: 18 },
-  { id: 8453, name: "Base", folder: "base", symbol: "ETH", decimals: 18 },
-  { id: 10, name: "Optimism", folder: "optimism", symbol: "ETH", decimals: 18 },
-  { id: 42161, name: "Arbitrum One", folder: "arbitrum", symbol: "ETH", decimals: 18 },
-  { id: 137, name: "Polygon", folder: "polygon", symbol: "POL", decimals: 18 },
-  { id: 43114, name: "Avalanche", folder: "avalanche", symbol: "AVAX", decimals: 18 },
-  { id: 250, name: "Fantom", folder: "fantom", symbol: "FTM", decimals: 18 },
-  { id: 42220, name: "Celo", folder: "celo", symbol: "CELO", decimals: 18 },
-  { id: 324, name: "zkSync Era", folder: "zksync-era", symbol: "ETH", decimals: 18 },
-  { id: 59144, name: "Linea", folder: "linea", symbol: "ETH", decimals: 18 },
-  { id: 534352, name: "Scroll", folder: "scroll", symbol: "ETH", decimals: 18 },
-  { id: 81457, name: "Blast", folder: "blast", symbol: "ETH", decimals: 18 },
-  { id: 1088, name: "Metis", folder: "metis", symbol: "METIS", decimals: 18 },
-  { id: 5000, name: "Mantle", folder: "mantle", symbol: "MNT", decimals: 18 },
-  { id: 204, name: "opBNB", folder: "opbnb", symbol: "BNB", decimals: 18 },
-  { id: 1101, name: "Polygon zkEVM", folder: "polygon_zkevm", symbol: "ETH", decimals: 18 },
-  { id: 42170, name: "Arbitrum Nova", folder: "arbitrum-nova", symbol: "ETH", decimals: 18 },
-  { id: 25, name: "Cronos", folder: "cronos", symbol: "CRO", decimals: 18 },
-  { id: 100, name: "Gnosis", folder: "gnosis", symbol: "xDAI", decimals: 18 },
-  { id: 1313161554, name: "Aurora", folder: "aurora", symbol: "ETH", decimals: 18 },
-  { id: 1284, name: "Moonbeam", folder: "moonbeam", symbol: "GLMR", decimals: 18 },
-  { id: 1285, name: "Moonriver", folder: "moonriver", symbol: "MOVR", decimals: 18 },
-  { id: 8217, name: "Klaytn", folder: "klaytn", symbol: "KLAY", decimals: 18 },
-  { id: 1666600000, name: "Harmony", folder: "harmony", symbol: "ONE", decimals: 18 },
-  { id: 1116, name: "Core", folder: "core", symbol: "CORE", decimals: 18 },
-  { id: 252, name: "Fraxtal", folder: "fraxtal", symbol: "frxETH", decimals: 18 },
-  { id: 34443, name: "Mode", folder: "mode", symbol: "ETH", decimals: 18 },
-  { id: 13371, name: "Immutable zkEVM", folder: "imx", symbol: "IMX", decimals: 18 },
-  { id: 40, name: "Telos", folder: "telos", symbol: "TLOS", decimals: 18 },
-  { id: 82, name: "Meter", folder: "meter", symbol: "MTR", decimals: 18 },
-  { id: 592, name: "Astar", folder: "astar", symbol: "ASTR", decimals: 18 },
-  { id: 66, name: "OKC", folder: "okexchain", symbol: "OKT", decimals: 18 },
-  { id: 2222, name: "Kava", folder: "kava", symbol: "KAVA", decimals: 18 },
-  { id: 30, name: "Rootstock", folder: "rootstock", symbol: "RBTC", decimals: 18 },
-  { id: 146, name: "Sonic", folder: "sonic", symbol: "S", decimals: 18 },
-  { id: 7777777, name: "Zora", folder: "zora", symbol: "ETH", decimals: 18 },
+  { id: 1, name: "Ethereum", logo: "ethereum", symbol: "ETH", decimals: 18 },
+  { id: 56, name: "BNB Smart Chain", logo: "bsc", symbol: "BNB", decimals: 18 },
+  { id: 8453, name: "Base", logo: "base", symbol: "ETH", decimals: 18 },
+  { id: 10, name: "Optimism", logo: "optimism", symbol: "ETH", decimals: 18 },
+  { id: 42161, name: "Arbitrum One", logo: "arbitrum", symbol: "ETH", decimals: 18 },
+  { id: 137, name: "Polygon", logo: "polygon", symbol: "POL", decimals: 18 },
+  { id: 43114, name: "Avalanche", logo: "avalanche", symbol: "AVAX", decimals: 18 },
+  { id: 250, name: "Fantom", logo: "fantom", symbol: "FTM", decimals: 18 },
+  { id: 42220, name: "Celo", logo: "celo", symbol: "CELO", decimals: 18 },
+  { id: 324, name: "zkSync Era", logo: "zksync", symbol: "ETH", decimals: 18 },
+  { id: 59144, name: "Linea", logo: "linea", symbol: "ETH", decimals: 18 },
+  { id: 534352, name: "Scroll", logo: "scroll", symbol: "ETH", decimals: 18 },
+  { id: 81457, name: "Blast", logo: "blast", symbol: "ETH", decimals: 18 },
+  { id: 1088, name: "Metis", logo: "metis", symbol: "METIS", decimals: 18 },
+  { id: 5000, name: "Mantle", logo: "mantle", symbol: "MNT", decimals: 18 },
+  { id: 204, name: "opBNB", logo: "opbnb", symbol: "BNB", decimals: 18 },
+  { id: 1101, name: "Polygon zkEVM", logo: "polygon-zkevm", symbol: "ETH", decimals: 18 },
+  { id: 42170, name: "Arbitrum Nova", logo: "arbitrum-nova", symbol: "ETH", decimals: 18 },
+  { id: 25, name: "Cronos", logo: "cronos", symbol: "CRO", decimals: 18 },
+  { id: 100, name: "Gnosis", logo: "gnosis", symbol: "xDAI", decimals: 18 },
+  { id: 1313161554, name: "Aurora", logo: "aurora", symbol: "ETH", decimals: 18 },
+  { id: 1284, name: "Moonbeam", logo: "moonbeam", symbol: "GLMR", decimals: 18 },
+  { id: 1285, name: "Moonriver", logo: "moonriver", symbol: "MOVR", decimals: 18 },
+  { id: 8217, name: "Klaytn", logo: "klaytn", symbol: "KLAY", decimals: 18 },
+  { id: 1666600000, name: "Harmony", logo: "harmony", symbol: "ONE", decimals: 18 },
+  { id: 1116, name: "Core", logo: "core", symbol: "CORE", decimals: 18 },
+  { id: 252, name: "Fraxtal", logo: "fraxtal", symbol: "frxETH", decimals: 18 },
+  { id: 34443, name: "Mode", logo: "mode", symbol: "ETH", decimals: 18 },
+  { id: 13371, name: "Immutable zkEVM", logo: "immutable-zkevm", symbol: "IMX", decimals: 18 },
+  { id: 40, name: "Telos", logo: "telos", symbol: "TLOS", decimals: 18 },
+  { id: 82, name: "Meter", logo: "meter", symbol: "MTR", decimals: 18 },
+  { id: 592, name: "Astar", logo: "astar", symbol: "ASTR", decimals: 18 },
+  { id: 66, name: "OKC", logo: "okc", symbol: "OKT", decimals: 18 },
+  { id: 2222, name: "Kava", logo: "kava", symbol: "KAVA", decimals: 18 },
+  { id: 30, name: "Rootstock", logo: "rootstock", symbol: "RBTC", decimals: 18 },
+  { id: 146, name: "Sonic", logo: "sonic", symbol: "S", decimals: 18 },
+  { id: 7777777, name: "Zora", logo: "zora", symbol: "ETH", decimals: 18 },
 ];
 
 /** Adds a 3% buffer so the settlement covers the invoice amount even if the
@@ -199,7 +200,7 @@ export function ClawUpModal({ isOpen, onClose, onSuccess, amountUsd, freelancerA
                     <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={chainIcon(c.folder)}
+                        src={chainIcon(c.logo)}
                         alt={c.name}
                         loading="lazy"
                         style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
