@@ -156,10 +156,13 @@ export function ClawUpModal({ isOpen, onClose, onSuccess, amountUsd, freelancerA
         border: '1px solid var(--line)'
       }}>
         <div style={{ padding: '20px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ background: 'var(--ink)', color: 'white', padding: '4px', borderRadius: '6px' }}>
-              <Icon name="network" size={14} />
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/clawup-mark-orange.svg"
+              alt="ClawUp"
+              style={{ width: 26, height: 26, borderRadius: '6px' }}
+            />
             <span style={{ fontWeight: 800, fontFamily: 'var(--font-display)', fontSize: '18px' }}>ClawUp Cross-Chain</span>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>

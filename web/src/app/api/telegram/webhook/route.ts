@@ -50,9 +50,9 @@ export async function POST(request: Request) {
       platform: "Telegram",
       chatKey: chatId.toString(),
       userText: text,
-      extraInstruction: "If the user is asking a question about the current details, answer them naturally in the 'reply' field.",
+      extraInstruction: "If the user is asking a question about the current details, answer them naturally in the 'reply' field. Never ask the user to use a command or a specific format — they should always talk to you in plain natural language.",
       offlineReply: async () => {
-        await sendMessage({ chat_id: chatId, text: "AI drafting is currently offline. Use exact format: `/invoice 0xYourWalletAddress $500 for landing page`" });
+        await sendMessage({ chat_id: chatId, text: "I can draft your invoice from plain words — just tell me your wallet address, the amount, and what the work is. For example: \"my wallet is 0x... and I want a $500 invoice for a landing page\"." });
       },
       onReply: async (replyText) => {
         await sendMessage({ chat_id: chatId, text: replyText });
