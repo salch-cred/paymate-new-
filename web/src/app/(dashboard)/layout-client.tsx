@@ -16,9 +16,10 @@ const WalletConnectMenu = dynamic(
   () => import("@/components/wallet-connect-menu").then(m => m.WalletConnectMenu),
   { ssr: false },
 )
-import { useAccount, useEnsName } from "wagmi"
+import { useEnsName } from "wagmi"
 import { mainnet } from "wagmi/chains"
 import { usePrivy } from "@privy-io/react-auth"
+import { useWallet } from "@/lib/useWallet"
 
 const NAV = [
   {
@@ -53,7 +54,7 @@ function isActive(pathname: string, href: string) {
 }
 
 export function DashboardLayoutClient({ children }: { children: React.ReactNode }) {
-  const { address, isConnected } = useAccount()
+  const { address, isConnected } = useWallet()
   const { logout } = usePrivy()
   const { data: ensName } = useEnsName({ address: address as `0x${string}`, chainId: mainnet.id })
   const pathname = usePathname()

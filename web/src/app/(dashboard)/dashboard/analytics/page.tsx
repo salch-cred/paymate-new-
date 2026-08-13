@@ -1,9 +1,9 @@
 "use client"
 
-import { useAccount } from "wagmi"
 import { useQuery } from "@tanstack/react-query"
 import { Icon } from "@/components/icons"
 import { WalletConnectMenu } from "@/components/wallet-connect-menu"
+import { useWallet } from "@/lib/useWallet"
 
 type Invoice = {
   id: string
@@ -16,7 +16,7 @@ type Invoice = {
 }
 
 export default function AnalyticsPage() {
-  const { address, isConnected } = useAccount()
+  const { address, isConnected } = useWallet()
   const { data: invoices = [], isLoading, isError } = useQuery<Invoice[]>({
     queryKey: ["invoices", address],
     queryFn: async () => {

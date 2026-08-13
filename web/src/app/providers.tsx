@@ -26,7 +26,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         },
         supportedChains: [...supportedChains],
         defaultChain: goatChain,
-        walletConnectCloudProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "d5e89d14fc04d744f4ccbb715bb99a53",
+        // Only pass a WalletConnect Cloud project ID when one is configured.
+        // An invalid/placeholder fallback breaks wallet listings with
+        // "Project id is not valid"; when omitted Privy uses its own default.
+        ...(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+          ? { walletConnectCloudProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID }
+          : {}),
         loginMethods: ['wallet', 'email', 'passkey'],
         embeddedWallets: {
           ethereum: {

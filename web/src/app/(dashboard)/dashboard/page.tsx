@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useAccount, useWalletClient } from "wagmi"
+import { useWalletClient } from "wagmi"
 import { isAddress, getAddress } from "viem"
+import { useWallet } from "@/lib/useWallet"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Icon } from "@/components/icons"
 import { WalletConnectMenu } from "@/components/wallet-connect-menu"
@@ -40,7 +41,7 @@ declare global {
 }
 
 export default function DashboardPage(){
-  const {address,isConnected}=useAccount();
+  const {address,isConnected}=useWallet();
   const {data:walletClient}=useWalletClient();
   // removed logout and ensName as they are handled in layout-client.tsx
  const queryClient=useQueryClient()

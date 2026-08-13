@@ -2,11 +2,12 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { useAccount, useWalletClient } from "wagmi"
+import { useWalletClient } from "wagmi"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { getAddress, isAddress } from "viem"
 import { Icon } from "@/components/icons"
 import { WalletConnectMenu } from "@/components/wallet-connect-menu"
+import { useWallet } from "@/lib/useWallet"
 
 interface KeyRow {
   id: string
@@ -25,7 +26,7 @@ const SIGN_MESSAGE = (wallet: string, ts: number) => `PayMate API key management
 const nowMs = () => Date.now()
 
 export default function DevelopersPage() {
-  const { address, isConnected } = useAccount()
+  const { address, isConnected } = useWallet()
   const { data: walletClient } = useWalletClient()
 
   const queryClient = useQueryClient()

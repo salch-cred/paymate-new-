@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAccount, useWalletClient } from 'wagmi';
+import { useWalletClient } from 'wagmi';
 import { getAddress } from 'viem';
 import { CATEGORY_META } from '@/lib/marketplace/store';
 import type { Category } from '@/lib/marketplace/types';
 import { Icon } from '@/components/icons';
 import { WalletConnectMenu } from '@/components/wallet-connect-menu';
+import { useWallet } from '@/lib/useWallet';
 
 // SECURITY (audit fix 2026-08-13): publishing now requires a wallet-signed,
 // timestamp-bound proof of ownership over authorAddress (mirrors /developers
@@ -32,7 +33,7 @@ const EMPTY_FORM = {
 
 export default function PublishPage() {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useWallet();
   const { data: walletClient } = useWalletClient();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
