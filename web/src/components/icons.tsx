@@ -26,12 +26,13 @@ import {
   UserCircleIcon,
   Package01Icon,
   Store01Icon,
+  Logout01Icon,
 } from "hugeicons-react"
 
 export type IconName =
   | "arrow" | "spark" | "bell" | "wallet" | "shield" | "bolt" | "link" | "chart" | "check" | "copy"
   | "invoice" | "users" | "globe" | "send" | "menu" | "close" | "receipt" | "lock"
-  | "network" | "chevron" | "search" | "code" | "calendar" | "user" | "package" | "store"
+  | "network" | "chevron" | "search" | "code" | "calendar" | "user" | "package" | "store" | "logout"
 
 const components: Record<IconName, typeof ArrowRight01Icon> = {
   arrow: ArrowRight01Icon,
@@ -60,6 +61,7 @@ const components: Record<IconName, typeof ArrowRight01Icon> = {
   user: UserCircleIcon,
   package: Package01Icon,
   store: Store01Icon,
+  logout: Logout01Icon,
 }
 
 export function Icon({ name, size = 20, ...props }: SVGProps<SVGSVGElement> & { name: IconName; size?: number }) {

@@ -157,6 +157,9 @@ button, a { touch-action: manipulation; }
 .sidebar-foot { margin: auto 12px 0; padding: 14px 0 18px; border-color: rgba(255,255,255,.1); }
 .network-chip { background: transparent; border-color: rgba(255,255,255,.11); color: #a8aaa2; border-radius: 8px; }
 .network-chip span { color: #a8aaa2; }
+/* Log out — shown in the sidebar (phone drawer + desktop) when a wallet is connected */
+.sidebar-logout { width: 100%; height: 40px; margin-top: 4px; border: 0; border-radius: 8px; background: transparent; color: #a6a8a0; font-size: 11px; font-weight: 650; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: .15s ease; }
+.sidebar-logout:hover { background: rgba(255,255,255,.07); color: #fff; }
 
 .app-main { min-width: 0; background: #f4f2ed; }
 .app-topbar-slim { min-height: 58px; padding: 0 28px; background: rgba(244,242,237,.95); border-color: var(--line); }
@@ -296,9 +299,10 @@ button, a { touch-action: manipulation; }
   .app-frame { grid-template-columns: 76px minmax(0, 1fr); }
   .app-sidebar { padding: 0; }
   .sidebar-desktop-brand { justify-content: center; margin: 0 8px 4px; padding: 0; }
-  .sidebar-desktop-brand b, .side-nav a span, .network-chip span, .side-nav .nav-label { display: none; }
+  .sidebar-desktop-brand b, .side-nav a span, .network-chip span, .sidebar-logout span, .side-nav .nav-label { display: none; }
   .side-nav { padding: 8px; }
   .side-nav a { justify-content: center; padding: 0; }
+  .sidebar-logout { justify-content: center; padding: 0; }
   .sidebar-foot { margin-left: 8px; margin-right: 8px; }
   .network-chip { justify-content: center; padding: 10px 0; }
   .app-content, .dashboard-page-content { padding-left: 22px; padding-right: 22px; }
@@ -351,7 +355,8 @@ button, a { touch-action: manipulation; }
   .app-frame { display: block; }
   .app-sidebar { width: min(86vw, 310px); max-width: 310px; }
   .sidebar-mobile-header { min-height: 66px; }
-  .sidebar-mobile-header .brand b, .side-nav a span, .network-chip span, .side-nav .nav-label { display: inline !important; }
+  .sidebar-mobile-header .brand b, .side-nav a span, .network-chip span, .sidebar-logout span, .side-nav .nav-label { display: inline !important; }
+  .sidebar-logout { justify-content: flex-start; padding: 0 11px; }
   .side-nav { padding: 8px 12px 18px; }
   .side-nav a { justify-content: flex-start !important; padding: 0 11px !important; }
   .network-chip { justify-content: flex-start; padding: 10px 12px; }

@@ -4,6 +4,9 @@ import { initStore, addPluginPersisted } from '@/lib/marketplace/serverStore';
 import type { PublishPluginPayload } from '@/lib/marketplace/types';
 import { verifyFreshWalletProof } from '@/lib/walletProof';
 import { checkAndConsumeRequestBudget } from '@/lib/rateLimit';
+import { verifyFreshWalletProof712, type WalletProof712 } from '@/lib/security';
+import { claimProofNonce } from '@/lib/db';
+import { goatChain } from '@/lib/chain';
 
 const MAX_BODY_BYTES = 64 * 1024; // 64 KB
 const MAX_TAGS = 10;
@@ -90,13 +93,22 @@ export async function POST(request: NextRequest) {
   const authorAddress = (body.authorAddress as string).toLowerCase();
   const authorProof = (body as { authorProof?: { message?: unknown; signature?: unknown; ts?: unknown } }).authorProof;
   const expectedMessage = `PayMate marketplace publish by ${authorAddress} at ${authorProof?.ts}`;
-  const validProof = await verifyFreshWalletProof(
+  const legacyValid = await verifyFreshWalletProof(
     { wallet: authorAddress, message: authorProof?.message, signature: authorProof?.signature, ts: authorProof?.ts },
     expectedMessage
   );
-  if (!validProof) {
+  // EIP-712 typed-data proof (Tier-1 security): chain-scoped domain (GOAT
+  // chainId) + nonce replay guard. Accepted as an ALTERNATIVE so existing
+  // signers keep working unchanged.
+  const typedProof = (body as { authorProof712?: WalletProof712 }).authorProof712;
+  const typedValid = typedProof
+    ? await verifyFreshWalletProof712(typedProof, goatChain.id, claimProofNonce)
+    : { ok: false as const, reason: 'not provided' };
+  if (!legacyValid && !typedValid.ok) {
     return NextResponse.json(
-      { error: `Wallet ownership proof required. Sign exactly: "PayMate marketplace publish by ${authorAddress} at <ts>" and provide authorProof: { message, signature, ts }.` },
+      {
+        error: `Wallet ownership proof required. Either sign exactly: "PayMate marketplace publish by ${authorAddress} at <ts>" and provide authorProof: { message, signature, ts }, or provide an EIP-712 authorProof712: { action: "marketplace:publish", wallet: "${authorAddress}", nonce, expiresAt, signature } signed for chain ${goatChain.id} (domain: PayMate v1).`,
+      },
       { status: 401 }
     );
   }

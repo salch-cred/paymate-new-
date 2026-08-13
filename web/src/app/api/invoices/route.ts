@@ -3,6 +3,7 @@ import { createInvoice, listInvoices } from "@/lib/db"
 import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
 import { isSafeWebhookUrl } from "@/lib/webhookSafety"
 import { checkAndConsumeRequestBudget } from "@/lib/rateLimit"
+import { screenWallets } from "@/lib/security"
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -46,6 +47,12 @@ export async function POST(request: Request) {
 
   if (typeof freelancer !== "string" || !isAddress(freelancer) || typeof client !== "string" || !isAddress(client)) {
     return Response.json({ detail: "Invalid wallet address" }, { status: 422 })
+  }
+  // Tier-1 security: AML-style screening of both parties before an invoice
+  // can be created (static validation, blocklist, optional remote screener).
+  const screen = await screenWallets(freelancer, client)
+  if (!screen.ok) {
+    return Response.json({ detail: `Invoice refused by security screening: ${screen.reason}` }, { status: 403 })
   }
   if (typeof title !== "string" || title.length < 2 || title.length > 120) {
     return Response.json({ detail: "title must be between 2 and 120 characters" }, { status: 422 })

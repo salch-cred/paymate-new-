@@ -150,7 +150,36 @@ export default function DocsPage() {
           <p className="text-gray-600 leading-relaxed mb-6">
             For enterprise privacy, agents can create shielded invoices. The invoice data (amount, title, description) is encrypted on the client side. PayMate only stores the cryptographic hash. When settled, it mints a "Shielded Job" reputation token on GOAT Network without leaking economic data.
           </p>
-          
+
+          {/* Security */}
+          <h2 id="security" className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight mb-4">Security</h2>
+          <p className="text-gray-600 leading-relaxed mb-6">
+            PayMate treats money movement with fail-closed, defense-in-depth controls. Beyond the usual hardening (strict CSP/security headers, rate limits, SSRF-guarded webhooks, fail-closed APIs), three Tier-1 technologies protect every payment path:
+          </p>
+          <div className="space-y-4 mb-6">
+            <div className="rounded-xl border border-gray-200 bg-white p-5">
+              <b className="block text-sm mb-1">1 · Pre-flight payment simulation</b>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Before a settlement or plugin unlock is accepted, the transfer is simulated against on-chain state via state-override <code className="text-xs">eth_call</code>. This detects <b>fee-on-transfer tokens</b> (the recipient would receive less than invoiced) and <b>revert-on-receive contracts</b> (native cross-chain payments to contracts that can't accept funds). Suspicious results refuse the settlement with a clear reason. Disable with <code className="text-xs">SECURITY_SIMULATE_PAYMENTS=false</code>.
+              </p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-5">
+              <b className="block text-sm mb-1">2 · AML / sanctions screening</b>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Invoice creation, settlement, and plugin purchases screen every wallet (client, freelancer, payer, developer) with static validation, an env blocklist (<code className="text-xs">SECURITY_BLOCKED_ADDRESSES</code>), and an optional TRM-style remote screener (<code className="text-xs">SECURITY_SCREENING_URL</code> + <code className="text-xs">SECURITY_SCREENING_KEY</code>). Blocked addresses are refused with a 403.
+              </p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-5">
+              <b className="block text-sm mb-1">3 · EIP-712 cross-chain replay protection</b>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Wallet-ownership proofs now accept EIP-712 typed data signed for the <b>PayMate v1</b> domain scoped to the chain's <code className="text-xs">chainId</code> (optionally bound to <code className="text-xs">PAYMATE_DOMAIN_CONTRACT</code>), with a per-wallet <b>nonce replay guard</b> — a proof signed for one chain can never be replayed on another, and each proof works exactly once. Legacy message proofs keep working unchanged.
+              </p>
+            </div>
+          </div>
+          <p className="text-gray-600 leading-relaxed mb-6">
+            Existing hardening that still applies: on-chain settlement replay guards (<code className="text-xs">used_settlement_tx</code>, <code className="text-xs">plugin_usage_log</code>), timestamp-bound signature freshness, non-custodial payments (funds never touch PayMate), verified wallet ownership for every mutation, ZK amount masking for shielded invoices, and fail-closed behavior whenever a security control cannot be evaluated.
+          </p>
+
         </main>
       </div>
 

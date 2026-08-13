@@ -133,6 +133,12 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
               <i />
               <span>GOAT Network · Live</span>
             </div>
+            {isConnected && (
+              <button className="sidebar-logout" onClick={() => logout()}>
+                <Icon name="logout" size={14} />
+                <span>Log out</span>
+              </button>
+            )}
           </div>
         </aside>
 

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAddress, getAddress } from "viem";
+import { isAddress, getAddress, type Address } from "viem";
 import { initStore } from "@/lib/marketplace/serverStore";
 import { getPluginById, incrementPluginUsage } from "@/lib/marketplace/store";
-import { verifyPluginPayment, PaymentError, usdcAmount } from "@/lib/chain";
+import { verifyPluginPayment, PaymentError, usdcAmount, getPublicClient } from "@/lib/chain";
+import { screenWallets, simulatePaymentSafety } from "@/lib/security";
 import {
   extractTxHash,
   PAYMENT_REQUIRED_HEADER,
@@ -51,7 +52,34 @@ export async function POST(
         );
       }
       // Real on-chain verification — same security bar as invoice settlement.
-      await verifyPluginPayment(txHash, plugin.author, plugin.price);
+      const payer = await verifyPluginPayment(txHash, plugin.author, plugin.price);
+
+      // ── Tier-1 security: screen both parties + simulate the payment ──
+      const screen = await screenWallets(payer, plugin.author);
+      if (!screen.ok) {
+        return NextResponse.json(
+          { error: `Plugin use refused by security screening: ${screen.reason}` },
+          { status: 403 }
+        );
+      }
+      const usdcTokenForSim = process.env.USDC_TOKEN;
+      if (usdcTokenForSim && isAddress(usdcTokenForSim)) {
+        const sim = await simulatePaymentSafety(getPublicClient(), {
+          token: getAddress(usdcTokenForSim) as Address,
+          to: getAddress(plugin.author) as Address,
+          amount: usdcAmount(plugin.price),
+        });
+        if (sim && !sim.safe) {
+          return NextResponse.json(
+            {
+              error: sim.feeOnTransfer
+                ? "Plugin use refused: the payment token applies a transfer fee, so the developer would receive less than the listed price."
+                : `Plugin use refused by payment simulation: ${sim.revertReason || "unexpected revert"}`,
+            },
+            { status: 402 }
+          );
+        }
+      }
 
       // Count the use (in-memory mirror + Postgres).
       const updated = incrementPluginUsage(plugin.id);

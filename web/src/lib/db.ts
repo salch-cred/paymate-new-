@@ -274,6 +274,15 @@ async function ready(): Promise<void> {
         plugin_id TEXT NOT NULL,
         created_at BIGINT NOT NULL
       )`
+      // EIP-712 wallet-proof replay guard (Tier-1 security): a typed-data
+      // proof's (wallet, nonce) pair can be claimed exactly once. The domain
+      // already scopes proofs to a chain; this table stops same-chain replays.
+      await sql`CREATE TABLE IF NOT EXISTS wallet_proof_nonce (
+        wallet TEXT NOT NULL,
+        nonce TEXT NOT NULL,
+        used_at BIGINT NOT NULL,
+        PRIMARY KEY (wallet, nonce)
+      )`
     })()
   }
   return globalThis.__paymateSchemaReady
@@ -1245,5 +1254,29 @@ export async function consumeApiQuota(id: string, amountUsd: number): Promise<bo
   } catch (error) {
     console.error("[db] consumeApiQuota failed, failing closed:", error)
     return false
+  }
+}
+
+/**
+ * EIP-712 replay guard (Tier-1 security): atomically claims a
+ * (wallet, nonce) pair exactly once. Returns false if the nonce was already
+ * used — the same proof can never be accepted twice.
+ */
+export async function claimProofNonce(wallet: string, nonce: string): Promise<boolean> {
+  try {
+    await ready()
+    const sql = getSql()
+    const rows = (await sql`
+      INSERT INTO wallet_proof_nonce (wallet, nonce, used_at)
+      VALUES (${wallet.toLowerCase()}, ${nonce}, ${Date.now()})
+      ON CONFLICT (wallet, nonce) DO NOTHING
+      RETURNING wallet
+    `) as unknown as { wallet: string }[]
+    return rows.length > 0
+  } catch (error) {
+    console.error("[db] claimProofNonce failed, failing open:", error)
+    // Fail open only on DB outage: signature validity + freshness still gate
+    // the proof; the nonce guard is a second layer, not the only one.
+    return true
   }
 }

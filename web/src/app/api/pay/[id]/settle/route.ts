@@ -1,10 +1,11 @@
 import { getInvoice, markPaid, markMilestonePaid, markEscrowFunded, addTreasuryRevenue } from "@/lib/db"
-import { paymentRequirements, verifyTransfer, verifyEscrowFunding, ensureEscrowRegistered, confirmEscrowFunded, isEscrowInvoice, mintReputation, PaymentError, getCrossChainClient } from "@/lib/chain"
+import { paymentRequirements, verifyTransfer, verifyEscrowFunding, ensureEscrowRegistered, confirmEscrowFunded, isEscrowInvoice, mintReputation, PaymentError, getCrossChainClient, getPublicClient, usdcAmount } from "@/lib/chain"
 import { getNativeUsdPrice } from "@/lib/price"
 import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
 import { sendReceipt } from "@/lib/email"
 import { isSafeWebhookUrl } from "@/lib/webhookSafety"
-import { getAddress } from "viem"
+import { screenWallets, simulatePaymentSafety } from "@/lib/security"
+import { getAddress, isAddress, type Address } from "viem"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -115,6 +116,51 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const targetAmountUsd = milestoneId && invoice.milestones ? invoice.milestones.find(m => m.id === milestoneId)?.amountUsd || 0 : invoice.amountUsd;
+
+  // ── Tier-1 security: AML/sanctions screening + pre-flight payment simulation ──
+  try {
+    const screen = await screenWallets(invoice.client, invoice.freelancer)
+    if (!screen.ok) {
+      return Response.json({ detail: `Settlement refused by security screening: ${screen.reason}` }, { status: 403 })
+    }
+    if (process.env.SECURITY_SIMULATE_PAYMENTS !== "false") {
+      if (txHash.startsWith("CROSSCHAIN_")) {
+        const [, chainIdStr, hash] = txHash.split("_")
+        const sourceClient = getCrossChainClient(parseInt(chainIdStr, 10))
+        if (sourceClient) {
+          const sourceTx = await sourceClient.getTransaction({ hash: hash as `0x${string}` })
+          const sim = await simulatePaymentSafety(sourceClient, {
+            to: getAddress(invoice.freelancer) as Address,
+            amount: sourceTx.value,
+          })
+          if (sim && !sim.safe) {
+            return Response.json({
+              detail: `Settlement refused by payment simulation: ${sim.revertReason || "the recipient cannot receive the payment"}`,
+            }, { status: 402 })
+          }
+        }
+      } else {
+        const usdcToken = process.env.USDC_TOKEN
+        if (usdcToken && isAddress(usdcToken)) {
+          const sim = await simulatePaymentSafety(getPublicClient(), {
+            token: getAddress(usdcToken) as Address,
+            to: getAddress(invoice.freelancer) as Address,
+            amount: usdcAmount(targetAmountUsd),
+          })
+          if (sim && !sim.safe) {
+            return Response.json({
+              detail: sim.feeOnTransfer
+                ? "Settlement refused: the payment token applies a transfer fee, so the freelancer would receive less than invoiced."
+                : `Settlement refused by payment simulation: ${sim.revertReason || "unexpected revert"}`,
+            }, { status: 402 })
+          }
+        }
+      }
+    }
+  } catch (error) {
+    // Never let a security-helper infra error block an already-verified payment.
+    console.error("[Security] settlement checks failed (continuing):", error)
+  }
 
   // Generate a receipt hash for the settlement proof
   const receiptData = JSON.stringify({
