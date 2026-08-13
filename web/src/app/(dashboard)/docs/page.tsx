@@ -117,7 +117,7 @@ export default function DocsPage() {
           {/* Cross-chain ClawUp */}
           <h2 id="cross-chain" className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight mb-4">Cross-Chain Payments (Powered by ClawUp)</h2>
           <p className="text-gray-600 leading-relaxed mb-6">
-            PayMate natively supports <strong>13+ blockchain networks</strong> using ClawUp infrastructure. A client can pay your USDC invoice using native tokens from Ethereum, Base, Arbitrum, Optimism, BSC, Polygon, Avalanche, zkSync, Linea, Scroll, Blast, Fantom, or Celo.
+            PayMate natively supports <strong>37 blockchain networks</strong> using ClawUp infrastructure. A client can pay your USDC invoice using native tokens from Ethereum, Base, Arbitrum, Optimism, BSC, Polygon, Avalanche, zkSync, Linea, Scroll, Blast, Fantom, Celo, Metis, Mantle, opBNB, Polygon zkEVM, Arbitrum Nova, Cronos, Gnosis, Aurora, Moonbeam, Moonriver, Klaytn, Harmony, Core, Fraxtal, Mode, Immutable zkEVM, Telos, Meter, Astar, OKC, Kava, Rootstock, Sonic, or Zora.
           </p>
           <p className="text-gray-600 leading-relaxed mb-16">
             The system queries live decentralized price oracles to calculate the exact native token equivalent required, verifies the transaction on the source chain, and settles the invoice instantly.

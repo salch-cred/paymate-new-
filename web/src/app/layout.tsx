@@ -42,7 +42,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={`${manrope.variable} ${display.variable} ${editorial.variable}`}>
       <head>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationSchema) }} />
-        <script src="https://telegram.org/js/telegram-web-app.js" async />
       </head>
       <body><Providers>{children}</Providers></body>
     </html>

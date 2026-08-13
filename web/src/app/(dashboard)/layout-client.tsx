@@ -4,8 +4,18 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Icon } from "@/components/icons"
-import { NotificationCenter } from "@/components/notification-center"
-import { WalletConnectMenu } from "@/components/wallet-connect-menu"
+import dynamic from "next/dynamic"
+
+// Lazy-load the dashboard widgets so the shell (sidebar + nav) hydrates
+// instantly instead of waiting on the wallet/notification chunks.
+const NotificationCenter = dynamic(
+  () => import("@/components/notification-center").then(m => m.NotificationCenter),
+  { ssr: false },
+)
+const WalletConnectMenu = dynamic(
+  () => import("@/components/wallet-connect-menu").then(m => m.WalletConnectMenu),
+  { ssr: false },
+)
 import { useAccount, useEnsName } from "wagmi"
 import { mainnet } from "wagmi/chains"
 import { usePrivy } from "@privy-io/react-auth"
@@ -72,6 +82,7 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
           {/* Logo */}
           <div className="sidebar-mobile-header">
             <Link className="brand" href="/" style={{ flex: 1 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/logo-app-v2.png"
                 alt="PayMate"
@@ -87,6 +98,7 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
 
           {/* Desktop logo (hidden on mobile, shown via CSS) */}
           <Link className="brand sidebar-desktop-brand" href="/">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/logo-app-v2.png"
               alt="PayMate"

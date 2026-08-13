@@ -1,13 +1,21 @@
 import { createPublicClient, createWalletClient, http, getAddress, isAddress, decodeFunctionData, type Chain } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import type { Invoice } from "./db"
-import { goat, base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo, mainnet, zksync, linea, scroll, blast } from "viem/chains"
+import {
+  goat, base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo, mainnet, zksync, linea, scroll, blast,
+  metis, mantle, opBNB, polygonZkEvm, arbitrumNova, cronos, gnosis, aurora, moonbeam, moonriver,
+  klaytn, harmonyOne, coreDao, fraxtal, mode, immutableZkEvm, telos, meter, astar, okc, kava,
+  rootstock, sonic, zora,
+} from "viem/chains"
 
 export const goatChain = goat
 
 export const supportedChains: readonly [Chain, ...Chain[]] = [
   goatChain,
-  base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo, mainnet, zksync, linea, scroll, blast
+  base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo, mainnet, zksync, linea, scroll, blast,
+  metis, mantle, opBNB, polygonZkEvm, arbitrumNova, cronos, gnosis, aurora, moonbeam, moonriver,
+  klaytn, harmonyOne, coreDao, fraxtal, mode, immutableZkEvm, telos, meter, astar, okc, kava,
+  rootstock, sonic, zora,
 ]
 const RPC_URL = process.env.RPC_GOAT_MAINNET || goatChain.rpcUrls.default.http[0]
 
@@ -137,6 +145,31 @@ const CROSS_CHAIN_CLIENTS: Record<number, Chain> = {
   59144: linea,
   534352: scroll,
   81457: blast,
+  // Expanded cross-chain support (ClawUp routing)
+  1088: metis,          // Metis
+  5000: mantle,         // Mantle
+  204: opBNB,           // opBNB
+  1101: polygonZkEvm,   // Polygon zkEVM
+  42170: arbitrumNova,  // Arbitrum Nova
+  25: cronos,           // Cronos
+  100: gnosis,          // Gnosis
+  1313161554: aurora,   // Aurora
+  1284: moonbeam,       // Moonbeam
+  1285: moonriver,      // Moonriver
+  8217: klaytn,         // Klaytn
+  1666600000: harmonyOne, // Harmony
+  1116: coreDao,        // Core
+  252: fraxtal,         // Fraxtal
+  34443: mode,          // Mode
+  13371: immutableZkEvm, // Immutable zkEVM
+  40: telos,            // Telos
+  82: meter,            // Meter
+  592: astar,           // Astar
+  66: okc,              // OKC
+  2222: kava,           // Kava
+  30: rootstock,        // Rootstock
+  146: sonic,           // Sonic
+  7777777: zora,        // Zora
 }
 
 /** Returns a public client for a supported cross-chain settlement, or null. */

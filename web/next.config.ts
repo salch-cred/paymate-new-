@@ -7,8 +7,11 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   // Referrer policy: never leak the full URL to third parties
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Prevent browsers from interpreting this as a cross-origin opener
-  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  // Prevent browsers from interpreting this as a cross-origin opener.
+  // NOTE: must NOT be plain "same-origin" — Coinbase Wallet SDK and Base
+  // Account SDK (smart wallets) require same-origin-allow-popups to
+  // communicate with their native apps via popups.
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
   // Basic CSP: restrict script sources to self + inline (Next injects
   // inline scripts for hydration). Report-only so it can be tightened
   // without breaking wallet SDKs (wagmi/Privy inject dynamic scripts).
@@ -30,6 +33,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Hide the floating Next.js DevTools "N" bubble and Issues badge in dev
+  // (dev-only artifact; it overlapped the landing footer's bottom-left).
+  devIndicators: false,
   async headers() {
     return [
       {

@@ -128,10 +128,17 @@ button, a { touch-action: manipulation; }
 .landing-cta { padding: 75px max(24px, calc((100% - 1200px)/2)); background: #e6e1d7; display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; }
 .landing-cta h2 { margin-top: 20px; }
 .landing-cta .button { min-height: 50px; }
-.landing-footer { width: min(1320px, calc(100% - 48px)); min-height: 150px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr auto; align-items: center; gap: 25px; color: #787970; }
-.landing-footer p { font-size: 11px; text-align: center; }
-.landing-footer nav { display: flex; gap: 24px; font-size: 10px; font-weight: 700; }
-.landing-footer > small { grid-column: 1/4; padding: 17px 0; border-top: 1px solid var(--line); font-size: 8px; }
+/* Full-bleed dark footer. Explicit values override the old global `footer`
+   card rule (bg #e5e1d7, border-radius, centered text) so there are no
+   inset gaps on either side and alignment stays consistent. */
+.landing-footer { background: #171814; color: #93958c; margin: 0; border-radius: 0; padding: 64px max(24px, calc((100% - 1200px)/2)) 28px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 32px; align-items: center; text-align: left; }
+.landing-footer .landing-brand b { color: #fff; }
+.landing-footer .landing-brand small { color: #777970; }
+.landing-footer p { font-size: 11px; color: #93958c; text-align: center; }
+.landing-footer nav { display: flex; gap: 24px; font-size: 10px; font-weight: 700; justify-content: flex-end; }
+.landing-footer nav a { color: #c5c7bf; }
+.landing-footer nav a:hover { color: #fff; }
+.landing-footer > small { grid-column: 1/4; padding: 22px 0 0; border-top: 1px solid rgba(255,255,255,.1); font-size: 8px; color: #74766e; }
 
 /* Dashboard foundation */
 .app-shell { background: #eeece6; }
@@ -141,8 +148,8 @@ button, a { touch-action: manipulation; }
 .app-sidebar .brand b { color: #fff; font-size: 15px; }
 .side-nav { padding: 8px 12px 18px; }
 .side-nav > div { display: flex; flex-direction: column; gap: 3px; }
-.side-nav .nav-label { margin: 22px 10px 7px; color: #696b65; font-size: 8px; }
-.side-nav a, .side-nav button { height: 40px; padding: 0 11px; border-radius: 8px; color: #a6a8a0; font-size: 11px; font-weight: 650; }
+.side-nav .nav-label { margin: 22px 10px 7px; color: #9a9c94; font-size: 8px; }
+.side-nav a, .side-nav button { height: 40px; padding: 0 11px; border-radius: 8px; color: #fff; font-size: 11px; font-weight: 650; }
 .side-nav a svg, .side-nav button svg { opacity: .8; }
 .side-nav a:hover { background: rgba(255,255,255,.07); color: #fff; }
 .side-nav .active { background: var(--orange); color: #fff; }
@@ -336,10 +343,10 @@ button, a { touch-action: manipulation; }
   .receipt-total strong { font-size: 29px; }
   .receipt-line { align-items: flex-start; padding: 15px 0; flex-direction: column; }
   .landing-cta { padding-top: 60px; padding-bottom: 60px; }
-  .landing-footer { width: calc(100% - 32px); padding: 35px 0 0; grid-template-columns: 1fr; align-items: start; }
+  .landing-footer { width: auto; padding: 44px 22px 26px; grid-template-columns: 1fr; align-items: start; gap: 20px; }
   .landing-footer p { text-align: left; }
-  .landing-footer nav { flex-wrap: wrap; }
-  .landing-footer > small { grid-column: 1; width: 100%; }
+  .landing-footer nav { flex-wrap: wrap; justify-content: flex-start; gap: 20px; }
+  .landing-footer > small { grid-column: 1; width: 100%; text-align: left; }
 
   .app-frame { display: block; }
   .app-sidebar { width: min(86vw, 310px); max-width: 310px; }

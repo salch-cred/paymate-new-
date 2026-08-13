@@ -10,6 +10,13 @@
  * Prices come from CoinGecko's public API and are cached in-process (60s TTL).
  * If prices cannot be fetched, verification fails closed (no silent settlement).
  */
+/** Chain ids that can be used as a ClawUp cross-chain settlement source. */
+export const SUPPORTED_CROSS_CHAIN_IDS: number[] = [
+  1, 56, 8453, 10, 42161, 137, 43114, 250, 42220, 324, 59144, 534352, 81457,
+  1088, 5000, 204, 1101, 42170, 25, 100, 1313161554, 1284, 1285, 8217, 1666600000,
+  1116, 252, 34443, 13371, 40, 82, 592, 66, 2222, 30, 146, 7777777,
+]
+
 const COIN_ID_BY_CHAIN_ID: Record<number, string> = {
   1: "ethereum",          // ETH (Mainnet)
   56: "binancecoin",      // BNB (BSC)
@@ -24,6 +31,31 @@ const COIN_ID_BY_CHAIN_ID: Record<number, string> = {
   59144: "ethereum",      // ETH (Linea)
   534352: "ethereum",     // ETH (Scroll)
   81457: "ethereum",      // ETH (Blast)
+  // Expanded cross-chain support (ClawUp routing)
+  1088: "metis-token",    // METIS
+  5000: "mantle",         // MNT
+  204: "binancecoin",     // BNB (opBNB)
+  1101: "ethereum",       // ETH (Polygon zkEVM)
+  42170: "ethereum",      // ETH (Arbitrum Nova)
+  25: "crypto-com-chain", // CRO (Cronos)
+  100: "xdai",            // xDAI (Gnosis)
+  1313161554: "ethereum",// ETH (Aurora)
+  1284: "moonbeam",       // GLMR (Moonbeam)
+  1285: "moonriver",      // MOVR (Moonriver)
+  8217: "klay-token",     // KLAY (Klaytn)
+  1666600000: "harmony", // ONE (Harmony)
+  1116: "coredaoorg",     // CORE (Core)
+  252: "frax-ether",      // frxETH (Fraxtal)
+  34443: "ethereum",      // ETH (Mode)
+  13371: "immutable-x",   // IMX (Immutable zkEVM)
+  40: "telos",            // TLOS (Telos)
+  82: "meter",            // MTR (Meter)
+  592: "astar",           // ASTR (Astar)
+  66: "oec-token",        // OKT (OKC)
+  2222: "kava",           // KAVA
+  30: "rootstock",        // RBTC (Rootstock)
+  146: "sonic-3",         // S (Sonic)
+  7777777: "ethereum",    // ETH (Zora)
 }
 
 let cache: { at: number; prices: Record<string, number> } | null = null

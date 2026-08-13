@@ -13,21 +13,50 @@ interface ClawUpModalProps {
   freelancerAddress: string;
 }
 
-// Real mainnet chain IDs supported by the cross-chain settlement verifier.
+// Real mainnet chain IDs supported by the cross-chain settlement verifier
+// (chain.ts CROSS_CHAIN_CLIENTS + price.ts). Logos come from DefiLlama's
+// chain-icon CDN — verified to resolve for every entry below.
+const chainIcon = (folder: string) =>
+  `https://icons.llamao.fi/icons/chains/rsz_${folder}.jpg`
+
 const chains = [
-  { id: 1, name: "Ethereum", icon: <img src="https://cryptologos.cc/logos/ethereum-eth-logo.svg" alt="ETH" style={{width: 20, height: 20}} />, symbol: "ETH", decimals: 18 },
-  { id: 56, name: "Binance (BSC)", icon: <img src="https://cryptologos.cc/logos/bnb-bnb-logo.svg" alt="BNB" style={{width: 20, height: 20}} />, symbol: "BNB", decimals: 18 },
-  { id: 8453, name: "Base", icon: <img src="https://avatars.githubusercontent.com/u/108554348?v=4" alt="Base" style={{width: 20, height: 20, borderRadius: '50%'}} />, symbol: "ETH", decimals: 18 },
-  { id: 10, name: "Optimism", icon: <img src="https://cryptologos.cc/logos/optimism-ethereum-op-logo.svg" alt="OP" style={{width: 20, height: 20}} />, symbol: "ETH", decimals: 18 },
-  { id: 42161, name: "Arbitrum", icon: <img src="https://cryptologos.cc/logos/arbitrum-arb-logo.svg" alt="ARB" style={{width: 20, height: 20}} />, symbol: "ETH", decimals: 18 },
-  { id: 137, name: "Polygon", icon: <img src="https://cryptologos.cc/logos/polygon-matic-logo.svg" alt="POL" style={{width: 20, height: 20}} />, symbol: "POL", decimals: 18 },
-  { id: 43114, name: "Avalanche", icon: <img src="https://cryptologos.cc/logos/avalanche-avax-logo.svg" alt="AVAX" style={{width: 20, height: 20}} />, symbol: "AVAX", decimals: 18 },
-  { id: 250, name: "Fantom", icon: <img src="https://cryptologos.cc/logos/fantom-ftm-logo.svg" alt="FTM" style={{width: 20, height: 20}} />, symbol: "FTM", decimals: 18 },
-  { id: 42220, name: "Celo", icon: <img src="https://cryptologos.cc/logos/celo-celo-logo.svg" alt="CELO" style={{width: 20, height: 20}} />, symbol: "CELO", decimals: 18 },
-  { id: 324, name: "zkSync", icon: <img src="https://cryptologos.cc/logos/zksync-logo.png" alt="zkSync" style={{width: 20, height: 20}} />, symbol: "ETH", decimals: 18 },
-  { id: 59144, name: "Linea", icon: <div style={{width: 20, height: 20, background: '#121212', borderRadius: '50%', color: '#fff', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>L</div>, symbol: "ETH", decimals: 18 },
-  { id: 534352, name: "Scroll", icon: <div style={{width: 20, height: 20, background: '#FFE6A5', borderRadius: '50%', color: '#101010', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>S</div>, symbol: "ETH", decimals: 18 },
-  { id: 81457, name: "Blast", icon: <div style={{width: 20, height: 20, background: '#FCFC03', borderRadius: '50%', color: '#000', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'}}>B</div>, symbol: "ETH", decimals: 18 },
+  { id: 1, name: "Ethereum", folder: "ethereum", symbol: "ETH", decimals: 18 },
+  { id: 56, name: "BNB Smart Chain", folder: "bsc", symbol: "BNB", decimals: 18 },
+  { id: 8453, name: "Base", folder: "base", symbol: "ETH", decimals: 18 },
+  { id: 10, name: "Optimism", folder: "optimism", symbol: "ETH", decimals: 18 },
+  { id: 42161, name: "Arbitrum One", folder: "arbitrum", symbol: "ETH", decimals: 18 },
+  { id: 137, name: "Polygon", folder: "polygon", symbol: "POL", decimals: 18 },
+  { id: 43114, name: "Avalanche", folder: "avalanche", symbol: "AVAX", decimals: 18 },
+  { id: 250, name: "Fantom", folder: "fantom", symbol: "FTM", decimals: 18 },
+  { id: 42220, name: "Celo", folder: "celo", symbol: "CELO", decimals: 18 },
+  { id: 324, name: "zkSync Era", folder: "zksync-era", symbol: "ETH", decimals: 18 },
+  { id: 59144, name: "Linea", folder: "linea", symbol: "ETH", decimals: 18 },
+  { id: 534352, name: "Scroll", folder: "scroll", symbol: "ETH", decimals: 18 },
+  { id: 81457, name: "Blast", folder: "blast", symbol: "ETH", decimals: 18 },
+  { id: 1088, name: "Metis", folder: "metis", symbol: "METIS", decimals: 18 },
+  { id: 5000, name: "Mantle", folder: "mantle", symbol: "MNT", decimals: 18 },
+  { id: 204, name: "opBNB", folder: "opbnb", symbol: "BNB", decimals: 18 },
+  { id: 1101, name: "Polygon zkEVM", folder: "polygon_zkevm", symbol: "ETH", decimals: 18 },
+  { id: 42170, name: "Arbitrum Nova", folder: "arbitrum-nova", symbol: "ETH", decimals: 18 },
+  { id: 25, name: "Cronos", folder: "cronos", symbol: "CRO", decimals: 18 },
+  { id: 100, name: "Gnosis", folder: "gnosis", symbol: "xDAI", decimals: 18 },
+  { id: 1313161554, name: "Aurora", folder: "aurora", symbol: "ETH", decimals: 18 },
+  { id: 1284, name: "Moonbeam", folder: "moonbeam", symbol: "GLMR", decimals: 18 },
+  { id: 1285, name: "Moonriver", folder: "moonriver", symbol: "MOVR", decimals: 18 },
+  { id: 8217, name: "Klaytn", folder: "klaytn", symbol: "KLAY", decimals: 18 },
+  { id: 1666600000, name: "Harmony", folder: "harmony", symbol: "ONE", decimals: 18 },
+  { id: 1116, name: "Core", folder: "core", symbol: "CORE", decimals: 18 },
+  { id: 252, name: "Fraxtal", folder: "fraxtal", symbol: "frxETH", decimals: 18 },
+  { id: 34443, name: "Mode", folder: "mode", symbol: "ETH", decimals: 18 },
+  { id: 13371, name: "Immutable zkEVM", folder: "imx", symbol: "IMX", decimals: 18 },
+  { id: 40, name: "Telos", folder: "telos", symbol: "TLOS", decimals: 18 },
+  { id: 82, name: "Meter", folder: "meter", symbol: "MTR", decimals: 18 },
+  { id: 592, name: "Astar", folder: "astar", symbol: "ASTR", decimals: 18 },
+  { id: 66, name: "OKC", folder: "okexchain", symbol: "OKT", decimals: 18 },
+  { id: 2222, name: "Kava", folder: "kava", symbol: "KAVA", decimals: 18 },
+  { id: 30, name: "Rootstock", folder: "rootstock", symbol: "RBTC", decimals: 18 },
+  { id: 146, name: "Sonic", folder: "sonic", symbol: "S", decimals: 18 },
+  { id: 7777777, name: "Zora", folder: "zora", symbol: "ETH", decimals: 18 },
 ];
 
 /** Adds a 3% buffer so the settlement covers the invoice amount even if the
@@ -39,6 +68,10 @@ export function ClawUpModal({ isOpen, onClose, onSuccess, amountUsd, freelancerA
   const [selectedChain, setSelectedChain] = useState<number | null>(null);
   const [prices, setPrices] = useState<Record<number, number | null>>({});
   const [amountOut, setAmountOut] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const filteredChains = search.trim()
+    ? chains.filter(c => c.name.toLowerCase().includes(search.trim().toLowerCase()) || c.symbol.toLowerCase().includes(search.trim().toLowerCase()))
+    : chains;
   
   const { switchChainAsync } = useSwitchChain();
   const { sendTransactionAsync } = useSendTransaction();
@@ -137,32 +170,52 @@ export function ClawUpModal({ isOpen, onClose, onSuccess, amountUsd, freelancerA
           {step === "select" && (
             <div>
               <p style={{ marginBottom: '16px', color: 'var(--muted)', fontSize: '14px' }}>
-                Pay from any network. Your wallet will send <b>${amountUsd.toLocaleString()}</b>{" "}worth of the
+                Pay from any of <b>{chains.length} networks</b>. Your wallet will send <b>${amountUsd.toLocaleString()}</b>{" "}worth of the
                 network&apos;s native token directly to the freelancer, and our backend cryptographically verifies
                 the value on-chain before settling on GOAT.
               </p>
+              <input
+                type="text"
+                placeholder="Search {chains.length} networks…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="input"
+                style={{ width: '100%', height: '38px', marginBottom: '10px', fontSize: '13px' }}
+              />
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '35vh', overflowY: 'auto', padding: '2px' }}>
-                {chains.map(c => (
+                {filteredChains.map(c => (
                   <button 
                     key={c.id} 
                     onClick={() => selectChain(c.id)}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '16px', borderRadius: '12px',
+                      padding: '14px 16px', borderRadius: '12px',
                       border: selectedChain === c.id ? '2px solid var(--ink)' : '1px solid var(--line)',
                       background: selectedChain === c.id ? 'rgba(0,0,0,0.02)' : 'white',
-                      cursor: 'pointer', fontSize: '16px', fontWeight: 600,
+                      cursor: 'pointer', fontSize: '15px', fontWeight: 600,
                       flexShrink: 0
                     }}
                   >
                     <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span>{c.icon}</span> {c.name}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={chainIcon(c.folder)}
+                        alt={c.name}
+                        loading="lazy"
+                        style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                      {c.name}
                     </span>
                     <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--muted)' }}>
                       {selectedChain === c.id && amountOut ? `≈ ${amountOut} ${c.symbol}` : c.symbol}
                     </span>
                   </button>
                 ))}
+                {filteredChains.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)', fontSize: '13px' }}>
+                    No network matches “{search}”.
+                  </div>
+                )}
               </div>
               <button 
                 onClick={handlePay}

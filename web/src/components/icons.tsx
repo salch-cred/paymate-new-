@@ -2,6 +2,7 @@ import type { SVGProps } from "react"
 import {
   ArrowRight01Icon,
   SparklesIcon,
+  Notification02Icon,
   Wallet01Icon,
   Shield01Icon,
   FlashIcon,
@@ -28,13 +29,14 @@ import {
 } from "hugeicons-react"
 
 export type IconName =
-  | "arrow" | "spark" | "wallet" | "shield" | "bolt" | "link" | "chart" | "check" | "copy"
+  | "arrow" | "spark" | "bell" | "wallet" | "shield" | "bolt" | "link" | "chart" | "check" | "copy"
   | "invoice" | "users" | "globe" | "send" | "menu" | "close" | "receipt" | "lock"
   | "network" | "chevron" | "search" | "code" | "calendar" | "user" | "package" | "store"
 
 const components: Record<IconName, typeof ArrowRight01Icon> = {
   arrow: ArrowRight01Icon,
   spark: SparklesIcon,
+  bell: Notification02Icon,
   wallet: Wallet01Icon,
   shield: Shield01Icon,
   bolt: FlashIcon,
