@@ -283,6 +283,33 @@ async function ready(): Promise<void> {
         used_at BIGINT NOT NULL,
         PRIMARY KEY (wallet, nonce)
       )`
+      // Public per-use Agent Billing API: a developer registers a billable
+      // agent (price per request + wallet that receives payment + optional
+      // monthly cap). Consumers pay USDC on GOAT via the x402 handshake; each
+      // paid use is counted here for the usage meter and quota enforcement.
+      await sql`CREATE TABLE IF NOT EXISTS billable_agents (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        price_usd DOUBLE PRECISION NOT NULL,
+        freelancer TEXT NOT NULL,
+        endpoint TEXT,
+        api_key_id TEXT,
+        monthly_cap INTEGER NOT NULL DEFAULT 1000,
+        usage_count INTEGER NOT NULL DEFAULT 0,
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at BIGINT NOT NULL
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_billable_agents_key ON billable_agents(api_key_id, created_at DESC)`
+      // Replay guard + usage ledger for agent billing: each on-chain tx hash
+      // can unlock exactly one paid use of a billable agent (PK-dedup, same
+      // pattern as plugin_usage_log).
+      await sql`CREATE TABLE IF NOT EXISTS agent_billing_usage (
+        tx_hash TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        created_at BIGINT NOT NULL
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_agent_billing_usage_agent ON agent_billing_usage(agent_id, created_at DESC)`
     })()
   }
   return globalThis.__paymateSchemaReady
@@ -569,8 +596,150 @@ export async function incrementPluginUsageInDb(id: string): Promise<void> {
   `
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Public per-use Agent Billing (x402 billable agents)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface BillableAgent {
+  id: string
+  name: string
+  description: string
+  priceUsd: number
+  freelancer: string
+  endpoint: string | null
+  apiKeyId: string | null
+  monthlyCap: number
+  usageCount: number
+  active: boolean
+  createdAt: number
+}
+
+interface BillableAgentRow {
+  id: string
+  name: string
+  description: string
+  price_usd: number
+  freelancer: string
+  endpoint: string | null
+  api_key_id: string | null
+  monthly_cap: number
+  usage_count: number
+  active: boolean
+  created_at: string
+}
+
+function rowToBillableAgent(row: BillableAgentRow): BillableAgent {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    priceUsd: Number(row.price_usd),
+    freelancer: row.freelancer,
+    endpoint: row.endpoint || null,
+    apiKeyId: row.api_key_id || null,
+    monthlyCap: Number(row.monthly_cap || 1000),
+    usageCount: Number(row.usage_count || 0),
+    active: !!row.active,
+    createdAt: Number(row.created_at),
+  }
+}
+
+/** Registers a billable agent owned by an API key. */
+export async function createBillableAgent(input: {
+  id: string
+  name: string
+  description: string
+  priceUsd: number
+  freelancer: string
+  endpoint?: string | null
+  apiKeyId: string
+  monthlyCap?: number
+}): Promise<BillableAgent> {
+  await ready()
+  const sql = getSql()
+  const agent: BillableAgent = {
+    id: input.id,
+    name: input.name,
+    description: input.description,
+    priceUsd: Math.round(input.priceUsd * 100) / 100,
+    freelancer: input.freelancer,
+    endpoint: input.endpoint || null,
+    apiKeyId: input.apiKeyId,
+    monthlyCap: Math.max(1, Math.round(input.monthlyCap ?? 1000)),
+    usageCount: 0,
+    active: true,
+    createdAt: Date.now(),
+  }
+  await sql`
+    INSERT INTO billable_agents (
+      id, name, description, price_usd, freelancer, endpoint, api_key_id, monthly_cap, usage_count, active, created_at
+    ) VALUES (
+      ${agent.id}, ${agent.name}, ${agent.description}, ${agent.priceUsd}, ${agent.freelancer},
+      ${agent.endpoint}, ${agent.apiKeyId}, ${agent.monthlyCap}, ${agent.usageCount}, ${agent.active}, ${agent.createdAt}
+    )
+  `
+  return agent
+}
+
+/** Fetches a billable agent by id, or null. */
+export async function getBillableAgent(id: string): Promise<BillableAgent | null> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`SELECT * FROM billable_agents WHERE id = ${id} LIMIT 1`) as unknown as BillableAgentRow[]
+  return rows[0] ? rowToBillableAgent(rows[0]) : null
+}
+
+/** Lists all billable agents owned by an API key (usage meter page). */
+export async function listBillableAgents(apiKeyId: string): Promise<BillableAgent[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM billable_agents WHERE api_key_id = ${apiKeyId} ORDER BY created_at DESC
+  `) as unknown as BillableAgentRow[]
+  return rows.map(rowToBillableAgent)
+}
+
 /**
- * Public economy snapshot for the PayMate Economy page.
+ * Atomically reserves a tx hash for one paid use of a billable agent.
+ * Returns false when the hash was already consumed (replayed payment) —
+ * the caller must NOT count the use or unlock the agent.
+ */
+export async function reserveAgentBillingUsage(txHash: string, agentId: string): Promise<boolean> {
+  await ready()
+  const sql = getSql()
+  const reserved = (await sql`
+    INSERT INTO agent_billing_usage (tx_hash, agent_id, created_at)
+    VALUES (${txHash}, ${agentId}, ${Date.now()})
+    ON CONFLICT (tx_hash) DO NOTHING
+    RETURNING tx_hash
+  `) as unknown as { tx_hash: string }[]
+  return reserved.length > 0
+}
+
+/** Increments a billable agent's total usage counter in Postgres. */
+export async function incrementAgentBillingUsageInDb(id: string): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`UPDATE billable_agents SET usage_count = usage_count + 1 WHERE id = ${id}`
+}
+
+/** Counts paid uses of an agent since `sinceMs` (used for the monthly meter). */
+export async function countAgentBillingUsageSince(agentId: string, sinceMs: number): Promise<number> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT COUNT(*)::int AS n FROM agent_billing_usage WHERE agent_id = ${agentId} AND created_at >= ${sinceMs}
+  `) as unknown as { n: number }[]
+  return rows[0]?.n || 0
+}
+
+/** Start-of-month epoch ms for the quota window (UTC calendar month). */
+export function startOfMonthMs(now: number = Date.now()): number {
+  const d = new Date(now)
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)
+}
+
+/** Public economy snapshot for the PayMate Economy page.
  * Wallet addresses are public on-chain identifiers (same as the growth page).
  */
 export interface TopSettler {
