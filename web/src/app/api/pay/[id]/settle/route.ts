@@ -1,5 +1,6 @@
 import { getInvoice, markPaid, markMilestonePaid, markEscrowFunded, addTreasuryRevenue } from "@/lib/db"
 import { paymentRequirements, verifyTransfer, verifyEscrowFunding, ensureEscrowRegistered, confirmEscrowFunded, isEscrowInvoice, mintReputation, PaymentError, getCrossChainClient, getPublicClient, usdcAmount } from "@/lib/chain"
+import { PAYMENT_REQUIRED_HEADER } from "@/lib/paywall"
 import { getNativeUsdPrice } from "@/lib/price"
 import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
 import { sendReceipt } from "@/lib/email"
@@ -36,7 +37,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const txHash = request.headers.get("X-PAYMENT")
   if (!txHash) {
     try {
-      return Response.json(paymentRequirements(invoice, milestoneId, privateRevealed), { status: 402 })
+      // x402 (audit fix 2026-08-13): the challenge MUST carry the
+      // PAYMENT-REQUIRED header (base64 x402 payload) in addition to the JSON
+      // body — x402-compliant machine clients read the header, not the body.
+      // Without it, agent-to-agent settlement silently breaks even though the
+      // JSON body looks correct.
+      const requirements = paymentRequirements(invoice, milestoneId, privateRevealed)
+      return new Response(JSON.stringify(requirements), {
+        status: 402,
+        headers: {
+          "Content-Type": "application/json",
+          [PAYMENT_REQUIRED_HEADER]: Buffer.from(JSON.stringify(requirements)).toString("base64"),
+        },
+      })
     } catch (error) {
       if (error instanceof PaymentError) return Response.json({ detail: error.message }, { status: error.status })
       throw error
