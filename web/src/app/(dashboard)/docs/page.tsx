@@ -1,8 +1,7 @@
 "use client";
 
-/* eslint-disable react/no-unescaped-entities, react/jsx-no-comment-textnodes -- this page renders syntax-highlighted code samples as JSX text (quotes and // comments are literal code, not prose) */
+/* eslint-disable react/no-unescaped-entities -- this page renders syntax-highlighted code samples as JSX text (quotes and // comments are literal code, not prose) */
 
-import Link from "next/link";
 import { 
   Book02Icon, 
   CodeCircleIcon, 

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { Icon } from "@/components/icons"
-import Link from "next/link"
 
 export default function TreasuryPage() {
   const [stats, setStats] = useState({ balanceUsd: 0, totalDonatedUsd: 0, totalBurnedUsd: 0 })

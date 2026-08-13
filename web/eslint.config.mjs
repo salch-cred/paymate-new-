@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Leftover one-off refactor scripts — not part of the app build.
+    "scratch/**",
   ]),
 ]);
 

@@ -83,10 +83,10 @@ export function searchPlugins(query: string): Plugin[] {
   );
 }
 
-export function addPlugin(data: Omit<Plugin, 'id' | 'usageCount' | 'rating' | 'reviewCount' | 'createdAt' | 'updatedAt' | 'active' | 'featured'>): Plugin {
+export function addPlugin(data: Omit<Plugin, 'id' | 'usageCount' | 'rating' | 'reviewCount' | 'createdAt' | 'updatedAt' | 'active' | 'featured'>, id?: string): Plugin {
   const plugin: Plugin = {
     ...data,
-    id: String(nextId++),
+    id: id ?? String(nextId++),
     usageCount: 0,
     rating: 0,
     reviewCount: 0,

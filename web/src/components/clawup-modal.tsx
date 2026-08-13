@@ -96,10 +96,11 @@ export function ClawUpModal({ isOpen, onClose, onSuccess, amountUsd, freelancerA
       setStep("done");
       setTimeout(() => onSuccess(txHash, selectedChain), 1500);
 
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
       setStep("select");
-      alert(`Transaction failed: ${e?.shortMessage || e?.message || "User rejected or insufficient funds."}`);
+      const err = e as { shortMessage?: string; message?: string };
+      alert(`Transaction failed: ${err?.shortMessage || err?.message || "User rejected or insufficient funds."}`);
     }
   };
 

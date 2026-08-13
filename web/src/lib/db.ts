@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless"
 import crypto from "node:crypto"
+import type { Plugin } from "./marketplace/types"
 
 export type InvoiceStatus = "pending" | "paid" | "cancelled"
 
@@ -239,6 +240,32 @@ async function ready(): Promise<void> {
         description TEXT,
         updated_at BIGINT NOT NULL
       )`
+      // Marketplace plugins. Persisted in Postgres (not a local JSON file) so
+      // published plugins survive cold starts / restarts on serverless.
+      await sql`CREATE TABLE IF NOT EXISTS plugins (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        long_description TEXT NOT NULL DEFAULT '',
+        category TEXT NOT NULL,
+        price DOUBLE PRECISION NOT NULL,
+        author TEXT NOT NULL,
+        author_name TEXT NOT NULL,
+        ipfs_hash TEXT NOT NULL DEFAULT '',
+        usage_count INTEGER NOT NULL DEFAULT 0,
+        rating DOUBLE PRECISION NOT NULL DEFAULT 0,
+        review_count INTEGER NOT NULL DEFAULT 0,
+        tags TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        version TEXT NOT NULL DEFAULT '1.0.0',
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        featured BOOLEAN NOT NULL DEFAULT FALSE,
+        github_url TEXT,
+        docs_url TEXT
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_plugins_author ON plugins(author, created_at DESC)`
     })()
   }
   return globalThis.__paymateSchemaReady
@@ -412,6 +439,91 @@ export async function getTreasuryStats(): Promise<{balanceUsd: number, totalDona
     totalDonatedUsd: Number(t[0].total_donated_usd)
   }
 }
+
+interface PluginRow {
+  id: string
+  name: string
+  display_name: string
+  description: string
+  long_description: string
+  category: string
+  price: number
+  author: string
+  author_name: string
+  ipfs_hash: string
+  usage_count: number
+  rating: number
+  review_count: number
+  tags: string
+  created_at: string
+  updated_at: string
+  version: string
+  active: boolean
+  featured: boolean
+  github_url: string | null
+  docs_url: string | null
+}
+
+function rowToPlugin(row: PluginRow): Plugin {
+  return {
+    id: row.id,
+    name: row.name,
+    displayName: row.display_name,
+    description: row.description,
+    longDescription: row.long_description || row.description,
+    category: row.category as Plugin["category"],
+    price: Number(row.price),
+    author: row.author,
+    authorName: row.author_name,
+    ipfsHash: row.ipfs_hash || "",
+    usageCount: Number(row.usage_count || 0),
+    rating: Number(row.rating || 0),
+    reviewCount: Number(row.review_count || 0),
+    tags: JSON.parse(row.tags || "[]") as string[],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    version: row.version || "1.0.0",
+    active: !!row.active,
+    featured: !!row.featured,
+    githubUrl: row.github_url || undefined,
+    docsUrl: row.docs_url || undefined,
+  }
+}
+
+/** All published marketplace plugins, newest first. */
+export async function listPlugins(): Promise<Plugin[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`SELECT * FROM plugins ORDER BY created_at DESC`) as unknown as PluginRow[]
+  return rows.map(rowToPlugin)
+}
+
+/** Insert or refresh a published plugin. Tags travel as JSON text. */
+export async function upsertPlugin(plugin: Plugin): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`
+    INSERT INTO plugins (
+      id, name, display_name, description, long_description, category, price, author,
+      author_name, ipfs_hash, usage_count, rating, review_count, tags, created_at,
+      updated_at, version, active, featured, github_url, docs_url
+    ) VALUES (
+      ${plugin.id}, ${plugin.name}, ${plugin.displayName}, ${plugin.description}, ${plugin.longDescription},
+      ${plugin.category}, ${plugin.price}, ${plugin.author}, ${plugin.authorName}, ${plugin.ipfsHash},
+      ${plugin.usageCount}, ${plugin.rating}, ${plugin.reviewCount}, ${JSON.stringify(plugin.tags)},
+      ${plugin.createdAt}, ${plugin.updatedAt}, ${plugin.version}, ${plugin.active}, ${!!plugin.featured},
+      ${plugin.githubUrl ?? null}, ${plugin.docsUrl ?? null}
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      updated_at = EXCLUDED.updated_at,
+      usage_count = EXCLUDED.usage_count,
+      rating = EXCLUDED.rating,
+      review_count = EXCLUDED.review_count,
+      active = EXCLUDED.active,
+      featured = EXCLUDED.featured
+  `
+}
+
 
 export async function getInvoice(id: string): Promise<Invoice | null> {
   await ready()

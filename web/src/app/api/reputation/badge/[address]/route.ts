@@ -1,3 +1,4 @@
+import { isAddress } from "viem";
 import { getReputationData } from "@/lib/chain";
 
 export async function GET(
@@ -6,7 +7,7 @@ export async function GET(
 ) {
   const resolvedParams = await params;
   const address = resolvedParams.address;
-  if (!address || !address.startsWith("0x")) {
+  if (!address || !isAddress(address)) {
     return new Response("Invalid Address", { status: 400 });
   }
 

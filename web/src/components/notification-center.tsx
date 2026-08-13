@@ -2,11 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useAccount } from 'wagmi'
-import { Icon } from '@/components/icons'
+import { Icon, type IconName } from '@/components/icons'
 
 export interface Notification {
   id: string
-  icon: string
+  icon: IconName
   title: string
   message: string
   timestamp: number
@@ -137,7 +137,7 @@ export function NotificationCenter() {
                   border: '1px solid var(--line)',
                   flexShrink: 0
                 }}>
-                  <Icon name={n.icon as any} size={14} />
+                  <Icon name={n.icon} size={14} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--ink)' }}>{n.title}</div>

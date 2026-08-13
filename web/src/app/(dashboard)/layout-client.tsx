@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Icon } from "@/components/icons"
@@ -49,9 +49,13 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  useEffect(() => {
+  // Close the mobile drawer when navigating. Reset state during render
+  // (React docs pattern) instead of in an effect to avoid cascading renders.
+  const [prevPathname, setPrevPathname] = useState(pathname)
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname)
     setMobileMenuOpen(false)
-  }, [pathname])
+  }
 
   return (
     <main className="app-shell">

@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { useAccount, useWalletClient } from "wagmi"
 import { isAddress, getAddress } from "viem"
