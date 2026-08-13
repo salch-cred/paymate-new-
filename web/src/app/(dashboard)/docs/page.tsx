@@ -324,7 +324,7 @@ export default function DocsPage() {
             </P>
             <div className="grid sm:grid-cols-2 gap-4 mb-4">
               {[
-                ["Frictionless", "Clients pay from any wallet on any of 37 networks — no account required."],
+                ["Frictionless", "Clients pay from any wallet on any of 39 networks — no account required."],
                 ["AI-first", "Voice drafting, GitHub pricing, and an AI arbitrator handle the workflow."],
                 ["Non-custodial", "Funds move client → freelancer directly. PayMate never holds them."],
                 ["Portable proof", "ERC-8004 reputation follows the wallet, not the platform."],
@@ -346,7 +346,7 @@ export default function DocsPage() {
             <P>
               Creating an invoice is simple via the UI or the headless API. All invoices
               instantly generate a unified payment link your client can open and pay — from
-              any of 37 networks — in under a minute.
+              any of 39 networks — in under a minute.
             </P>
             <CodeBlock title="POST /api/invoices">
               <span className="text-purple-400">const</span> res = <span className="text-purple-400">await</span> <span className="text-blue-300">fetch</span>(

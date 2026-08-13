@@ -5,7 +5,7 @@ import {
   goat, base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo, mainnet, zksync, linea, scroll, blast,
   metis, mantle, opBNB, polygonZkEvm, arbitrumNova, cronos, gnosis, aurora, moonbeam, moonriver,
   klaytn, harmonyOne, coreDao, fraxtal, mode, immutableZkEvm, telos, meter, astar, okc, kava,
-  rootstock, sonic, zora,
+  rootstock, sonic, zora, robinhood,
 } from "viem/chains"
 
 export const goatChain = goat
@@ -170,6 +170,8 @@ const CROSS_CHAIN_CLIENTS: Record<number, Chain> = {
   30: rootstock,        // Rootstock
   146: sonic,           // Sonic
   7777777: zora,        // Zora
+  2345: goat,           // GOAT Network (PayMate's native settlement chain)
+  4663: robinhood,     // Robinhood Chain
 }
 
 /** Returns a public client for a supported cross-chain settlement, or null. */

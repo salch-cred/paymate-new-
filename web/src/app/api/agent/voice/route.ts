@@ -67,7 +67,7 @@ PayMate is a non-custodial, on-chain invoicing and payment platform built on the
 - Create intelligent invoices with AI-assisted drafting
 - Collect direct wallet-to-wallet USDC payments via the x402 protocol
 - Build a portable, soulbound ERC-8004 reputation credential on GOAT Network
-- Accept cross-chain payments from 37 networks (Ethereum, Base, Arbitrum, Optimism, BSC, Polygon, Avalanche, zkSync, Linea, Scroll, Blast, Fantom, Celo, Metis, Mantle, opBNB, Polygon zkEVM, Arbitrum Nova, Cronos, Gnosis, Aurora, Moonbeam, Moonriver, Klaytn, Harmony, Core, Fraxtal, Mode, Immutable zkEVM, Telos, Meter, Astar, OKC, Kava, Rootstock, Sonic, Zora) via ClawUp
+- Accept cross-chain payments from 39 networks (Ethereum, Base, Arbitrum, Optimism, BSC, Polygon, Avalanche, zkSync, Linea, Scroll, Blast, Fantom, Celo, Metis, Mantle, opBNB, Polygon zkEVM, Arbitrum Nova, Cronos, Gnosis, Aurora, Moonbeam, Moonriver, Klaytn, Harmony, Core, Fraxtal, Mode, Immutable zkEVM, Telos, Meter, Astar, OKC, Kava, Rootstock, Sonic, Zora, GOAT Network, Robinhood Chain) via ClawUp
 - Escrow payments tied to GitHub PRs with AI-powered dispute resolution
 - Split payments across multiple wallets, set milestones, and stream payments in real-time
 

@@ -18,7 +18,7 @@ interface ClawUpModalProps {
 // brand marks, vendored locally in /public/chain-logos (sources: Trust Wallet
 // assets repo, CoinGecko, cryptologos) so they never depend on a third-party CDN.
 const chainIcon = (name: string) =>
-  `/chain-logos/${name}${name === "mode" || name === "zora" ? ".jpg" : ".png"}`
+  `/chain-logos/${name}${name === "mode" || name === "zora" ? ".jpg" : name === "goat" ? ".svg" : ".png"}`
 
 const chains = [
   { id: 1, name: "Ethereum", logo: "ethereum", symbol: "ETH", decimals: 18 },
@@ -58,6 +58,8 @@ const chains = [
   { id: 30, name: "Rootstock", logo: "rootstock", symbol: "RBTC", decimals: 18 },
   { id: 146, name: "Sonic", logo: "sonic", symbol: "S", decimals: 18 },
   { id: 7777777, name: "Zora", logo: "zora", symbol: "ETH", decimals: 18 },
+  { id: 2345, name: "GOAT Network", logo: "goat", symbol: "BTC", decimals: 18 },
+  { id: 4663, name: "Robinhood Chain", logo: "robinhood", symbol: "ETH", decimals: 18 },
 ];
 
 /** Adds a 3% buffer so the settlement covers the invoice amount even if the

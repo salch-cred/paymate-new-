@@ -15,6 +15,7 @@ export const SUPPORTED_CROSS_CHAIN_IDS: number[] = [
   1, 56, 8453, 10, 42161, 137, 43114, 250, 42220, 324, 59144, 534352, 81457,
   1088, 5000, 204, 1101, 42170, 25, 100, 1313161554, 1284, 1285, 8217, 1666600000,
   1116, 252, 34443, 13371, 40, 82, 592, 66, 2222, 30, 146, 7777777,
+  2345, 4663,
 ]
 
 const COIN_ID_BY_CHAIN_ID: Record<number, string> = {
@@ -56,6 +57,8 @@ const COIN_ID_BY_CHAIN_ID: Record<number, string> = {
   30: "rootstock",        // RBTC (Rootstock)
   146: "sonic-3",         // S (Sonic)
   7777777: "ethereum",    // ETH (Zora)
+  2345: "bitcoin",       // BTC (GOAT Network native gas)
+  4663: "ethereum",      // ETH (Robinhood Chain)
 }
 
 let cache: { at: number; prices: Record<string, number> } | null = null
