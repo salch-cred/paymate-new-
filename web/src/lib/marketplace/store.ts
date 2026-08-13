@@ -102,3 +102,15 @@ export function addPlugin(data: Omit<Plugin, 'id' | 'usageCount' | 'rating' | 'r
 export function getReviewsForPlugin(pluginId: string): Review[] {
   return REVIEWS.filter((r) => r.pluginId === pluginId);
 }
+
+/**
+ * Records a paid use of a dynamic plugin (in-memory mirror of the Postgres
+ * counter). Returns the updated plugin, or null if it doesn't exist.
+ */
+export function incrementPluginUsage(id: string): Plugin | null {
+  const plugin = dynamicPlugins.find((p) => p.id === id);
+  if (!plugin) return null;
+  plugin.usageCount += 1;
+  plugin.updatedAt = new Date().toISOString().split("T")[0];
+  return { ...plugin };
+}

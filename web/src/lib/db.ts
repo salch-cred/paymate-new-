@@ -266,6 +266,14 @@ async function ready(): Promise<void> {
         docs_url TEXT
       )`
       await sql`CREATE INDEX IF NOT EXISTS idx_plugins_author ON plugins(author, created_at DESC)`
+      // Replay guard for marketplace pay-to-use: each on-chain tx hash can
+      // unlock a plugin use exactly once (PK-dedup, same pattern as
+      // used_settlement_tx for invoices).
+      await sql`CREATE TABLE IF NOT EXISTS plugin_usage_log (
+        tx_hash TEXT PRIMARY KEY,
+        plugin_id TEXT NOT NULL,
+        created_at BIGINT NOT NULL
+      )`
     })()
   }
   return globalThis.__paymateSchemaReady
@@ -524,6 +532,99 @@ export async function upsertPlugin(plugin: Plugin): Promise<void> {
   `
 }
 
+/**
+ * Atomically reserves a tx hash for a plugin use. Returns false when the hash
+ * was already consumed (replayed payment) — the caller must NOT count the use.
+ */
+export async function reservePluginUsage(txHash: string, pluginId: string): Promise<boolean> {
+  await ready()
+  const sql = getSql()
+  const reserved = (await sql`
+    INSERT INTO plugin_usage_log (tx_hash, plugin_id, created_at)
+    VALUES (${txHash}, ${pluginId}, ${Date.now()})
+    ON CONFLICT (tx_hash) DO NOTHING
+    RETURNING tx_hash
+  `) as unknown as { tx_hash: string }[]
+  return reserved.length > 0
+}
+
+/** Increment a plugin's usage counter in Postgres (best-effort from the route). */
+export async function incrementPluginUsageInDb(id: string): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`
+    UPDATE plugins
+    SET usage_count = usage_count + 1,
+        updated_at = ${new Date().toISOString().split("T")[0]}
+    WHERE id = ${id}
+  `
+}
+
+/**
+ * Public economy snapshot for the PayMate Economy page.
+ * Wallet addresses are public on-chain identifiers (same as the growth page).
+ */
+export interface TopSettler {
+  freelancer: string
+  settledUsd: number
+  paidInvoices: number
+  lastPaidAt: number | null
+}
+
+/** Top freelancer wallets by settled (paid) volume, for the public leaderboard. */
+export async function getTopSettlers(limit = 10): Promise<TopSettler[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT lower(freelancer) AS wallet,
+           SUM(amount_usd)::float AS settled_usd,
+           COUNT(*)::int AS paid_invoices,
+           MAX(paid_at) AS last_paid_at
+    FROM invoices
+    WHERE status = 'paid'
+    GROUP BY lower(freelancer)
+    ORDER BY settled_usd DESC
+    LIMIT ${Math.min(limit, 50)}
+  `) as unknown as { wallet: string; settled_usd: number; paid_invoices: number; last_paid_at: number | null }[]
+  return rows.map((r) => ({
+    freelancer: r.wallet,
+    settledUsd: Number(r.settled_usd),
+    paidInvoices: Number(r.paid_invoices),
+    lastPaidAt: r.last_paid_at ? Number(r.last_paid_at) : null,
+  }))
+}
+
+export interface RecentSettlement {
+  id: string
+  title: string
+  amountUsd: number
+  freelancer: string
+  txHash: string | null
+  paidAt: number
+}
+
+/** Most recent verified settlements, for the public live feed. */
+export async function getRecentSettlements(limit = 12): Promise<RecentSettlement[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT id, title, amount_usd, freelancer, tx_hash, paid_at
+    FROM invoices
+    WHERE status = 'paid' AND paid_at IS NOT NULL
+    ORDER BY paid_at DESC
+    LIMIT ${Math.min(limit, 50)}
+  `) as unknown as {
+    id: string; title: string; amount_usd: number; freelancer: string; tx_hash: string | null; paid_at: number
+  }[]
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    amountUsd: Number(r.amount_usd),
+    freelancer: r.freelancer,
+    txHash: r.tx_hash || null,
+    paidAt: Number(r.paid_at),
+  }))
+}
 
 export async function getInvoice(id: string): Promise<Invoice | null> {
   await ready()

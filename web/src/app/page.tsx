@@ -53,6 +53,7 @@ export default function Home() {
           <a href="#product" onClick={() => setMenuOpen(false)}>Product</a>
           <a href="#workflow" onClick={() => setMenuOpen(false)}>How it works</a>
           <Link href="/dashboard/marketplace" onClick={() => setMenuOpen(false)}>Marketplace</Link>
+          <Link href="/economy" onClick={() => setMenuOpen(false)}>Economy</Link>
           <Link href="/docs" onClick={() => setMenuOpen(false)}>Docs</Link>
         </nav>
 

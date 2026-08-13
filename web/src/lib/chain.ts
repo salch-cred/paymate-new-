@@ -526,3 +526,49 @@ export async function verifyTransfer(txHashes: string | string[], invoice: Invoi
     throw new PaymentError(402, `Could not verify transaction: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
+
+/**
+ * Verifies a pay-to-use USDC transfer for a marketplace plugin.
+ * Mirrors verifyTransfer's security bar (same token guard, same
+ * fail-closed behavior) but for a single expected recipient + minimum
+ * amount: the buyer pays the plugin's price directly to the developer's
+ * wallet (non-custodial). Returns the real payer address.
+ */
+export async function verifyPluginPayment(
+  txHash: string,
+  recipient: string,
+  minAmountUsd: number
+): Promise<string> {
+  const usdcToken = process.env.USDC_TOKEN
+  if (!usdcToken || !isAddress(usdcToken)) {
+    throw new PaymentError(503, "USDC_TOKEN is not configured on the API")
+  }
+  const publicClient = getPublicClient()
+  try {
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: txHash as `0x${string}`,
+      timeout: 90_000,
+    })
+    if (receipt.status !== "success") throw new PaymentError(402, `Transaction reverted: ${txHash}`)
+    const tx = await publicClient.getTransaction({ hash: txHash as `0x${string}` })
+    if (!tx.to || getAddress(tx.to) !== getAddress(usdcToken)) {
+      throw new PaymentError(402, `Plugin payment used the wrong token in tx ${txHash}`)
+    }
+    const { functionName, args } = decodeFunctionData({ abi: ERC20_TRANSFER_ABI, data: tx.input })
+    if (functionName !== "transfer") {
+      throw new PaymentError(402, `Transaction ${txHash} is not a transfer`)
+    }
+    const [to, amount] = args as [`0x${string}`, bigint]
+    if (getAddress(to) !== getAddress(recipient)) {
+      throw new PaymentError(402, "Plugin payment must be sent to the plugin author's wallet")
+    }
+    if (amount < usdcAmount(minAmountUsd)) {
+      throw new PaymentError(402, `Plugin payment is short: expected at least ${minAmountUsd} USDC`)
+    }
+    if (!tx.from) throw new PaymentError(402, "Could not determine the payer of the plugin payment")
+    return getAddress(tx.from)
+  } catch (error) {
+    if (error instanceof PaymentError) throw error
+    throw new PaymentError(402, `Could not verify plugin payment: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}

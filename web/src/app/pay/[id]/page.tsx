@@ -10,9 +10,10 @@ import { Icon } from "@/components/icons"
 import { WalletConnectMenu } from "@/components/wallet-connect-menu"
 import { FeedbackForm } from "@/components/feedback-form"
 import { ClawUpModal } from "@/components/clawup-modal"
+import { PaidBill } from "@/components/paid-bill"
 import { decryptViewKey } from "@/lib/zk"
 
-type Invoice={id:string;freelancer:string;client:string;title?:string;description:string;amountUsd:number;status:"pending"|"paid"|"cancelled";chain:string;dueDate?:string;txHash?:string;splits?:{address:string;amountUsd:number}[];milestones?:{id:string;title:string;amountUsd:number;status:"pending"|"paid";txHash?:string;paidAt?:number}[];isStream?:boolean;streamRateUsd?:number|null;streamedAmountUsd?:number;streamSignature?:string|null;streamAuthorizedAt?:number|null;isPrivate?:boolean;zkCommitment?:string|null;githubPrUrl?:string|null;isYieldBearing?:boolean;yieldEarned?:number;isSwarm?:boolean;swarmWallets?:{address:string;share:number}[]|null;proofOfCompute?:boolean;computeHash?:string|null;escrowStatus?:"none"|"funded"|"resolved";escrowTxHash?:string|null}
+type Invoice={id:string;freelancer:string;client:string;title?:string;description:string;amountUsd:number;status:"pending"|"paid"|"cancelled";chain:string;dueDate?:string;txHash?:string;createdAt?:number;paidAt?:number|null;ipfsReceipt?:string|null;splits?:{address:string;amountUsd:number}[];milestones?:{id:string;title:string;amountUsd:number;status:"pending"|"paid";txHash?:string;paidAt?:number}[];isStream?:boolean;streamRateUsd?:number|null;streamedAmountUsd?:number;streamSignature?:string|null;streamAuthorizedAt?:number|null;isPrivate?:boolean;zkCommitment?:string|null;githubPrUrl?:string|null;isYieldBearing?:boolean;yieldEarned?:number;isSwarm?:boolean;swarmWallets?:{address:string;share:number}[]|null;proofOfCompute?:boolean;computeHash?:string|null;escrowStatus?:"none"|"funded"|"resolved";escrowTxHash?:string|null}
 
 export default function PayPage({params}:{params:Promise<{id:string}>}){
   const {id}=use(params);const [invoice,setInvoice]=useState<Invoice|null>(null);const [status,setStatus]=useState<"idle"|"paying"|"paid"|"error">("idle");const [activeMilestone,setActiveMilestone]=useState<string|null>(null);const [error,setError]=useState<string|null>(null);const [loading,setLoading]=useState(true);const {address,isConnected,chain}=useAccount();const {data:walletClient}=useWalletClient();const {switchChainAsync}=useSwitchChain()
@@ -320,7 +321,6 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
               <Icon name="check" size={18}/>
               <b>Payment Verified</b>
               <a href={`https://explorer.goat.network/tx/${invoice.txHash||'0x0'}`} target="_blank" style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:'4px', color:'inherit'}}>View on GOAT <Icon name="arrow" size={14}/></a>
-              <a href={`/api/invoices/${id}/pdf`} className="button button-dark" style={{marginLeft:'10px'}} download>Download Receipt</a>
             </div>
           ) : status === "paying" ? (
             <div className="settling-box" style={{background:'rgba(255,255,255,0.4)',border:'1px solid var(--line)',borderRadius:'12px',padding:'16px',display:'flex',flexDirection:'column',gap:'12px'}}>
@@ -387,6 +387,28 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
             </div>
           )}
         </div>
+        {paid && (
+          <PaidBill invoice={{
+            id: invoice.id,
+            freelancer: invoice.freelancer,
+            client: invoice.client,
+            title: invoice.title,
+            description: invoice.description,
+            amountUsd: effectiveAmount,
+            status: invoice.status,
+            chain: invoice.chain,
+            dueDate: invoice.dueDate,
+            txHash: invoice.txHash,
+            ipfsReceipt: invoice.ipfsReceipt,
+            createdAt: invoice.createdAt,
+            paidAt: invoice.paidAt,
+            isStream: invoice.isStream,
+            streamRateUsd: invoice.streamRateUsd,
+            streamedAmountUsd: invoice.streamedAmountUsd,
+            splits: invoice.splits,
+            escrowTxHash: invoice.escrowTxHash,
+          }} />
+        )}
         {error && <div className="error-box" style={{marginTop: '16px'}}>{error}</div>}
 
         {!paid && (

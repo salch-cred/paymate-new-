@@ -36,8 +36,11 @@ export async function POST(request: Request) {
     : (typeof webhookUrl === "string" && isSafeWebhookUrl(webhookUrl) ? webhookUrl : null)
 
   // SECURITY (audit fix 2026-08-13): coarse abuse control — this endpoint has
-  // no auth and writes a DB row per call.
-  if (!(await checkAndConsumeRequestBudget("invoice-create", 500, 60 * 60 * 1000))) {
+  // no auth and writes a DB row per call. The cap is env-configurable so a
+  // legitimate high-volume launch can raise it without redeploying code
+  // (INVOICE_CREATE_RATE_LIMIT, per hour). Default 500/hr.
+  const invoiceCreateCap = Number(process.env.INVOICE_CREATE_RATE_LIMIT || 500)
+  if (!(await checkAndConsumeRequestBudget("invoice-create", invoiceCreateCap, 60 * 60 * 1000))) {
     return Response.json({ detail: "Too many invoices created recently. Please try again later." }, { status: 429 })
   }
 
