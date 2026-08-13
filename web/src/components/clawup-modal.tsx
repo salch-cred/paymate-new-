@@ -180,7 +180,7 @@ export function ClawUpModal({ isOpen, onClose, onSuccess, amountUsd, freelancerA
               </p>
               <input
                 type="text"
-                placeholder="Search {chains.length} networks…"
+                placeholder={`Search ${chains.length} networks…`}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="input"
@@ -206,7 +206,11 @@ export function ClawUpModal({ isOpen, onClose, onSuccess, amountUsd, freelancerA
                         src={chainIcon(c.logo)}
                         alt={c.name}
                         loading="lazy"
-                        style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
+                        style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '1px solid #e5e5e5', flexShrink: 0 }}
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          target.style.display = 'none';
+                        }}
                       />
                       {c.name}
                     </span>
