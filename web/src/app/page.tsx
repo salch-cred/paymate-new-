@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { Icon } from "@/components/icons"
+import { PayInvoiceBox } from "@/components/pay-invoice-box"
 
 type GrowthStats = {
   totalInvoices: number
@@ -59,6 +60,7 @@ export default function Home() {
 
         <div className="landing-header-actions">
           <span className="landing-network"><i />GOAT MAINNET</span>
+          <Link href="/pay" className="landing-pay-link">Pay an invoice</Link>
           <Link href="/dashboard" className="button button-dark">Open dashboard <Icon name="arrow" size={16} /></Link>
         </div>
       </header>
@@ -76,6 +78,23 @@ export default function Home() {
             <span><Icon name="check" size={14} /> Non-custodial</span>
             <span><Icon name="check" size={14} /> USDC on GOAT</span>
             <span><Icon name="check" size={14} /> ERC-8004 reputation</span>
+          </div>
+          <div
+            style={{
+              marginTop: 26,
+              padding: "18px 20px",
+              background: "rgba(255,255,255,0.72)",
+              border: "1px solid var(--line)",
+              borderRadius: 16,
+              boxShadow: "0 10px 30px rgba(23,24,19,0.06)",
+              backdropFilter: "blur(12px)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <span className="landing-kicker" style={{ margin: 0 }}>HAVE AN INVOICE?</span>
+              <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>— pay it by ID, no account needed</span>
+            </div>
+            <PayInvoiceBox />
           </div>
         </div>
 

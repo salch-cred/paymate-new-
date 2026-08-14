@@ -31,6 +31,7 @@ PayMate fixes both sides of the loop:
 - Voice AI agent for hands-free invoicing; Telegram natural-language invoicing; Discord slash-command billing
 - **Telegram Mini App** (`/tg`) — open any invoice inside Telegram and pay **on-chain USDC on GOAT Network** through the standard web checkout
 - **Merchant Checkout** (`/merchant`, `POST /api/merchant/checkout`) — any business accepts USDC on GOAT with one API call + a copy-paste button; signed `checkout.paid` webhooks (HMAC `X-PayMate-Signature`) tell your backend to fulfil the order
+- **Pay by invoice ID** (`/pay`) — a client with just the invoice number can type it into the PayMate web app and pay, no link or account required
 
 **Cross-chain**
 - ClawUp checkout: clients pay from **39 networks** (Ethereum, Base, Arbitrum, BNB, Polygon, Avalanche, GOAT, Robinhood…) — value is cryptographically verified on the source chain before settling on GOAT
@@ -45,6 +46,7 @@ PayMate fixes both sides of the loop:
 **Marketplace & economy**
 - Plugin marketplace (10 categories) with per-use pricing — plugin developers earn **80% royalties** per use
 - Treasury + yield escrow; recurring/streaming billing; economy leaderboard and live growth dashboard
+- **Public growth metrics** (`/metrics`) — live target-vs-actual tracking with MET/NOT MET badges against the locked Stage 2 baseline
 
 ## Live on GOAT mainnet
 

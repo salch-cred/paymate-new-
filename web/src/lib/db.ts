@@ -255,6 +255,15 @@ async function ready(): Promise<void> {
         webhook_secret TEXT,
         created_at BIGINT NOT NULL
       )`
+      // Stage 2 growth targets — the locked baseline the bootcamp judges
+      // compare against. Set once via /api/metrics/targets (team-only); the
+      // public /metrics page renders target-vs-actual with MET/NOT MET badges.
+      await sql`CREATE TABLE IF NOT EXISTS growth_targets (
+        metric TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        target DOUBLE PRECISION NOT NULL,
+        updated_at BIGINT NOT NULL
+      )`
       await sql`CREATE TABLE IF NOT EXISTS chat_states (
         chat_id TEXT PRIMARY KEY,
         address TEXT,
@@ -1173,6 +1182,52 @@ export async function listFeedback(limit = 50, options?: { includeContact?: bool
     const feedback = rowToFeedback(row)
     return includeContact ? feedback : { ...feedback, contact: null }
   })
+}
+
+export interface GrowthTarget {
+  metric: string
+  label: string
+  target: number
+  updatedAt: number
+}
+
+/** All Stage 2 growth targets (the locked baseline), keyed by metric id. */
+export async function getGrowthTargets(): Promise<GrowthTarget[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`SELECT metric, label, target, updated_at FROM growth_targets ORDER BY metric`) as unknown as {
+    metric: string
+    label: string
+    target: number
+    updated_at: string
+  }[]
+  return rows.map((r) => ({
+    metric: r.metric,
+    label: r.label,
+    target: Number(r.target),
+    updatedAt: Number(r.updated_at),
+  }))
+}
+
+/** Sets (or replaces) one growth target. Targets are the locked baseline. */
+export async function setGrowthTarget(metric: string, label: string, target: number): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`
+    INSERT INTO growth_targets (metric, label, target, updated_at)
+    VALUES (${metric}, ${label}, ${target}, ${Date.now()})
+    ON CONFLICT (metric) DO UPDATE SET
+      label = EXCLUDED.label,
+      target = EXCLUDED.target,
+      updated_at = EXCLUDED.updated_at
+  `
+}
+
+/** Removes a growth target (e.g. to correct a typo before the audit locks it). */
+export async function deleteGrowthTarget(metric: string): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`DELETE FROM growth_targets WHERE metric = ${metric}`
 }
 
 export interface GrowthStats {

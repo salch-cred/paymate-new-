@@ -26,6 +26,8 @@ button, a { touch-action: manipulation; }
 .landing-nav a:hover { color: var(--orange); }
 .landing-header-actions { margin-left: auto; display: flex; align-items: center; gap: 18px; }
 .landing-network { display: flex; align-items: center; gap: 8px; font-size: 8px; letter-spacing: .13em; font-weight: 800; color: #58705e; }
+.landing-pay-link { font-size: 12px; font-weight: 700; color: #5e5f58; text-decoration: none; transition: color .16s; }
+.landing-pay-link:hover { color: var(--orange); }
 .landing-network i, .product-live i, .landing-ledger i, .receipt-status i { width: 6px; height: 6px; border-radius: 50%; background: #419168; box-shadow: 0 0 0 4px rgba(65,145,104,.12); }
 .landing-menu { display: none; }
 
