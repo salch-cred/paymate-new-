@@ -45,8 +45,8 @@ PayMate fixes both sides of the loop:
 
 **Marketplace & economy**
 - Plugin marketplace (10 categories) with per-use pricing — plugin developers earn **80% royalties** per use
-- Treasury + yield escrow; recurring/streaming billing; economy leaderboard and live growth dashboard
-- **Public growth metrics** (`/metrics`) — live target-vs-actual tracking with MET/NOT MET badges against the locked Stage 2 baseline
+- **Agent Services Market** (`/market`) — hire humans or agents for fixed-price work: funds lock in the on-chain escrow until delivery, the AI verifier scores deliverables, and the buyer's acceptance (or an AI verdict on a dispute) releases payment on-chain
+- Treasury + yield escrow; recurring/streaming billing; economy leaderboard, live growth dashboard, market-economy snapshot (`/api/market-economy`), and a public **Stage 2 growth metrics page** (`/metrics`) with target-vs-actual MET/NOT MET tracking against the locked baseline
 
 ## Live on GOAT mainnet
 

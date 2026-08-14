@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless"
 import crypto from "node:crypto"
 import type { Plugin } from "./marketplace/types"
+import type { Service, ServiceOrder } from "./services/types"
 
 export type InvoiceStatus = "pending" | "paid" | "cancelled"
 
@@ -341,6 +342,53 @@ async function ready(): Promise<void> {
         created_at BIGINT NOT NULL
       )`
       await sql`CREATE INDEX IF NOT EXISTS idx_agent_billing_usage_agent ON agent_billing_usage(agent_id, created_at DESC)`
+      // Agent Services Marketplace ("market economy"): provider listings + the
+      // escrow-backed orders between buyers and providers.
+      await sql`CREATE TABLE IF NOT EXISTS services (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        category TEXT NOT NULL,
+        price DOUBLE PRECISION NOT NULL,
+        delivery_days INTEGER NOT NULL,
+        provider TEXT NOT NULL,
+        provider_name TEXT NOT NULL,
+        tags TEXT NOT NULL DEFAULT '[]',
+        rating DOUBLE PRECISION NOT NULL DEFAULT 0,
+        review_count INTEGER NOT NULL DEFAULT 0,
+        completed_count INTEGER NOT NULL DEFAULT 0,
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_services_provider ON services(provider, created_at DESC)`
+      await sql`CREATE INDEX IF NOT EXISTS idx_services_category ON services(category, created_at DESC)`
+      await sql`CREATE TABLE IF NOT EXISTS service_orders (
+        id TEXT PRIMARY KEY,
+        service_id TEXT NOT NULL,
+        service_title TEXT NOT NULL,
+        category TEXT NOT NULL,
+        buyer TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        amount_usd DOUBLE PRECISION NOT NULL,
+        status TEXT NOT NULL,
+        scope TEXT NOT NULL DEFAULT '',
+        fund_tx_hash TEXT,
+        release_tx_hash TEXT,
+        deliverable TEXT,
+        ai_verdict TEXT,
+        dispute TEXT,
+        buyer_rating INTEGER,
+        provider_rating INTEGER,
+        buyer_review TEXT,
+        provider_review TEXT,
+        created_at BIGINT NOT NULL,
+        funded_at BIGINT,
+        delivered_at BIGINT,
+        completed_at BIGINT
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_orders_buyer ON service_orders(buyer, created_at DESC)`
+      await sql`CREATE INDEX IF NOT EXISTS idx_orders_provider ON service_orders(provider, created_at DESC)`
     })()
   }
   return globalThis.__paymateSchemaReady
@@ -633,6 +681,155 @@ export async function incrementPluginUsageInDb(id: string): Promise<void> {
         updated_at = ${new Date().toISOString().split("T")[0]}
     WHERE id = ${id}
   `
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent Services Marketplace — persistence
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ServiceRow {
+  id: string; title: string; description: string; category: string;
+  price: number; delivery_days: number; provider: string; provider_name: string;
+  tags: string; rating: number; review_count: number; completed_count: number;
+  active: boolean; created_at: string; updated_at: string;
+}
+
+function rowToService(row: ServiceRow): Service {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    category: row.category as Service["category"],
+    price: Number(row.price),
+    deliveryDays: Number(row.delivery_days),
+    provider: row.provider,
+    providerName: row.provider_name,
+    tags: JSON.parse(row.tags || "[]") as string[],
+    rating: Number(row.rating || 0),
+    reviewCount: Number(row.review_count || 0),
+    completedCount: Number(row.completed_count || 0),
+    active: !!row.active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** All services, newest first. */
+export async function listServicesFromDb(): Promise<Service[]> {
+  await ready();
+  const sql = getSql();
+  const rows = (await sql`SELECT * FROM services ORDER BY created_at DESC`) as unknown as ServiceRow[];
+  return rows.map(rowToService);
+}
+
+/** Insert or refresh a service listing. */
+export async function upsertService(service: Service): Promise<void> {
+  await ready();
+  const sql = getSql();
+  await sql`
+    INSERT INTO services (
+      id, title, description, category, price, delivery_days, provider, provider_name,
+      tags, rating, review_count, completed_count, active, created_at, updated_at
+    ) VALUES (
+      ${service.id}, ${service.title}, ${service.description}, ${service.category}, ${service.price},
+      ${service.deliveryDays}, ${service.provider}, ${service.providerName}, ${JSON.stringify(service.tags)},
+      ${service.rating}, ${service.reviewCount}, ${service.completedCount}, ${service.active},
+      ${service.createdAt}, ${service.updatedAt}
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title,
+      description = EXCLUDED.description,
+      category = EXCLUDED.category,
+      price = EXCLUDED.price,
+      delivery_days = EXCLUDED.delivery_days,
+      tags = EXCLUDED.tags,
+      rating = EXCLUDED.rating,
+      review_count = EXCLUDED.review_count,
+      completed_count = EXCLUDED.completed_count,
+      active = EXCLUDED.active,
+      updated_at = EXCLUDED.updated_at
+  `;
+}
+
+interface OrderRow {
+  id: string; service_id: string; service_title: string; category: string;
+  buyer: string; provider: string; amount_usd: number; status: string; scope: string;
+  fund_tx_hash: string | null; release_tx_hash: string | null; deliverable: string | null;
+  ai_verdict: string | null; dispute: string | null;
+  buyer_rating: number | null; provider_rating: number | null;
+  buyer_review: string | null; provider_review: string | null;
+  created_at: string; funded_at: string | null; delivered_at: string | null; completed_at: string | null;
+}
+
+function rowToOrder(row: OrderRow): ServiceOrder {
+  return {
+    id: row.id,
+    serviceId: row.service_id,
+    serviceTitle: row.service_title,
+    category: row.category as ServiceOrder["category"],
+    buyer: row.buyer,
+    provider: row.provider,
+    amountUsd: Number(row.amount_usd),
+    status: row.status as ServiceOrder["status"],
+    scope: row.scope || "",
+    fundTxHash: row.fund_tx_hash || null,
+    releaseTxHash: row.release_tx_hash || null,
+    deliverable: row.deliverable || null,
+    aiVerdict: row.ai_verdict ? (JSON.parse(row.ai_verdict) as ServiceOrder["aiVerdict"]) : null,
+    dispute: row.dispute ? (JSON.parse(row.dispute) as ServiceOrder["dispute"]) : null,
+    buyerRating: row.buyer_rating == null ? null : Number(row.buyer_rating),
+    providerRating: row.provider_rating == null ? null : Number(row.provider_rating),
+    buyerReview: row.buyer_review || null,
+    providerReview: row.provider_review || null,
+    createdAt: Number(row.created_at),
+    fundedAt: row.funded_at == null ? null : Number(row.funded_at),
+    deliveredAt: row.delivered_at == null ? null : Number(row.delivered_at),
+    completedAt: row.completed_at == null ? null : Number(row.completed_at),
+  };
+}
+
+/** All orders, newest first. */
+export async function listOrdersFromDb(): Promise<ServiceOrder[]> {
+  await ready();
+  const sql = getSql();
+  const rows = (await sql`SELECT * FROM service_orders ORDER BY created_at DESC`) as unknown as OrderRow[];
+  return rows.map(rowToOrder);
+}
+
+/** Insert or refresh an order (full state, nested JSON columns travel as text). */
+export async function upsertOrder(order: ServiceOrder): Promise<void> {
+  await ready();
+  const sql = getSql();
+  await sql`
+    INSERT INTO service_orders (
+      id, service_id, service_title, category, buyer, provider, amount_usd, status, scope,
+      fund_tx_hash, release_tx_hash, deliverable, ai_verdict, dispute,
+      buyer_rating, provider_rating, buyer_review, provider_review,
+      created_at, funded_at, delivered_at, completed_at
+    ) VALUES (
+      ${order.id}, ${order.serviceId}, ${order.serviceTitle}, ${order.category}, ${order.buyer},
+      ${order.provider}, ${order.amountUsd}, ${order.status}, ${order.scope},
+      ${order.fundTxHash}, ${order.releaseTxHash}, ${order.deliverable},
+      ${order.aiVerdict ? JSON.stringify(order.aiVerdict) : null},
+      ${order.dispute ? JSON.stringify(order.dispute) : null},
+      ${order.buyerRating}, ${order.providerRating}, ${order.buyerReview}, ${order.providerReview},
+      ${order.createdAt}, ${order.fundedAt}, ${order.deliveredAt}, ${order.completedAt}
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      status = EXCLUDED.status,
+      fund_tx_hash = EXCLUDED.fund_tx_hash,
+      release_tx_hash = EXCLUDED.release_tx_hash,
+      deliverable = EXCLUDED.deliverable,
+      ai_verdict = EXCLUDED.ai_verdict,
+      dispute = EXCLUDED.dispute,
+      buyer_rating = EXCLUDED.buyer_rating,
+      provider_rating = EXCLUDED.provider_rating,
+      buyer_review = EXCLUDED.buyer_review,
+      provider_review = EXCLUDED.provider_review,
+      funded_at = EXCLUDED.funded_at,
+      delivered_at = EXCLUDED.delivered_at,
+      completed_at = EXCLUDED.completed_at
+  `;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1381,7 +1578,9 @@ export async function clearChatState(chatId: string): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Public Agent API keys
+// ─────────────────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ApiKey {

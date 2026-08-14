@@ -38,6 +38,13 @@ const NAV = [
     ],
   },
   {
+    label: "MARKET ECONOMY",
+    items: [
+      { href: "/market", icon: "spark" as const, label: "Services Market" },
+      { href: "/market/orders", icon: "receipt" as const, label: "My Orders" },
+    ],
+  },
+  {
     label: "MERCHANT",
     items: [{ href: "/merchant", icon: "store" as const, label: "Checkout Portal" }],
   },
