@@ -1,5 +1,5 @@
-import { getInvoice, markPaid, markMilestonePaid, markEscrowFunded, addTreasuryRevenue } from "@/lib/db"
-import { paymentRequirements, verifyTransfer, verifyEscrowFunding, ensureEscrowRegistered, confirmEscrowFunded, isEscrowInvoice, mintReputation, PaymentError, getPublicClient, usdcAmount } from "@/lib/chain"
+import { getInvoice, markPaid, markMilestonePaid, markEscrowFunded, addTreasuryRevenue, reserveCrossChainTx } from "@/lib/db"
+import { paymentRequirements, verifyTransfer, verifyEscrowFunding, ensureEscrowRegistered, confirmEscrowFunded, isEscrowInvoice, mintReputation, PaymentError, getPublicClient, usdcAmount, verifyCrossChainPayment, settleCrossChainPayout } from "@/lib/chain"
 import { PAYMENT_REQUIRED_HEADER } from "@/lib/paywall"
 import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
 import { buildCheckoutWebhook, signMerchantWebhook } from "@/lib/merchant"
@@ -34,7 +34,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (ms.status === "paid") return Response.json({ ok: true, invoice, alreadySettled: true })
   }
 
-  const txHash = request.headers.get("X-PAYMENT")
+  let txHash = request.headers.get("X-PAYMENT")
   if (!txHash) {
     try {
       // x402 (audit fix 2026-08-13): the challenge MUST carry the
@@ -66,6 +66,42 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     )
   }
 
+  // ── ClawUp cross-chain: the client paid native tokens on a source network
+  // into PayMate's custody wallet (receipt format CROSSCHAIN_{chainId}_{txHash}).
+  // We verify the deposit on the SOURCE chain, then the custody wallet pays
+  // the freelancer USDC on GOAT. txHash is reassigned to the GOAT payout hash
+  // so receipts, notifications and explorer links point at the real settlement.
+  let sourceChain: { chainId: number; sourceTxHash: string } | null = null
+  if (txHash.startsWith("CROSSCHAIN_")) {
+    if (isEscrowInvoice(invoice)) {
+      return Response.json({ detail: "Escrow invoices cannot be settled cross-chain." }, { status: 402 })
+    }
+    if (invoice.isStream || (invoice.milestones && invoice.milestones.length > 0) || (invoice.splits && invoice.splits.length > 0)) {
+      return Response.json({ detail: "Cross-chain payments are only available for simple single-amount invoices." }, { status: 402 })
+    }
+    try {
+      const verified = await verifyCrossChainPayment(txHash, invoice)
+      // SECURITY (replay guard): atomically reserve the SOURCE deposit before
+      // paying out, so the same deposit can never settle a second invoice.
+      const reserved = await reserveCrossChainTx(verified.chainId, verified.sourceTxHash, id)
+      if (!reserved) {
+        return Response.json({ detail: "This cross-chain payment has already been used to settle another invoice." }, { status: 402 })
+      }
+      sourceChain = { chainId: verified.chainId, sourceTxHash: verified.sourceTxHash }
+      txHash = await settleCrossChainPayout(invoice, invoice.amountUsd)
+    } catch (error) {
+      if (error instanceof PaymentError) {
+        console.error(`[CrossChain] settlement failed for ${id}:`, error.message)
+        return Response.json({
+          detail: error.status === 402
+            ? `${error.message} Funds stay safe in PayMate's custody wallet.`
+            : error.message,
+        }, { status: error.status })
+      }
+      throw error
+    }
+  }
+
   // Autonomous GitHub Escrow: the client's payment is locked into the on-chain
   // escrow contract, NOT sent directly to the freelancer. It is released by the
   // GitHub webhook the moment the PR merges, or by the AI arbitrator on a
@@ -94,11 +130,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
-  try {
-    await verifyTransfer(txHash, invoice, milestoneId)
-  } catch (error) {
-    if (error instanceof PaymentError) return Response.json({ detail: error.message }, { status: error.status })
-    throw error
+  if (!sourceChain) {
+    try {
+      await verifyTransfer(txHash, invoice, milestoneId)
+    } catch (error) {
+      if (error instanceof PaymentError) return Response.json({ detail: error.message }, { status: error.status })
+      throw error
+    }
   }
 
   const targetAmountUsd = milestoneId && invoice.milestones ? invoice.milestones.find(m => m.id === milestoneId)?.amountUsd || 0 : invoice.amountUsd;
@@ -109,7 +147,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!screen.ok) {
       return Response.json({ detail: `Settlement refused by security screening: ${screen.reason}` }, { status: 403 })
     }
-    if (process.env.SECURITY_SIMULATE_PAYMENTS !== "false") {
+    if (!sourceChain && process.env.SECURITY_SIMULATE_PAYMENTS !== "false") {
       const usdcToken = process.env.USDC_TOKEN
       if (usdcToken && isAddress(usdcToken)) {
         const sim = await simulatePaymentSafety(getPublicClient(), {
@@ -265,6 +303,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
-  return Response.json({ ok: true, invoice: updated, txHash, ipfsCid: receiptHash })
+  return Response.json({
+    ok: true,
+    invoice: updated,
+    txHash,
+    ipfsCid: receiptHash,
+    ...(sourceChain ? { sourceChainId: sourceChain.chainId, sourceTxHash: sourceChain.sourceTxHash } : {}),
+  })
 }
 

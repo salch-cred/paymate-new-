@@ -1080,6 +1080,25 @@ export async function markPaid(id: string, txHash: string, ipfsCid: string | nul
   return getInvoice(id)
 }
 
+/**
+ * Atomically reserves a cross-chain source payment (chain id + source tx hash)
+ * in the global settlement ledger. Returns false if that source payment was
+ * already consumed. Called BEFORE the custody wallet pays out, so one deposit
+ * can never be replayed to settle multiple invoices (the GOAT payout hash is
+ * itself reserved by markPaid, but that is a fresh tx per settlement — the
+ * SOURCE hash is what uniquely identifies the client's deposit).
+ */
+export async function reserveCrossChainTx(chainId: number, sourceTxHash: string, invoiceId: string): Promise<boolean> {
+  await ready()
+  const sql = getSql()
+  const key = `CROSSCHAIN_${chainId}_${sourceTxHash}`
+  const reserved = await sql`
+    INSERT INTO used_settlement_tx (tx_hash, invoice_id) VALUES (${key}, ${invoiceId})
+    ON CONFLICT (tx_hash) DO NOTHING RETURNING tx_hash
+  `
+  return reserved.length > 0
+}
+
 /** Persists (or replaces) the paywall deliverable for an invoice. */
 export async function updatePaywallContent(id: string, content: string): Promise<Invoice | null> {
   await ready()

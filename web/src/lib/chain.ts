@@ -1,6 +1,7 @@
 import { createPublicClient, createWalletClient, http, getAddress, isAddress, decodeFunctionData, type Chain } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import type { Invoice } from "./db"
+import { getNativeUsdPrice } from "./price"
 import {
   goat, base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo, mainnet, zksync, linea, scroll, blast,
   metis, mantle, opBNB, polygonZkEvm, arbitrumNova, cronos, gnosis, aurora, moonbeam, moonriver,
@@ -562,4 +563,154 @@ export async function verifyPluginPayment(
     if (error instanceof PaymentError) throw error
     throw new PaymentError(402, `Could not verify plugin payment: ${error instanceof Error ? error.message : String(error)}`)
   }
+}
+
+
+// ---------------------------------------------------------------------------
+// CROSS-CHAIN (ClawUp routing): accept native tokens on any supported network
+// into PayMate's custody wallet, then settle the SAME value as USDC on GOAT.
+// This is the in-app "pay with any network" rail: the client never leaves the
+// PayMate checkout and signs a single transaction on their own chain.
+// ---------------------------------------------------------------------------
+
+/** viem public clients for every source chain the modal offers. Read-only
+ *  (verification only) - uses each chain's default public RPC. The map is
+ *  typed structurally (not ReturnType<typeof createPublicClient>) because
+ *  each chain's inferred client carries a different transaction union. */
+interface CrossChainClient {
+  waitForTransactionReceipt: (args: { hash: `0x${string}`; timeout?: number }) => Promise<{ status: "success" | "reverted" }>
+  getTransaction: (args: { hash: `0x${string}` }) => Promise<{ to: string | null; value: bigint; from: string | null }>
+}
+const CROSS_CHAIN_CLIENTS: Record<number, CrossChainClient> = {
+  1: createPublicClient({ chain: mainnet, transport: http(mainnet.rpcUrls.default.http[0]) }),
+  56: createPublicClient({ chain: bsc, transport: http(bsc.rpcUrls.default.http[0]) }),
+  8453: createPublicClient({ chain: base, transport: http(base.rpcUrls.default.http[0]) }),
+  10: createPublicClient({ chain: optimism, transport: http(optimism.rpcUrls.default.http[0]) }),
+  42161: createPublicClient({ chain: arbitrum, transport: http(arbitrum.rpcUrls.default.http[0]) }),
+  137: createPublicClient({ chain: polygon, transport: http(polygon.rpcUrls.default.http[0]) }),
+  43114: createPublicClient({ chain: avalanche, transport: http(avalanche.rpcUrls.default.http[0]) }),
+  250: createPublicClient({ chain: fantom, transport: http(fantom.rpcUrls.default.http[0]) }),
+  42220: createPublicClient({ chain: celo, transport: http(celo.rpcUrls.default.http[0]) }),
+  324: createPublicClient({ chain: zksync, transport: http(zksync.rpcUrls.default.http[0]) }),
+  59144: createPublicClient({ chain: linea, transport: http(linea.rpcUrls.default.http[0]) }),
+  534352: createPublicClient({ chain: scroll, transport: http(scroll.rpcUrls.default.http[0]) }),
+  81457: createPublicClient({ chain: blast, transport: http(blast.rpcUrls.default.http[0]) }),
+  1088: createPublicClient({ chain: metis, transport: http(metis.rpcUrls.default.http[0]) }),
+  5000: createPublicClient({ chain: mantle, transport: http(mantle.rpcUrls.default.http[0]) }),
+  204: createPublicClient({ chain: opBNB, transport: http(opBNB.rpcUrls.default.http[0]) }),
+  1101: createPublicClient({ chain: polygonZkEvm, transport: http(polygonZkEvm.rpcUrls.default.http[0]) }),
+  42170: createPublicClient({ chain: arbitrumNova, transport: http(arbitrumNova.rpcUrls.default.http[0]) }),
+  25: createPublicClient({ chain: cronos, transport: http(cronos.rpcUrls.default.http[0]) }),
+  100: createPublicClient({ chain: gnosis, transport: http(gnosis.rpcUrls.default.http[0]) }),
+  1313161554: createPublicClient({ chain: aurora, transport: http(aurora.rpcUrls.default.http[0]) }),
+  1284: createPublicClient({ chain: moonbeam, transport: http(moonbeam.rpcUrls.default.http[0]) }),
+  1285: createPublicClient({ chain: moonriver, transport: http(moonriver.rpcUrls.default.http[0]) }),
+  8217: createPublicClient({ chain: klaytn, transport: http(klaytn.rpcUrls.default.http[0]) }),
+  1666600000: createPublicClient({ chain: harmonyOne, transport: http(harmonyOne.rpcUrls.default.http[0]) }),
+  1116: createPublicClient({ chain: coreDao, transport: http(coreDao.rpcUrls.default.http[0]) }),
+  252: createPublicClient({ chain: fraxtal, transport: http(fraxtal.rpcUrls.default.http[0]) }),
+  34443: createPublicClient({ chain: mode, transport: http(mode.rpcUrls.default.http[0]) }),
+  13371: createPublicClient({ chain: immutableZkEvm, transport: http(immutableZkEvm.rpcUrls.default.http[0]) }),
+  40: createPublicClient({ chain: telos, transport: http(telos.rpcUrls.default.http[0]) }),
+  82: createPublicClient({ chain: meter, transport: http(meter.rpcUrls.default.http[0]) }),
+  592: createPublicClient({ chain: astar, transport: http(astar.rpcUrls.default.http[0]) }),
+  66: createPublicClient({ chain: okc, transport: http(okc.rpcUrls.default.http[0]) }),
+  2222: createPublicClient({ chain: kava, transport: http(kava.rpcUrls.default.http[0]) }),
+  30: createPublicClient({ chain: rootstock, transport: http(rootstock.rpcUrls.default.http[0]) }),
+  146: createPublicClient({ chain: sonic, transport: http(sonic.rpcUrls.default.http[0]) }),
+  7777777: createPublicClient({ chain: zora, transport: http(zora.rpcUrls.default.http[0]) }),
+  4663: createPublicClient({ chain: robinhood, transport: http(robinhood.rpcUrls.default.http[0]) }),
+}
+
+export function getCrossChainClient(chainId: number) {
+  const client = CROSS_CHAIN_CLIENTS[chainId]
+  if (!client) throw new PaymentError(400, `Unsupported cross-chain source network: ${chainId}`)
+  return client
+}
+
+/**
+ * The custody wallet that receives source-chain native tokens for cross-chain
+ * settlement. This is the PRIVATE_KEY account (the same one already used for
+ * escrow + agent payouts). Fail-closed: cross-chain settlement refuses to run
+ * without it, so clients can never be told to pay a wallet that can't settle.
+ */
+export function getCustodyAddress(): `0x${string}` {
+  const account = getIssuerAccount()
+  if (!account) {
+    throw new PaymentError(503, "PRIVATE_KEY is not configured - cross-chain custody wallet unavailable")
+  }
+  return account.address
+}
+
+/**
+ * Verifies a cross-chain payment receipt (CROSSCHAIN_{chainId}_{txHash}) on the
+ * SOURCE chain: the transaction must have succeeded and been sent to PayMate's
+ * custody wallet, and its native value must cover the invoice (live price,
+ * 5% tolerance). Returns the source chain id + tx hash for the audit trail.
+ */
+export async function verifyCrossChainPayment(
+  receipt: string,
+  invoice: Invoice
+): Promise<{ chainId: number; sourceTxHash: string; payer: string }> {
+  const parts = receipt.split("_")
+  if (parts.length !== 3 || parts[0] !== "CROSSCHAIN") {
+    throw new PaymentError(402, "Invalid cross-chain payment receipt.")
+  }
+  const chainId = Number(parts[1])
+  const sourceTxHash = parts[2]
+  if (!Number.isInteger(chainId) || chainId <= 0) {
+    throw new PaymentError(402, "Invalid cross-chain source chain id.")
+  }
+  const client = getCrossChainClient(chainId)
+  const txReceipt = await client.waitForTransactionReceipt({
+    hash: sourceTxHash as `0x${string}`,
+    timeout: 90_000,
+  })
+  if (txReceipt.status !== "success") {
+    throw new PaymentError(402, `Cross-chain transaction reverted: ${sourceTxHash}`)
+  }
+  const tx = await client.getTransaction({ hash: sourceTxHash as `0x${string}` })
+  if (!tx.to) throw new PaymentError(402, "Cross-chain transaction has no recipient")
+  const custody = getCustodyAddress()
+  if (getAddress(tx.to) !== custody) {
+    throw new PaymentError(402, "Cross-chain payment must be sent to PayMate's custody wallet")
+  }
+  const price = await getNativeUsdPrice(chainId)
+  if (!price || price <= 0) {
+    throw new PaymentError(402, "Could not fetch the source chain's live price to verify the payment value")
+  }
+  const paidUsd = (Number(tx.value) / 1e18) * price
+  if (paidUsd < invoice.amountUsd * 0.95) {
+    throw new PaymentError(
+      402,
+      `Cross-chain payment is short: received ~$${paidUsd.toFixed(2)} but the invoice requires $${invoice.amountUsd.toFixed(2)}`
+    )
+  }
+  if (!tx.from) throw new PaymentError(402, "Could not determine the payer of the cross-chain payment")
+  return { chainId, sourceTxHash, payer: getAddress(tx.from) }
+}
+
+/**
+ * Settles a verified cross-chain payment: the custody wallet sends the invoice
+ * value as USDC on GOAT Network to the freelancer. Returns the GOAT tx hash.
+ * Fails closed (invoice stays pending, funds safe in custody) on any error.
+ */
+export async function settleCrossChainPayout(invoice: Invoice, amountUsd: number): Promise<string> {
+  assertProductionSafeToken()
+  const account = getIssuerAccount()
+  if (!account) throw new PaymentError(503, "PRIVATE_KEY is not configured for cross-chain settlement")
+  const usdcToken = process.env.USDC_TOKEN
+  if (!usdcToken || !isAddress(usdcToken)) {
+    throw new PaymentError(503, "USDC_TOKEN is not configured on the API")
+  }
+  const publicClient = getPublicClient()
+  const walletClient = createWalletClient({ account, chain: goatChain, transport: http(RPC_URL) })
+  const hash = await walletClient.writeContract({
+    address: getAddress(usdcToken),
+    abi: ERC20_TRANSFER_ABI,
+    functionName: "transfer",
+    args: [getAddress(invoice.freelancer), usdcAmount(amountUsd)],
+  })
+  await publicClient.waitForTransactionReceipt({ hash, timeout: 90_000 })
+  return hash
 }

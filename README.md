@@ -34,7 +34,8 @@ PayMate fixes both sides of the loop:
 - **Pay by invoice ID** (`/pay`) — a client with just the invoice number can type it into the PayMate web app and pay, no link or account required
 
 **Cross-chain**
-- ClawUp checkout: non-custodial cross-chain bridging to GOAT — bridge USDC from 30+ networks, BTC/native assets, or gas yourself, then pay the invoice on GOAT (no custody, funds never pass through PayMate)
+- **ClawUp cross-chain, in-app** — "Pay with Any Network (ClawUp Routing)" on the checkout: the client picks any of 39 networks, signs ONE transaction on their own chain, and the native token lands in PayMate's custody wallet — which then settles the same value as **USDC on GOAT** to the freelancer. Client never leaves the page. (Operator setup: `PRIVATE_KEY` = the custody wallet, funded with GOAT USDC; `USDC_IS_REAL_MAINNET_TOKEN=true`.)
+- ClawUp self-bridge (non-custodial alternative): bridge USDC from 30+ networks, BTC/native assets, or gas yourself, then pay the invoice on GOAT — funds never pass through PayMate
 - ClawUp platform intent adapter (`/api/clawup/intent`) for autonomous invoice creation and payment
 
 **Trust & reputation**

@@ -10,13 +10,14 @@ import { Icon } from "@/components/icons"
 import { WalletConnectMenu } from "@/components/wallet-connect-menu"
 import { FeedbackForm } from "@/components/feedback-form"
 import { PaidBill } from "@/components/paid-bill"
+import { ClawUpModal } from "@/components/clawup-modal"
 import { decryptViewKey } from "@/lib/zk"
 
 type Invoice={id:string;freelancer:string;client:string;title?:string;description:string;amountUsd:number;status:"pending"|"paid"|"cancelled";chain:string;dueDate?:string;txHash?:string;createdAt?:number;paidAt?:number|null;ipfsReceipt?:string|null;splits?:{address:string;amountUsd:number}[];milestones?:{id:string;title:string;amountUsd:number;status:"pending"|"paid";txHash?:string;paidAt?:number}[];isStream?:boolean;streamRateUsd?:number|null;streamedAmountUsd?:number;streamSignature?:string|null;streamAuthorizedAt?:number|null;isPrivate?:boolean;zkCommitment?:string|null;githubPrUrl?:string|null;isYieldBearing?:boolean;yieldEarned?:number;isSwarm?:boolean;swarmWallets?:{address:string;share:number}[]|null;proofOfCompute?:boolean;computeHash?:string|null;escrowStatus?:"none"|"funded"|"resolved";escrowTxHash?:string|null}
 
 export default function PayPage({params}:{params:Promise<{id:string}>}){
   const {id}=use(params);const [invoice,setInvoice]=useState<Invoice|null>(null);const [status,setStatus]=useState<"idle"|"paying"|"paid"|"error">("idle");const [activeMilestone,setActiveMilestone]=useState<string|null>(null);const [error,setError]=useState<string|null>(null);const [loading,setLoading]=useState(true);const {address,isConnected,chain}=useAccount();const {data:walletClient}=useWalletClient();const {switchChainAsync}=useSwitchChain()
-  const [showDispute,setShowDispute]=useState(false);const [disputeMsg,setDisputeMsg]=useState("");const [disputeLog,setDisputeLog]=useState<{role:string,content:string}[]>([])
+  const [showDispute,setShowDispute]=useState(false);const [disputeMsg,setDisputeMsg]=useState("");const [disputeLog,setDisputeLog]=useState<{role:string,content:string}[]>([]);const [showClawUp,setShowClawUp]=useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   
   const [decryptedAmount, setDecryptedAmount] = useState<number | null>(null)
@@ -117,6 +118,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
  }
 
  async function handlePay(milestoneId?: string){if(!isConnected||!address||!walletClient)return;setStatus("paying");if(milestoneId)setActiveMilestone(milestoneId);setError(null);try{if(chain?.id!==goatChain.id)await switchChainAsync({chainId:goatChain.id});const res=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({milestoneId,viewKey:viewKey||undefined})});if(res.status!==402){if(res.ok){setStatus("paid");setActiveMilestone(null);setInvoice(v=>v?{...v,status:"paid"}:v);return}throw new Error(`Unexpected settlement status: ${res.status}`)}const requirements=await res.json();if(!requirements.accepts||requirements.accepts.length===0)throw new Error("No valid payment options returned.");const txHashes=[];for(const option of requirements.accepts){if(!option.token)throw new Error("Payment requirements missing the USDC token address");if(!option.maxAmountRequired)throw new Error("Payment requirements missing the exact settlement amount");const amount=BigInt(option.maxAmountRequired);const hash=await walletClient.writeContract({address:option.token as `0x${string}`,abi:[{inputs:[{name:"recipient",type:"address"},{name:"amount",type:"uint256"}],name:"transfer",outputs:[{name:"",type:"bool"}],stateMutability:"nonpayable",type:"function"}],functionName:"transfer",args:[option.payTo as `0x${string}`,amount],account:address,chain:goatChain});txHashes.push(hash);}const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":txHashes.join(",")},body:JSON.stringify({milestoneId,viewKey:viewKey||undefined})});if(!settle.ok)throw new Error("Payment verification failed.");const updatedInvoice=await settle.json();setStatus("idle");setActiveMilestone(null);setInvoice(updatedInvoice.invoice)}catch(e){setStatus("error");setActiveMilestone(null);setError(e instanceof Error?e.message:"Payment failed")}}
+ async function handleCrossChainSettle(txHash: string, chainId: number){setStatus("paying");setError(null);try{const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":`CROSSCHAIN_${chainId}_${txHash}`},body:JSON.stringify({viewKey:viewKey||undefined})});const data=await settle.json();if(!settle.ok)throw new Error(data?.detail||"Cross-chain settlement failed");setShowClawUp(false);setStatus("paid");setActiveMilestone(null);setInvoice(data.invoice)}catch(e){setStatus("error");setActiveMilestone(null);setError(e instanceof Error?e.message:"Cross-chain settlement failed")}}
  if(loading)return <main className="loading-page"><div className="loader"/></main>
  if(!invoice)return <main className="loading-page"><div style={{textAlign:"center"}}><h1 style={{fontFamily:"var(--font-display)"}}>Invoice unavailable</h1><p>{error}</p><Link className="button button-dark" href="/">Return home</Link></div></main>
  const paid=invoice.status==="paid"||status==="paid"
@@ -382,7 +384,12 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
                   <button className="pay-action" onClick={()=>handlePay()} disabled={invoice.isPrivate && decryptedAmount === null}>
                     {isEscrowInvoice ? `Lock ${invoice.isPrivate && decryptedAmount === null ? "███" : (decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()} USDC in Escrow` : `Pay ${invoice.isPrivate && decryptedAmount === null ? "███" : (decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()} USDC`} <Icon name="arrow" size={18}/>
                   </button>
-                  <div style={{ marginTop: 6, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+                  {!isEscrowInvoice && !invoice.isStream && !invoice.milestones && !invoice.splits && !invoice.isPrivate && (
+  <button className="button button-outline" style={{ width: '100%', justifyContent: 'center', height: 42, fontSize: 12, marginTop: 10 }} onClick={()=>setShowClawUp(true)}>
+    <Icon name="network" size={14} /> Pay with Any Network (ClawUp Routing)
+  </button>
+)}
+<div style={{ marginTop: 6, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                       <Icon name="network" size={13} />
                       <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: 'var(--muted)' }}>CLAWUP CROSS-CHAIN</span>
@@ -469,5 +476,5 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
     )}
   </div>
 
- </section></main>
+ </section><ClawUpModal isOpen={showClawUp} onClose={()=>setShowClawUp(false)} onSuccess={handleCrossChainSettle} amountUsd={effectiveAmount} /></main>
 }
