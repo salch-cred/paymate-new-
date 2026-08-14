@@ -58,6 +58,10 @@ export interface Invoice {
   apiKeyId: string | null
   /** Real paywall deliverable stored on the invoice — served only after on-chain payment. */
   paywallContent: string | null
+  /** Merchant checkout: the merchant's own order reference (echoed in webhooks). */
+  merchantOrderId: string | null
+  /** Merchant checkout: HMAC secret used to sign the payment webhook to the merchant. */
+  merchantWebhookSecret: string | null
 }
 
 export type FeedbackRole = "freelancer" | "client" | "other"
@@ -123,6 +127,8 @@ interface InvoiceRow {
   escrow_tx_hash: string | null
   api_key_id: string | null
   paywall_content: string | null
+  merchant_order_id: string | null
+  merchant_webhook_secret: string | null
 }
 
 declare global {
@@ -174,6 +180,8 @@ async function ready(): Promise<void> {
       await sql`CREATE INDEX IF NOT EXISTS idx_invoices_api_key ON invoices(api_key_id, created_at DESC)`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paywall_content TEXT`.catch(()=>null)
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS cancelled_at BIGINT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS merchant_order_id TEXT`.catch(()=>null)
+      await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS merchant_webhook_secret TEXT`.catch(()=>null)
       await sql`CREATE INDEX IF NOT EXISTS idx_invoices_freelancer ON invoices(freelancer, created_at DESC)`
       // SECURITY (audit fix 2026-08-13): global ledger of on-chain tx hashes
       // already consumed to settle an invoice or milestone. markPaid/
@@ -233,6 +241,20 @@ async function ready(): Promise<void> {
         last_used_at BIGINT
       )`
       await sql`CREATE INDEX IF NOT EXISTS idx_api_keys_wallet ON api_keys(wallet, created_at DESC)`
+      // Merchant checkout profiles — one per API key. The receive wallet is
+      // where checkout payments settle; the webhook secret signs the
+      // checkout.paid webhook we POST to the merchant after on-chain settlement.
+      await sql`CREATE TABLE IF NOT EXISTS merchant_profiles (
+        api_key_id TEXT PRIMARY KEY,
+        store_name TEXT,
+        logo_url TEXT,
+        receive_wallet TEXT,
+        webhook_url TEXT,
+        success_url TEXT,
+        cancel_url TEXT,
+        webhook_secret TEXT,
+        created_at BIGINT NOT NULL
+      )`
       await sql`CREATE TABLE IF NOT EXISTS chat_states (
         chat_id TEXT PRIMARY KEY,
         address TEXT,
@@ -355,6 +377,8 @@ function rowToInvoice(row: InvoiceRow): Invoice {
     escrowTxHash: row.escrow_tx_hash || null,
     apiKeyId: row.api_key_id || null,
     paywallContent: row.paywall_content || null,
+    merchantOrderId: row.merchant_order_id || null,
+    merchantWebhookSecret: row.merchant_webhook_secret || null,
   }
 }
 
@@ -384,6 +408,8 @@ export async function createInvoice(input: {
   computeHash?: string | null
   apiKeyId?: string | null
   paywallContent?: string | null
+  merchantOrderId?: string | null
+  merchantWebhookSecret?: string | null
 }): Promise<Invoice> {
   await ready()
   const sql = getSql()
@@ -442,6 +468,8 @@ export async function createInvoice(input: {
     escrowTxHash: null,
     apiKeyId: input.apiKeyId || null,
     paywallContent: input.paywallContent || null,
+    merchantOrderId: input.merchantOrderId || null,
+    merchantWebhookSecret: input.merchantWebhookSecret || null,
   }
   
   const splitsJson = invoice.splits ? JSON.stringify(invoice.splits) : null
@@ -454,7 +482,8 @@ export async function createInvoice(input: {
     created_at, paid_at, webhook_url, signature, splits, recurring, recurring_parent_id, milestones,
     is_stream, stream_rate_usd, streamed_amount_usd, stream_signature, stream_authorized_at, is_private, zk_commitment, github_pr_url,
     is_yield_bearing, yield_earned, is_swarm, swarm_wallets, proof_of_compute, compute_hash,
-    escrow_status, escrow_tx_hash, api_key_id, paywall_content
+    escrow_status, escrow_tx_hash, api_key_id, paywall_content,
+    merchant_order_id, merchant_webhook_secret
   ) VALUES (
     ${invoice.id}, ${invoice.freelancer}, ${invoice.client}, ${invoice.title}, ${invoice.description},
     ${invoice.amountUsd}, ${invoice.status}, ${invoice.chain}, ${invoice.dueDate}, ${invoice.txHash},
@@ -462,7 +491,8 @@ export async function createInvoice(input: {
     ${invoice.recurring}, ${invoice.recurringParentId}, ${milestonesJson}, ${invoice.isStream}, ${invoice.streamRateUsd}, ${invoice.streamedAmountUsd},
     ${invoice.streamSignature}, ${invoice.streamAuthorizedAt}, ${invoice.isPrivate}, ${invoice.zkCommitment}, ${invoice.githubPrUrl},
     ${invoice.isYieldBearing}, ${invoice.yieldEarned}, ${invoice.isSwarm}, ${swarmWalletsJson}, ${invoice.proofOfCompute}, ${invoice.computeHash},
-    ${invoice.escrowStatus}, ${invoice.escrowTxHash}, ${invoice.apiKeyId}, ${invoice.paywallContent}
+    ${invoice.escrowStatus}, ${invoice.escrowTxHash}, ${invoice.apiKeyId}, ${invoice.paywallContent},
+    ${invoice.merchantOrderId}, ${invoice.merchantWebhookSecret}
   )`
   return invoice
 }
@@ -1365,6 +1395,92 @@ export async function listApiKeys(wallet: string): Promise<ApiKey[]> {
     ORDER BY created_at DESC
   `) as unknown as ApiKeyRow[]
   return rows.map(rowToApiKey)
+}
+
+export interface MerchantProfile {
+  apiKeyId: string
+  storeName: string | null
+  logoUrl: string | null
+  receiveWallet: string | null
+  webhookUrl: string | null
+  successUrl: string | null
+  cancelUrl: string | null
+  webhookSecret: string | null
+  createdAt: number
+}
+
+interface MerchantProfileRow {
+  api_key_id: string
+  store_name: string | null
+  logo_url: string | null
+  receive_wallet: string | null
+  webhook_url: string | null
+  success_url: string | null
+  cancel_url: string | null
+  webhook_secret: string | null
+  created_at: string
+}
+
+function rowToMerchantProfile(row: MerchantProfileRow): MerchantProfile {
+  return {
+    apiKeyId: row.api_key_id,
+    storeName: row.store_name || null,
+    logoUrl: row.logo_url || null,
+    receiveWallet: row.receive_wallet || null,
+    webhookUrl: row.webhook_url || null,
+    successUrl: row.success_url || null,
+    cancelUrl: row.cancel_url || null,
+    webhookSecret: row.webhook_secret || null,
+    createdAt: Number(row.created_at),
+  }
+}
+
+/** Loads the merchant profile for an API key (null when never created). */
+export async function getMerchantProfile(apiKeyId: string): Promise<MerchantProfile | null> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`SELECT * FROM merchant_profiles WHERE api_key_id = ${apiKeyId}`) as unknown as MerchantProfileRow[]
+  return rows.length ? rowToMerchantProfile(rows[0]) : null
+}
+
+/**
+ * Creates or updates the merchant profile for an API key. Fields not passed
+ * are left untouched; the webhook secret is generated once and never
+ * regenerated by an update (rotate it by passing an explicit new value).
+ */
+export async function upsertMerchantProfile(
+  apiKeyId: string,
+  fields: Partial<Pick<MerchantProfile, "storeName" | "logoUrl" | "receiveWallet" | "webhookUrl" | "successUrl" | "cancelUrl" | "webhookSecret">>,
+): Promise<MerchantProfile> {
+  await ready()
+  const sql = getSql()
+  const existing = await getMerchantProfile(apiKeyId)
+  const createdAt = existing?.createdAt ?? Date.now()
+  await sql`
+    INSERT INTO merchant_profiles (api_key_id, store_name, logo_url, receive_wallet, webhook_url, success_url, cancel_url, webhook_secret, created_at)
+    VALUES (${apiKeyId}, ${fields.storeName ?? existing?.storeName ?? null}, ${fields.logoUrl ?? existing?.logoUrl ?? null}, ${fields.receiveWallet ?? existing?.receiveWallet ?? null}, ${fields.webhookUrl ?? existing?.webhookUrl ?? null}, ${fields.successUrl ?? existing?.successUrl ?? null}, ${fields.cancelUrl ?? existing?.cancelUrl ?? null}, ${fields.webhookSecret ?? existing?.webhookSecret ?? null}, ${createdAt})
+    ON CONFLICT (api_key_id) DO UPDATE SET
+      store_name = EXCLUDED.store_name,
+      logo_url = EXCLUDED.logo_url,
+      receive_wallet = EXCLUDED.receive_wallet,
+      webhook_url = EXCLUDED.webhook_url,
+      success_url = EXCLUDED.success_url,
+      cancel_url = EXCLUDED.cancel_url,
+      webhook_secret = EXCLUDED.webhook_secret
+  `
+  const row = (await sql`SELECT * FROM merchant_profiles WHERE api_key_id = ${apiKeyId}`) as unknown as MerchantProfileRow[]
+  return rowToMerchantProfile(row[0])
+}
+
+/** Lists invoices created via the merchant checkout API for an API key. */
+export async function listInvoicesByApiKey(apiKeyId: string, limit = 50): Promise<Invoice[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM invoices WHERE api_key_id = ${apiKeyId}
+    ORDER BY created_at DESC LIMIT ${limit}
+  `) as unknown as InvoiceRow[]
+  return rows.map(rowToInvoice)
 }
 
 /** Looks up a key by its SHA-256 hash (constant-time-ish; hash equality is safe). */

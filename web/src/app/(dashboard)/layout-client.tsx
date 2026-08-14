@@ -39,6 +39,10 @@ const NAV = [
     ],
   },
   {
+    label: "MERCHANT",
+    items: [{ href: "/merchant", icon: "store" as const, label: "Checkout Portal" }],
+  },
+  {
     label: "PROTOCOL",
     items: [
       { href: "/treasury", icon: "receipt" as const, label: "Treasury" },

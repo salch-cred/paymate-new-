@@ -30,6 +30,7 @@ PayMate fixes both sides of the loop:
 - **OpenClaw skill** — `openclaw skill install https://paymateagent.xyz/openclaw-skill.json`, then call `generate_invoice` and hand the client a live settlement link (or the Telegram Mini App link when the client is on Telegram)
 - Voice AI agent for hands-free invoicing; Telegram natural-language invoicing; Discord slash-command billing
 - **Telegram Mini App** (`/tg`) — open any invoice inside Telegram and pay **on-chain USDC on GOAT Network** through the standard web checkout
+- **Merchant Checkout** (`/merchant`, `POST /api/merchant/checkout`) — any business accepts USDC on GOAT with one API call + a copy-paste button; signed `checkout.paid` webhooks (HMAC `X-PayMate-Signature`) tell your backend to fulfil the order
 
 **Cross-chain**
 - ClawUp checkout: clients pay from **39 networks** (Ethereum, Base, Arbitrum, BNB, Polygon, Avalanche, GOAT, Robinhood…) — value is cryptographically verified on the source chain before settling on GOAT

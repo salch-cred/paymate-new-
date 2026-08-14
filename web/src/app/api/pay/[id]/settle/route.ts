@@ -3,6 +3,7 @@ import { paymentRequirements, verifyTransfer, verifyEscrowFunding, ensureEscrowR
 import { PAYMENT_REQUIRED_HEADER } from "@/lib/paywall"
 import { getNativeUsdPrice } from "@/lib/price"
 import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
+import { buildCheckoutWebhook, signMerchantWebhook } from "@/lib/merchant"
 import { sendReceipt } from "@/lib/email"
 import { isSafeWebhookUrl } from "@/lib/webhookSafety"
 import { screenWallets, simulatePaymentSafety } from "@/lib/security"
@@ -249,16 +250,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // re-validate at fetch time regardless of how/when webhookUrl was set.
   if (updated.webhookUrl && isSafeWebhookUrl(updated.webhookUrl)) {
     try {
+      // Merchant checkouts get a signed checkout.paid webhook (HMAC-SHA256
+      // keyed with the merchant's webhook secret) so the merchant's backend
+      // can verify it really came from PayMate before fulfilling the order.
+      const isMerchant = Boolean(updated.merchantWebhookSecret)
+      const payload = isMerchant
+        ? buildCheckoutWebhook(updated)
+        : {
+            event: milestoneId ? "invoice.milestone.paid" : "invoice.paid",
+            invoiceId: updated.id,
+            milestoneId: milestoneId || null,
+            amountUsd: targetAmountUsd,
+            txHash,
+          }
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (isMerchant && updated.merchantWebhookSecret) {
+        headers["X-PayMate-Signature"] = signMerchantWebhook(updated.merchantWebhookSecret, JSON.stringify(payload))
+      }
       await fetch(updated.webhookUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event: milestoneId ? "invoice.milestone.paid" : "invoice.paid",
-          invoiceId: updated.id,
-          milestoneId: milestoneId || null,
-          amountUsd: targetAmountUsd,
-          txHash,
-        })
+        headers,
+        body: JSON.stringify(payload),
       })
     } catch (e) {
       console.log(`Webhook failed for ${updated.id}:`, e)
