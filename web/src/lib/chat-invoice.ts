@@ -37,6 +37,17 @@ export async function createBotInvoice(opts: {
   return { invoice, payUrl: `https://paymateagent.xyz/pay/${invoice.id}` }
 }
 
+/**
+ * The PayMate Telegram Mini App checkout for an invoice. Opens inside
+ * Telegram (t.me/bot/app) and deep-links to the on-chain GOAT Network
+ * checkout (non-custodial USDC settlement). Falls back to the
+ * hardcoded production origin, like payUrl above.
+ */
+export function tgMiniAppUrl(invoiceId: string): string {
+  const base = (process.env.API_BASE || "https://paymateagent.xyz").replace(/\/$/, "")
+  return `${base}/tg?invoice=${encodeURIComponent(invoiceId)}`
+}
+
 interface ConversationResult {
   ready?: boolean
   address?: string | null

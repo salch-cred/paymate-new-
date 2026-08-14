@@ -27,8 +27,9 @@ PayMate fixes both sides of the loop:
 **Agent-native (the differentiator)**
 - **x402 pay-per-use** — HTTP 402 challenge → USDC settlement → replay-guarded unlock, implemented across invoices, marketplace plugins, and the billing API
 - **Agent Billing API** — `POST /api/agent-billing` lets any OpenClaw/ClawUp team monetize an agent in one line; per-call usage metering
-- **OpenClaw skill** — `openclaw skill install https://paymateagent.xyz/openclaw-skill.json`, then call `generate_invoice` and hand the client a live settlement link
+- **OpenClaw skill** — `openclaw skill install https://paymateagent.xyz/openclaw-skill.json`, then call `generate_invoice` and hand the client a live settlement link (or the Telegram Mini App link when the client is on Telegram)
 - Voice AI agent for hands-free invoicing; Telegram natural-language invoicing; Discord slash-command billing
+- **Telegram Mini App** (`/tg`) — open any invoice inside Telegram and pay **on-chain USDC on GOAT Network** through the standard web checkout
 
 **Cross-chain**
 - ClawUp checkout: clients pay from **39 networks** (Ethereum, Base, Arbitrum, BNB, Polygon, Avalanche, GOAT, Robinhood…) — value is cryptographically verified on the source chain before settling on GOAT

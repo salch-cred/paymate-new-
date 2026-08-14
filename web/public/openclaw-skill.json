@@ -1,6 +1,6 @@
 {
   "name": "paymate_billing",
-  "version": "1.2.0",
+  "version": "1.5.0",
   "description": "PayMate Billing Engine - allows AI agents to instantly generate cryptographic, non-custodial invoices settled on the GOAT Network, and to monetize endpoints with the x402 Pay-to-Unlock paywall. Requires an API key (mint one at https://paymateagent.xyz/developers) sent as 'Authorization: Bearer pm_...'.",
   "author": "PayMate Team",
   "authentication": {
@@ -13,7 +13,7 @@
   "tools": [
     {
       "name": "generate_invoice",
-      "description": "Generate a professional invoice for a client and return a verifiable payment link.",
+      "description": "Generate a professional invoice for a client and return a verifiable payment link. The response includes payUrl (web checkout) and tgMiniAppUrl (Telegram Mini App checkout — pay on-chain USDC on GOAT Network) — send the tgMiniAppUrl when the client is on Telegram, otherwise payUrl.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -44,7 +44,7 @@
     },
     {
       "name": "create_paywalled_invoice",
-      "description": "Create a paywalled invoice for a premium endpoint or digital product and receive the x402 quote (accepts[]). Pass the deliverable in 'content' and PayMate stores it server-side and serves it at pageUrl once the payment is verified. Present the payUrl to your client; when they pay USDC on GOAT Network, unlock by retrying with the PAYMENT-SIGNATURE header (base64 JSON {\"txHash\":\"0x...\"}). Try it at https://paymateagent.xyz/paywall.",
+      "description": "Create a paywalled invoice for a premium endpoint or digital product and receive the x402 quote (accepts[]). Pass the deliverable in 'content' and PayMate stores it server-side and serves it at pageUrl once the payment is verified. Present the payUrl (or tgMiniAppUrl for clients on Telegram — on-chain USDC on GOAT Network inside the Mini App) to your client; when they pay USDC on GOAT Network, unlock by retrying with the PAYMENT-SIGNATURE header (base64 JSON {\"txHash\":\"0x...\"}). Try it at https://paymateagent.xyz/paywall.",
       "parameters": {
         "type": "object",
         "properties": {

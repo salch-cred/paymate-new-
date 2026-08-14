@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "crypto";
-import { runInvoiceConversation } from "@/lib/chat-invoice";
+import { runInvoiceConversation, tgMiniAppUrl } from "@/lib/chat-invoice";
 
 const TELEGRAM_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
 
@@ -60,10 +60,14 @@ export async function POST(request: Request) {
       onInvoiceCreated: async (invoice, payUrl) => {
         // Do not clear the state, so the AI can answer questions about the
         // generated invoice later.
+        const miniAppUrl = tgMiniAppUrl(invoice.id);
         await sendMessage({
           chat_id: chatId,
           text: `✅ **Invoice Generated Successfully by AI!**\n\nFreelancer: \`${invoice.freelancer}\`\nTitle: ${invoice.title}\nScope: ${invoice.description}\nAmount: $${invoice.amountUsd} USDC\n\n**Client Payment Link:**\n${payUrl}\n\n*Log in to your PayMate dashboard with your wallet to track this payment in real-time!*`,
-          parse_mode: "Markdown"
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [[{ text: "🧾 Open Mini App", web_app: { url: miniAppUrl } }]],
+          },
         });
       },
     });

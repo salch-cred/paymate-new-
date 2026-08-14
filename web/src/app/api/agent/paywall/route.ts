@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getAddress } from "viem"
-import { createBotInvoice } from "@/lib/chat-invoice"
+import { createBotInvoice, tgMiniAppUrl } from "@/lib/chat-invoice"
 import { paymentRequirements, PaymentError } from "@/lib/chain"
 import { authenticateApiKey, assertApiQuota } from "@/lib/apikey"
 import { OPEN_CLIENT_ADDRESS } from "@/lib/constants"
@@ -71,11 +71,15 @@ export async function POST(request: Request) {
       invoiceId: invoice.id,
       pageUrl: `https://paymateagent.xyz/paywall/${invoice.id}`,
       payUrl,
+      // Telegram Mini App checkout (on-chain GOAT) for clients on Telegram.
+      tgMiniAppUrl: tgMiniAppUrl(invoice.id),
       accepts: requirements.accepts,
       unlockInstructions:
         "Present the payUrl (or the accepts[] quote) to your client. After they pay USDC on " +
         "GOAT Network, retry your endpoint with the PAYMENT-SIGNATURE header " +
         '`PAYMENT-SIGNATURE: base64({"txHash":"0x..."})` to verify and unlock. ' +
+        "If the client is on Telegram, point them at tgMiniAppUrl instead — it opens the " +
+        "PayMate Mini App and they pay on-chain USDC on GOAT Network. " +
         "See https://paymateagent.xyz/docs#paywall for the full flow.",
     })
   } catch (error) {
