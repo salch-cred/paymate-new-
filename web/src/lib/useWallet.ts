@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo } from "react"
-import { useAccount, useConnect, useConfig, useSwitchAccount } from "wagmi"
+import { useAccount, useConnect, useConfig, useDisconnect, useSwitchAccount } from "wagmi"
 import { usePrivy, useWallets } from "@privy-io/react-auth"
 
 /**
@@ -20,10 +20,11 @@ import { usePrivy, useWallets } from "@privy-io/react-auth"
  * into wagmi so signing (useWalletClient / writeContract) works.
  */
 export function useWallet() {
-  const { authenticated, ready, user } = usePrivy()
+  const { authenticated, ready, user, logout: privyLogout } = usePrivy()
   const { wallets } = useWallets()
   const wagmi = useAccount()
   const { connect } = useConnect()
+  const { disconnect } = useDisconnect()
   const { switchAccount } = useSwitchAccount()
   const config = useConfig()
 
@@ -71,5 +72,38 @@ export function useWallet() {
     void syncWagmi()
   }, [syncWagmi])
 
-  return { isConnected, address, ready, authenticated }
+  /**
+   * Full logout: disconnect every wagmi connection, clear wagmi persistence,
+   * then clear the Privy session.
+   *
+   * Why this is needed: calling only Privy's logout() leaves wagmi connected
+   * (wagmi keeps its own connector state + storage), so after "logging out"
+   * the UI still shows the connected wallet and the Log out button — the
+   * button appears broken. wagmi's disconnect() without a connector also only
+   * disconnects the *current* connection, so iterate all connections.
+   */
+  const handleLogout = useCallback(async () => {
+    const connections = [...config.state.connections.values()]
+    for (const connection of connections) {
+      try {
+        disconnect({ connector: connection.connector })
+      } catch {
+        // Per-connector failures are non-fatal; keep clearing the rest.
+      }
+    }
+    try {
+      await config.storage?.removeItem("recentConnectorId")
+    } catch {
+      // Non-fatal: the disconnect above already persisted per-connector
+      // "disconnected" flags that prevent auto-reconnect on reload.
+    }
+    try {
+      await privyLogout()
+    } catch {
+      // Even if the Privy session call fails, wagmi is already cleared and
+      // the UI falls back to the disconnected state.
+    }
+  }, [config, disconnect, privyLogout])
+
+  return { isConnected, address, ready, authenticated, logout: handleLogout }
 }
