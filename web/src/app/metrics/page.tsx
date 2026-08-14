@@ -17,6 +17,8 @@ interface MetricsData {
     uniqueClients: number
     feedbackCount: number
     averageRating: number
+    clawUpIntentInvoices: number
+    clawUpIntentVolume: number
   }
   targets: {
     metric: string
@@ -203,6 +205,11 @@ export default function MetricsPage() {
                 <span>Total invoices</span>
                 <b>{stats.totalInvoices}</b>
                 <small>created across the network</small>
+              </div>
+              <div className="metric-card">
+                <span>ClawUp-originated invoices</span>
+                <b>{stats.clawUpIntentInvoices}</b>
+                <small>${stats.clawUpIntentVolume.toLocaleString()} settled via the ClawUp intent adapter</small>
               </div>
             </div>
 

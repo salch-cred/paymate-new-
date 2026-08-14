@@ -33,6 +33,8 @@ const fakeStats: GrowthStats = {
   firstInvoiceAt: 1,
   lastInvoiceAt: 2,
   lastPaidInvoice: null,
+  clawUpIntentInvoices: 3,
+  clawUpIntentVolume: 150.25,
 }
 
 // 1. Metric mapping reads the right live stat

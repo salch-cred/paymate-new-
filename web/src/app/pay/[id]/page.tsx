@@ -9,7 +9,6 @@ import { OPEN_CLIENT_ADDRESS } from "@/lib/constants"
 import { Icon } from "@/components/icons"
 import { WalletConnectMenu } from "@/components/wallet-connect-menu"
 import { FeedbackForm } from "@/components/feedback-form"
-import { ClawUpModal } from "@/components/clawup-modal"
 import { PaidBill } from "@/components/paid-bill"
 import { decryptViewKey } from "@/lib/zk"
 
@@ -18,7 +17,6 @@ type Invoice={id:string;freelancer:string;client:string;title?:string;descriptio
 export default function PayPage({params}:{params:Promise<{id:string}>}){
   const {id}=use(params);const [invoice,setInvoice]=useState<Invoice|null>(null);const [status,setStatus]=useState<"idle"|"paying"|"paid"|"error">("idle");const [activeMilestone,setActiveMilestone]=useState<string|null>(null);const [error,setError]=useState<string|null>(null);const [loading,setLoading]=useState(true);const {address,isConnected,chain}=useAccount();const {data:walletClient}=useWalletClient();const {switchChainAsync}=useSwitchChain()
   const [showDispute,setShowDispute]=useState(false);const [disputeMsg,setDisputeMsg]=useState("");const [disputeLog,setDisputeLog]=useState<{role:string,content:string}[]>([])
-  const [isClawUpModalOpen, setIsClawUpModalOpen] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   
   const [decryptedAmount, setDecryptedAmount] = useState<number | null>(null)
@@ -384,9 +382,26 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
                   <button className="pay-action" onClick={()=>handlePay()} disabled={invoice.isPrivate && decryptedAmount === null}>
                     {isEscrowInvoice ? `Lock ${invoice.isPrivate && decryptedAmount === null ? "███" : (decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()} USDC in Escrow` : `Pay ${invoice.isPrivate && decryptedAmount === null ? "███" : (decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()} USDC`} <Icon name="arrow" size={18}/>
                   </button>
-                  <button className="button button-outline" style={{width:'100%',justifyContent:'center',height:'48px'}} onClick={()=>setIsClawUpModalOpen(true)} disabled={(invoice.isPrivate && decryptedAmount === null) || !!invoice.githubPrUrl}>
-                    Pay with Any Network (ClawUp Routing)
-                  </button>
+                  <div style={{ marginTop: 6, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <Icon name="network" size={13} />
+                      <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: 'var(--muted)' }}>CLAWUP CROSS-CHAIN</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.55, margin: '0 0 10px' }}>
+                      Bridge to GOAT yourself, then pay from the button above — fully non-custodial, funds never pass through PayMate.
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <a href="https://oku.trade/bridge/goat" target="_blank" rel="noreferrer" className="button button-outline" style={{ width: '100%', justifyContent: 'center', height: 42, fontSize: 12 }}>
+                        <Icon name="network" size={14} /> ClawUp — Bridge USDC from any network
+                      </a>
+                      <a href="https://bridge.goat.network" target="_blank" rel="noreferrer" className="button button-outline" style={{ width: '100%', justifyContent: 'center', height: 42, fontSize: 12 }}>
+                        <Icon name="network" size={14} /> ClawUp — Bridge BTC / BNB / DOGE
+                      </a>
+                      <a href="https://gas.zip" target="_blank" rel="noreferrer" className="button button-outline" style={{ width: '100%', justifyContent: 'center', height: 42, fontSize: 12 }}>
+                        <Icon name="network" size={14} /> ClawUp — Bridge gas & tokens
+                      </a>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
@@ -453,28 +468,6 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
       </>
     )}
   </div>
-  <ClawUpModal 
-    isOpen={isClawUpModalOpen} 
-    onClose={() => setIsClawUpModalOpen(false)} 
-    amountUsd={effectiveAmount}
-    freelancerAddress={invoice.freelancer}
-    onSuccess={async (txHash, chainId) => {
-      setIsClawUpModalOpen(false);
-      setStatus("paying");
-      try {
-        const settle = await fetch(`/api/pay/${id}/settle`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-PAYMENT": `CROSSCHAIN_${chainId}_${txHash}` },
-          body: JSON.stringify({ viewKey: viewKey || undefined })
-        });
-        const updatedInvoice = await settle.json();
-        setStatus("idle");
-        setInvoice(updatedInvoice.invoice);
-      } catch {
-        setStatus("error");
-        setError("Cross-chain settlement failed.");
-      }
-    }}
-  />
+
  </section></main>
 }

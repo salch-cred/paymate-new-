@@ -15,7 +15,7 @@ export const supportedChains: readonly [Chain, ...Chain[]] = [
   base, optimism, arbitrum, polygon, bsc, avalanche, fantom, celo, mainnet, zksync, linea, scroll, blast,
   metis, mantle, opBNB, polygonZkEvm, arbitrumNova, cronos, gnosis, aurora, moonbeam, moonriver,
   klaytn, harmonyOne, coreDao, fraxtal, mode, immutableZkEvm, telos, meter, astar, okc, kava,
-  rootstock, sonic, zora,
+  rootstock, sonic, zora, robinhood,
 ]
 const RPC_URL = process.env.RPC_GOAT_MAINNET || goatChain.rpcUrls.default.http[0]
 
@@ -130,57 +130,6 @@ export function usdcAmount(amountUsd: number): bigint {
   return BigInt(Math.round(amountUsd * 10 ** decimals))
 }
 
-// Source chains accepted for CROSSCHAIN_ settlement receipts.
-const CROSS_CHAIN_CLIENTS: Record<number, Chain> = {
-  1: mainnet,
-  56: bsc,
-  8453: base,
-  10: optimism,
-  42161: arbitrum,
-  137: polygon,
-  43114: avalanche,
-  250: fantom,
-  42220: celo,
-  324: zksync,
-  59144: linea,
-  534352: scroll,
-  81457: blast,
-  // Expanded cross-chain support (ClawUp routing)
-  1088: metis,          // Metis
-  5000: mantle,         // Mantle
-  204: opBNB,           // opBNB
-  1101: polygonZkEvm,   // Polygon zkEVM
-  42170: arbitrumNova,  // Arbitrum Nova
-  25: cronos,           // Cronos
-  100: gnosis,          // Gnosis
-  1313161554: aurora,   // Aurora
-  1284: moonbeam,       // Moonbeam
-  1285: moonriver,      // Moonriver
-  8217: klaytn,         // Klaytn
-  1666600000: harmonyOne, // Harmony
-  1116: coreDao,        // Core
-  252: fraxtal,         // Fraxtal
-  34443: mode,          // Mode
-  13371: immutableZkEvm, // Immutable zkEVM
-  40: telos,            // Telos
-  82: meter,            // Meter
-  592: astar,           // Astar
-  66: okc,              // OKC
-  2222: kava,           // Kava
-  30: rootstock,        // Rootstock
-  146: sonic,           // Sonic
-  7777777: zora,        // Zora
-  2345: goat,           // GOAT Network (PayMate's native settlement chain)
-  4663: robinhood,     // Robinhood Chain
-}
-
-/** Returns a public client for a supported cross-chain settlement, or null. */
-export function getCrossChainClient(chainId: number) {
-  const chain = CROSS_CHAIN_CLIENTS[chainId]
-  if (!chain) return null
-  return createPublicClient({ chain, transport: http() })
-}
-
 /**
  * Returns the deployed YieldEscrow address, or throws if not configured.
  * Fail-closed: escrow invoices refuse to settle without ESCROW_CONTRACT.
@@ -236,6 +185,7 @@ export function getIssuerAccount() {
   if (!key || key === "0x...") return null
   return privateKeyToAccount(key as `0x${string}`)
 }
+
 
 /**
  * Registers an invoice with the escrow contract (owner-only) if it isn't

@@ -1442,6 +1442,11 @@ export interface GrowthStats {
   firstInvoiceAt: number | null
   lastInvoiceAt: number | null
   lastPaidInvoice: { title: string; amountUsd: number; txHash: string | null; paidAt: number } | null
+  // Invoices created through the ClawUp intent adapter (webhook_url ===
+  // REFERRAL_MULTIPLIER_TAG "clawup-referral-1.2x") — evidence of ClawUp-
+  // originated usage separate from the growth targets.
+  clawUpIntentInvoices: number
+  clawUpIntentVolume: number
 }
 
 export async function getGrowthStats(): Promise<GrowthStats> {
@@ -1483,6 +1488,13 @@ export async function getGrowthStats(): Promise<GrowthStats> {
     SELECT role, COUNT(*)::int AS count FROM feedback GROUP BY role
   `) as unknown as { role: string; count: number }[]
 
+  const clawUpRows = (await sql`
+    SELECT
+      COUNT(*)::int AS total,
+      COALESCE(SUM(amount_usd) FILTER (WHERE status='paid'), 0)::float AS settled
+    FROM invoices WHERE webhook_url LIKE 'clawup%'
+  `) as unknown as { total: number; settled: number }[]
+
   return {
     totalInvoices: inv.total,
     paidInvoices: inv.paid,
@@ -1500,6 +1512,8 @@ export async function getGrowthStats(): Promise<GrowthStats> {
     lastPaidInvoice: lastPaid
       ? { title: lastPaid.title, amountUsd: Number(lastPaid.amount_usd), txHash: lastPaid.tx_hash, paidAt: Number(lastPaid.paid_at) }
       : null,
+    clawUpIntentInvoices: clawUpRows[0].total,
+    clawUpIntentVolume: clawUpRows[0].settled,
   }
 }
 

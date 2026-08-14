@@ -34,7 +34,7 @@ PayMate fixes both sides of the loop:
 - **Pay by invoice ID** (`/pay`) — a client with just the invoice number can type it into the PayMate web app and pay, no link or account required
 
 **Cross-chain**
-- ClawUp checkout: clients pay from **39 networks** (Ethereum, Base, Arbitrum, BNB, Polygon, Avalanche, GOAT, Robinhood…) — value is cryptographically verified on the source chain before settling on GOAT
+- ClawUp checkout: non-custodial cross-chain bridging to GOAT — bridge USDC from 30+ networks, BTC/native assets, or gas yourself, then pay the invoice on GOAT (no custody, funds never pass through PayMate)
 - ClawUp platform intent adapter (`/api/clawup/intent`) for autonomous invoice creation and payment
 
 **Trust & reputation**

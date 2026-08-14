@@ -1,7 +1,6 @@
 import { getInvoice, markPaid, markMilestonePaid, markEscrowFunded, addTreasuryRevenue } from "@/lib/db"
-import { paymentRequirements, verifyTransfer, verifyEscrowFunding, ensureEscrowRegistered, confirmEscrowFunded, isEscrowInvoice, mintReputation, PaymentError, getCrossChainClient, getPublicClient, usdcAmount } from "@/lib/chain"
+import { paymentRequirements, verifyTransfer, verifyEscrowFunding, ensureEscrowRegistered, confirmEscrowFunded, isEscrowInvoice, mintReputation, PaymentError, getPublicClient, usdcAmount } from "@/lib/chain"
 import { PAYMENT_REQUIRED_HEADER } from "@/lib/paywall"
-import { getNativeUsdPrice } from "@/lib/price"
 import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
 import { buildCheckoutWebhook, signMerchantWebhook } from "@/lib/merchant"
 import { sendReceipt } from "@/lib/email"
@@ -96,53 +95,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    if (txHash.startsWith("CROSSCHAIN_")) {
-      // Format: CROSSCHAIN_{chainId}_{txHash}
-      const [, chainIdStr, hash] = txHash.split("_")
-      const chainId = parseInt(chainIdStr, 10)
-      
-      const sourceClient = getCrossChainClient(chainId)
-      if (!sourceClient) throw new PaymentError(400, "Unsupported cross-chain network")
-      
-      const receipt = await sourceClient.waitForTransactionReceipt({ hash: hash as `0x${string}`, timeout: 90_000 })
-      if (receipt.status !== "success") throw new PaymentError(402, `Cross-chain transaction reverted: ${hash}`)
-      
-      const tx = await sourceClient.getTransaction({ hash: hash as `0x${string}` })
-      
-      // The client must have sent the invoice's REAL value in the source chain's
-      // native token to the freelancer. The expected amount is derived from the
-      // live price of that chain's native token — dust payments (e.g. the old
-      // fixed 0.0001) no longer settle anything.
-      const settleAmount = milestoneId && invoice.milestones
-        ? (invoice.milestones.find(m => m.id === milestoneId)?.amountUsd || 0)
-        : (invoice.isStream && invoice.streamedAmountUsd > 0
-            ? Math.min(invoice.streamedAmountUsd, invoice.amountUsd)
-            : invoice.amountUsd)
-      const nativePriceUsd = await getNativeUsdPrice(chainId)
-      if (!nativePriceUsd) {
-        throw new PaymentError(503, `Could not fetch the live price for chain ${chainId} — cross-chain settlement refused (fail closed).`)
-      }
-      // Compute in micro-units first (1e6 precision, safely within float range),
-      // then scale to the 18-decimal smallest unit — avoids float->BigInt
-      // precision loss on large amounts. A 5% tolerance absorbs price drift
-      // between the client's quote and this verification; dust (e.g. the old
-      // fixed 0.0001 ≈ $0.06) is still orders of magnitude below and rejected.
-      const expectedNative = BigInt(Math.round((settleAmount / nativePriceUsd) * 1e6)) * BigInt(10) ** BigInt(12)
-      const minAccepted = (expectedNative * BigInt(95)) / BigInt(100)
-      if (tx.value < minAccepted) {
-        throw new PaymentError(
-          402,
-          `Cross-chain payment is short: expected at least $${settleAmount.toFixed(2)} worth (${minAccepted} wei), got ${tx.value} wei.`
-        )
-      }
-      if (!tx.to || getAddress(tx.to) !== getAddress(invoice.freelancer)) {
-        throw new PaymentError(402, `Cross-chain payment was not sent to the freelancer address`)
-      }
-      
-      console.log(`[ClawUp] Verified cross-chain settlement of $${settleAmount} (${tx.value} wei) on chain ${chainId}: ${hash}`);
-    } else {
-      await verifyTransfer(txHash, invoice, milestoneId)
-    }
+    await verifyTransfer(txHash, invoice, milestoneId)
   } catch (error) {
     if (error instanceof PaymentError) return Response.json({ detail: error.message }, { status: error.status })
     throw error
@@ -157,40 +110,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return Response.json({ detail: `Settlement refused by security screening: ${screen.reason}` }, { status: 403 })
     }
     if (process.env.SECURITY_SIMULATE_PAYMENTS !== "false") {
-      if (txHash.startsWith("CROSSCHAIN_")) {
-        const [, chainIdStr, hash] = txHash.split("_")
-        const sourceClient = getCrossChainClient(parseInt(chainIdStr, 10))
-        if (sourceClient) {
-          const sourceTx = await sourceClient.getTransaction({ hash: hash as `0x${string}` })
-          const sim = await simulatePaymentSafety(sourceClient, {
-            to: getAddress(invoice.freelancer) as Address,
-            amount: sourceTx.value,
-          })
-          if (sim && !sim.safe) {
-            return Response.json({
-              detail: `Settlement refused by payment simulation: ${sim.revertReason || "the recipient cannot receive the payment"}`,
-            }, { status: 402 })
-          }
-        }
-      } else {
-        const usdcToken = process.env.USDC_TOKEN
-        if (usdcToken && isAddress(usdcToken)) {
-          const sim = await simulatePaymentSafety(getPublicClient(), {
-            token: getAddress(usdcToken) as Address,
-            to: getAddress(invoice.freelancer) as Address,
-            amount: usdcAmount(targetAmountUsd),
-          })
-          if (sim && !sim.safe) {
-            return Response.json({
-              detail: sim.feeOnTransfer
-                ? "Settlement refused: the payment token applies a transfer fee, so the freelancer would receive less than invoiced."
-                : `Settlement refused by payment simulation: ${sim.revertReason || "unexpected revert"}`,
-            }, { status: 402 })
-          }
+      const usdcToken = process.env.USDC_TOKEN
+      if (usdcToken && isAddress(usdcToken)) {
+        const sim = await simulatePaymentSafety(getPublicClient(), {
+          token: getAddress(usdcToken) as Address,
+          to: getAddress(invoice.freelancer) as Address,
+          amount: usdcAmount(targetAmountUsd),
+        })
+        if (sim && !sim.safe) {
+          return Response.json({
+            detail: sim.feeOnTransfer
+              ? "Settlement refused: the payment token applies a transfer fee, so the freelancer would receive less than invoiced."
+              : `Settlement refused by payment simulation: ${sim.revertReason || "unexpected revert"}`,
+          }, { status: 402 })
         }
       }
-    }
-  } catch (error) {
+    }  } catch (error) {
     // Never let a security-helper infra error block an already-verified payment.
     console.error("[Security] settlement checks failed (continuing):", error)
   }
