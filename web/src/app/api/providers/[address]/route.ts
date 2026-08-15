@@ -46,9 +46,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         completedAt: o.completedAt,
       }));
 
+    // Name precedence: service listing name, else latest proposal name, else null.
+    const proposalNames = listProposalsForProvider(wallet)
+      .map((p) => p.providerName)
+      .filter(Boolean)
     const profile = {
       address: wallet,
-      name: services[0]?.providerName ?? null,
+      name: services[0]?.providerName ?? proposalNames[0] ?? null,
       servicesCount: services.length,
       completedJobs: completed.length,
       earnedUsd: Number(completed.reduce((sum, o) => sum + o.amountUsd, 0).toFixed(2)),
