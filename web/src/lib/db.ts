@@ -1218,6 +1218,52 @@ interface RelayerSwapRow {
   updated_at: number
 }
 
+/**
+ * Relayer ledger audit for the operator agent (cron /api/relayer/agent):
+ * status counts, the total USD still pending conversion, the retryable
+ * failures (retries not exhausted yet), and the stuck rows (retries
+ * exhausted — left for manual review). Oldest first, capped at `limit` rows
+ * returned for each of the two lists.
+ */
+export async function getRelayerSwapStats(limit = 50): Promise<{
+  byStatus: Record<string, number>
+  pendingUsd: number
+  retryable: RelayerSwap[]
+  stuck: RelayerSwap[]
+}> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM relayer_swaps ORDER BY created_at ASC
+  `) as unknown as RelayerSwapRow[]
+  const swaps = rows.map(rowToRelayerSwap)
+  const byStatus: Record<string, number> = {}
+  for (const s of swaps) byStatus[s.status] = (byStatus[s.status] ?? 0) + 1
+  const pendingUsd = swaps
+    .filter((s) => s.status === "detected" || s.status === "failed" || s.status === "swapping")
+    .reduce((sum, s) => sum + (s.usdValue ?? 0), 0)
+  const retryable = swaps
+    .filter((s) => s.status === "failed" && s.retries < MAX_RELAYER_RETRIES)
+    .slice(0, limit)
+  const stuck = swaps
+    .filter((s) => (s.status === "failed" && s.retries >= MAX_RELAYER_RETRIES) || s.status === "swapping")
+    .slice(0, limit)
+  return { byStatus, pendingUsd, retryable, stuck }
+}
+
+/** Matches the relayer's own retry cap (lib/relayer.ts MAX_SWAP_RETRIES). */
+export const MAX_RELAYER_RETRIES = 5
+
+/** Sum of all pending invoice amounts (USD) — the GOAT payout runway demand. */
+export async function getPendingInvoiceTotalUsd(): Promise<number> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT COALESCE(SUM(amount_usd), 0)::float AS total FROM invoices WHERE status = 'pending'
+  `) as unknown as { total: number }[]
+  return Number(rows[0]?.total || 0)
+}
+
 function rowToRelayerSwap(row: RelayerSwapRow): RelayerSwap {
   return {
     chainId: row.chain_id,

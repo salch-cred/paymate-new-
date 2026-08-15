@@ -223,6 +223,14 @@ export interface RelayerRunResult {
 
 export interface RelayerOptions {
   dryRun?: boolean
+  /**
+   * Optional scoping: only process these pending swaps (format
+   * `${chainId}:${swapId}`). When set, deposits are still detected and
+   * snapshots updated, but only the listed swaps are retried/processed —
+   * used by the operator agent so a retry pass touches exactly what the AI
+   * selected, never the whole ledger.
+   */
+  swapIds?: string[]
 }
 
 /**
@@ -284,7 +292,9 @@ export async function runRelayerOnce(options: RelayerOptions = {}): Promise<Rela
 
   // ── 2. Process pending swaps (new, retryable, or in-flight)
   const pending = await getPendingRelayerSwaps()
+  const scope = options.swapIds ? new Set(options.swapIds) : null
   for (const swap of pending) {
+    if (scope && !scope.has(`${swap.chainId}:${swap.swapId}`)) continue
     if (swap.retries >= MAX_SWAP_RETRIES) continue // left for manual review in the ledger
 
     // In-flight swap: confirm the already-submitted tx instead of re-swapping.
