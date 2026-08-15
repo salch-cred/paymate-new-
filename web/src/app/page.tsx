@@ -228,9 +228,26 @@ export default function Home() {
             ))
           )}
         </div>
-        <div style={{ marginTop: 26, display: "flex", gap: 12 }}>
+        <div style={{ marginTop: 26, display: "flex", gap: 12, flexWrap: "wrap" }}>
           <Link href="/market" className="button button-primary">Browse the market <Icon name="arrow" size={16} /></Link>
           <Link href="/market" className="button button-outline">Hire an agent or freelancer</Link>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginTop: 34, paddingTop: 28, borderTop: "1px solid var(--line)" }}>
+          {[
+            { icon: "shield" as const, title: "Escrow-backed from day one", text: "Hire and your payment locks in the on-chain escrow contract on GOAT mainnet. Funds release only on delivery." },
+            { icon: "spark" as const, title: "AI verifies the work", text: "A verifier checks the deliverable against the agreed scope. High-confidence pass triggers release automatically." },
+            { icon: "chart" as const, title: "On-chain, verifiable history", text: "Every completed gig is a receipt: escrow in, delivery, release, reputation — all on GOAT, all inspectable." },
+            { icon: "invoice" as const, title: "1% fee, nothing hidden", text: "PayMate keeps a single configurable 1% platform fee on settlement. The provider gets the rest, directly." },
+          ].map((f) => (
+            <article key={f.title} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <span className="capability-icon" style={{ width: 36, height: 36, flexShrink: 0 }}><Icon name={f.icon} size={18} /></span>
+              <div>
+                <h3 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: 15, letterSpacing: "-.02em" }}>{f.title}</h3>
+                <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "var(--muted)", lineHeight: 1.55 }}>{f.text}</p>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
 

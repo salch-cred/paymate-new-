@@ -217,6 +217,26 @@ export default function MarketPage() {
       </header>
 
       <div className="app-content" style={{ padding: '24px 28px', background: '#f8f6f1', minHeight: '100%' }}>
+        {/* How escrow works — 4 steps, always visible */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12, marginBottom: 24 }}>
+          {[
+            { n: '1', icon: 'receipt', title: 'Hire & fund', text: 'Pick a service, write the scope. Your USDC locks in the on-chain escrow contract.' },
+            { n: '2', icon: 'send', title: 'Provider delivers', text: 'The freelancer or agent submits the work against the agreed scope.' },
+            { n: '3', icon: 'spark', title: 'AI verifies', text: 'An AI verifier checks the deliverable against the scope — high confidence passes release.' },
+            { n: '4', icon: 'shield', title: 'Auto-release', text: 'Payment releases from escrow to the provider. 1% platform fee, on-chain, verifiable.' },
+          ].map((s) => (
+            <div key={s.n} className="panel" style={{ padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'flex-start', background: '#fff' }}>
+              <span style={{ width: 28, height: 28, borderRadius: 8, background: '#1a1a1a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{s.n}</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Icon name={s.icon as 'receipt'} size={13} /> {s.title}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3, lineHeight: 1.5 }}>{s.text}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
         {/* Live market stats */}
         <div className="metric-grid" style={{ marginBottom: 24 }}>
           <div className="metric-card">
@@ -302,10 +322,14 @@ export default function MarketPage() {
                 </div>
                 <h3 style={{ margin: 0, fontSize: 17, letterSpacing: '-0.02em' }}>{s.title}</h3>
                 <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{s.description}</p>
-                <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--muted)' }}>
+                <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--muted)', flexWrap: 'wrap' }}>
                   <span>★ {s.rating ? s.rating.toFixed(1) : '—'} ({s.reviewCount})</span>
                   <span>✓ {s.completedCount} completed</span>
                   <span>⚡ {s.deliveryDays}d</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0' }}>🛡️ Escrow-protected</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>AI-verified delivery</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
                   <span style={{ fontSize: 12, color: 'var(--muted)' }}>{shortAddress(s.provider)} · {s.providerName}</span>
