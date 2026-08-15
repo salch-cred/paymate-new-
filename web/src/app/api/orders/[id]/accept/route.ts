@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { initServicesStore, getOrder, patchOrder, markServiceCompleted } from '@/lib/services/serverStore';
 import { resolveEscrowOnChain, mintReputation, PaymentError } from '@/lib/services/escrow';
 import { verifyFreshWalletProof } from '@/lib/walletProof';
-import { addTreasuryRevenue } from '@/lib/db';
+import { addTreasuryRevenue, computePaymateFee } from '@/lib/db';
 
 const ETH_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 
@@ -59,10 +59,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       console.log(`[orders/accept] reputation mint skipped: ${error}`);
     }
 
-    // Treasury captures 1% of settled volume, keeping ledger stats consistent
-    // with the invoice settlement path.
+    // Treasury captures the configured fee (PAYMATE_FEE_RATE) of settled
+    // volume, keeping ledger stats consistent with the invoice path.
     try {
-      await addTreasuryRevenue(order.amountUsd * 0.01);
+      await addTreasuryRevenue(computePaymateFee(order.amountUsd));
     } catch (error) {
       console.error('[orders/accept] treasury fee failed:', error);
     }

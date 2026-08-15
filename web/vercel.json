@@ -11,6 +11,10 @@
     {
       "path": "/api/relayer/agent",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/relayer/self-refill",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

@@ -134,6 +134,21 @@ async function fetchTokenList(
   return Object.entries(data).map(([address, t]) => ({ symbol: t.symbol, address }))
 }
 
+/** Binance-Peg DOGEB on BSC (the bridge-ready asset, from goatBridge.ts). */
+const DOGEB_BSC = "0xbA2aE424d960c26247Dd6c32edC70B295c744C43"
+
+/**
+ * The swap target for a chain. Normally USDC on the source chain (inventory
+ * stays clean). But when RELAYER_BSC_BRIDGE_TARGET=true, BSC deposits convert
+ * to DOGEB instead — the bridge-ready asset the GOAT self-refill loop can
+ * bridge to GOAT, so BSC client payments literally refill the GOAT pool.
+ */
+async function resolveSwapTarget(chainId: number): Promise<string | null> {
+  const bridgeBsc = process.env.RELAYER_BSC_BRIDGE_TARGET === "true" && chainId === 56
+  if (bridgeBsc) return DOGEB_BSC
+  return resolveUsdcAddress(chainId)
+}
+
 async function resolveUsdcAddress(chainId: number): Promise<string | null> {
   try {
     const tokens = await fetchTokenList(chainId)
@@ -322,14 +337,14 @@ export async function runRelayerOnce(options: RelayerOptions = {}): Promise<Rela
     }
 
     try {
-      const usdcAddress = await resolveUsdcAddress(swap.chainId)
+      const usdcAddress = await resolveSwapTarget(swap.chainId)
       if (!usdcAddress) {
         await updateRelayerSwap(swap.chainId, swap.swapId, {
           status: "skipped",
-          error: "No USDC via 1inch (check ONEINCH_API_KEY / chain support)",
+          error: "No swap target via 1inch (check ONEINCH_API_KEY / chain support)",
         })
         result.swapsSkipped += 1
-        result.details.push({ chainId: swap.chainId, deltaWei: swap.nativeAmount, usdValue: swap.usdValue, status: "skipped", note: "no 1inch USDC" })
+        result.details.push({ chainId: swap.chainId, deltaWei: swap.nativeAmount, usdValue: swap.usdValue, status: "skipped", note: "no 1inch target" })
         continue
       }
 

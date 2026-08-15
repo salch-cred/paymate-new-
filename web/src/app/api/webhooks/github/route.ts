@@ -1,4 +1,4 @@
-import { getInvoiceByGithubPrUrl, markPaid, markEscrowPaid, addTreasuryRevenue } from "@/lib/db"
+import { getInvoiceByGithubPrUrl, markPaid, markEscrowPaid, addTreasuryRevenue, computePaymateFee } from "@/lib/db"
 import { createWalletClient, http, getAddress } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { goatChain, ERC20_TRANSFER_ABI, getPublicClient, usdcAmount, resolveEscrowOnChain, isEscrowInvoice, mintReputation, assertProductionSafeToken, PaymentError } from "@/lib/chain"
@@ -67,9 +67,9 @@ export async function POST(request: Request) {
           throw error
         }
 
-        // 💰 The Neural Treasury: Siphon 1% of the settlement amount
+        // 💰 The Neural Treasury: Siphon the configured fee (PAYMATE_FEE_RATE)
         try {
-          const fee = invoice.amountUsd * 0.01;
+          const fee = computePaymateFee(invoice.amountUsd);
           await addTreasuryRevenue(fee);
           console.log(`[Neural Treasury] Escrow Release Fee Captured: $${fee}`);
         } catch (e) {
@@ -168,9 +168,9 @@ export async function POST(request: Request) {
         console.log(`[GitHub Webhook] Autonomous payout successful: ${txHash}`)
       }
 
-      // 💰 The Neural Treasury: Siphon 1% of the settlement amount
+      // 💰 The Neural Treasury: Siphon the configured fee (PAYMATE_FEE_RATE)
       try {
-        const fee = invoice.amountUsd * 0.01;
+        const fee = computePaymateFee(invoice.amountUsd);
         await addTreasuryRevenue(fee);
         console.log(`[Neural Treasury] Autonomous Webhook Fee Captured: $${fee}`);
       } catch (e) {

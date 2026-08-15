@@ -1,4 +1,4 @@
-import { getInvoice, createDispute, countDisputesForInvoice, markEscrowPaid, markEscrowRefunded, addTreasuryRevenue, type DisputeResolution } from "@/lib/db"
+import { getInvoice, createDispute, countDisputesForInvoice, markEscrowPaid, markEscrowRefunded, addTreasuryRevenue, computePaymateFee, type DisputeResolution } from "@/lib/db"
 import { resolveDisputeOnChain, isEscrowInvoice, mintReputation, PaymentError } from "@/lib/chain"
 import { mistralJsonText, parseJsonResponse } from "@/lib/mistral"
 import { verifyFreshWalletProof } from "@/lib/walletProof"
@@ -153,9 +153,10 @@ Output ONLY a valid JSON object matching this schema:
           }
         }
         // Match the direct settle route's accounting: the treasury captures
-        // 1% of the settled amount, so ledger stats stay consistent.
+        // the configured fee (PAYMATE_FEE_RATE) of the settled amount, so
+        // ledger stats stay consistent.
         try {
-          await addTreasuryRevenue(invoice.amountUsd * 0.01)
+          await addTreasuryRevenue(computePaymateFee(invoice.amountUsd))
         } catch (error) {
           console.error(`[Neural Treasury] Error adding fee after arbitration:`, error)
         }

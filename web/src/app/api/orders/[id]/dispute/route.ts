@@ -3,7 +3,7 @@ import { initServicesStore, getOrder, patchOrder, markServiceCompleted } from '@
 import { arbitrateOrder } from '@/lib/services/ai';
 import { resolveDisputeOnChain, mintReputation, RESOLUTION_TO_ENUM, PaymentError } from '@/lib/services/escrow';
 import { verifyFreshWalletProof } from '@/lib/walletProof';
-import { addTreasuryRevenue } from '@/lib/db';
+import { addTreasuryRevenue, computePaymateFee } from '@/lib/db';
 import type { OrderResolution } from '@/lib/services/types';
 
 const ETH_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
@@ -93,7 +93,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
   try {
-    await addTreasuryRevenue(order.amountUsd * 0.01);
+    await addTreasuryRevenue(computePaymateFee(order.amountUsd));
   } catch (error) {
     console.error('[orders/dispute] treasury fee failed:', error);
   }

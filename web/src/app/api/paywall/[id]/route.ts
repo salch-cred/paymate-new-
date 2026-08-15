@@ -1,5 +1,5 @@
 import { createHash } from "crypto"
-import { getInvoice, markPaid, addTreasuryRevenue } from "@/lib/db"
+import { getInvoice, markPaid, addTreasuryRevenue, computePaymateFee } from "@/lib/db"
 import { verifyTransfer, mintReputation, PaymentError } from "@/lib/chain"
 import { createDeliveryReceipt, type DeliveryReceipt } from "@/lib/receipt"
 import { paywallChallengeResponse, extractTxHash, PAYMENT_RESPONSE_HEADER } from "@/lib/paywall"
@@ -95,7 +95,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       }
       // 💰 Treasury + reputation: the paywall generates real economic activity.
       try {
-        await addTreasuryRevenue(updated.amountUsd * 0.01)
+        await addTreasuryRevenue(computePaymateFee(updated.amountUsd))
       } catch (e) {
         console.error(`[Paywall] Treasury fee failed:`, e)
       }

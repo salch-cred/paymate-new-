@@ -225,6 +225,22 @@ async function ready(): Promise<void> {
         PRIMARY KEY (chain_id, swap_id)
       )`
       await sql`CREATE INDEX IF NOT EXISTS idx_relayer_swaps_status ON relayer_swaps(status, created_at DESC)`.catch(()=>null)
+      // Self-refill loop (cron /api/relayer/self-refill): one row per bridge
+      // hop (BSC DOGEB → GOAT) and per DEX swap (DOGEB → USDC.e on GOAT).
+      // Idempotent PK so a crashed run can never double-bridge or double-swap
+      // the same amount; kind+amount+created_at identify a specific hop.
+      await sql`CREATE TABLE IF NOT EXISTS self_refill_runs (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        chain_id INTEGER NOT NULL,
+        amount TEXT NOT NULL,
+        tx_hash TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        error TEXT,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_self_refill_status ON self_refill_runs(status, created_at DESC)`.catch(()=>null)
       // SECURITY (audit fix 2026-08-13): generic request-budget log backing
       // checkAndConsumeRequestBudget() in lib/rateLimit.ts — coarse abuse/cost
       // control for public AI-calling and invoice/plugin-creation endpoints.
@@ -587,6 +603,23 @@ export async function addTreasuryRevenue(amountUsd: number): Promise<void> {
   await ready()
   const sql = getSql()
   await sql`UPDATE treasury SET balance_usd = balance_usd + ${amountUsd} WHERE id = 'global_treasury'`
+}
+
+/**
+ * Platform fee rate as a fraction (0.01 = 1%). Reads PAYMATE_FEE_RATE,
+ * defaults to 1%, clamped to [0, 0.5] so a typo can never charge 50%+ or go
+ * negative. All treasury capture sites call computePaymateFee() instead of
+ * hardcoding `* 0.01`, so changing the rate is a single env var.
+ */
+export function paymateFeeRate(): number {
+  const v = Number(process.env.PAYMATE_FEE_RATE ?? "0.01")
+  if (!Number.isFinite(v)) return 0.01
+  return Math.min(0.5, Math.max(0, v))
+}
+
+/** Treasury fee (USD) for a settled amount at the configured rate. */
+export function computePaymateFee(amountUsd: number): number {
+  return Math.round(amountUsd * paymateFeeRate() * 100) / 100
 }
 
 export async function getTreasuryStats(): Promise<{balanceUsd: number, totalDonatedUsd: number}> {
@@ -1253,6 +1286,111 @@ export async function getRelayerSwapStats(limit = 50): Promise<{
 
 /** Matches the relayer's own retry cap (lib/relayer.ts MAX_SWAP_RETRIES). */
 export const MAX_RELAYER_RETRIES = 5
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Self-refill ledger (the bridge + DEX-swap hops of the custody loop)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SelfRefillRun {
+  id: string
+  kind: "bridge" | "dex_swap"
+  chainId: number
+  amount: string
+  txHash: string | null
+  status: "pending" | "done" | "failed"
+  error: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+interface SelfRefillRow {
+  id: string
+  kind: string
+  chain_id: number
+  amount: string
+  tx_hash: string | null
+  status: string
+  error: string | null
+  created_at: number
+  updated_at: number
+}
+
+/** Records a self-refill hop (bridge or DEX swap) for idempotency + audit. */
+export async function createSelfRefillRun(input: {
+  id: string
+  kind: "bridge" | "dex_swap"
+  chainId: number
+  amount: string
+  txHash?: string | null
+  status?: "pending" | "done" | "failed"
+  error?: string | null
+}): Promise<void> {
+  await ready()
+  const sql = getSql()
+  const now = Date.now()
+  await sql`
+    INSERT INTO self_refill_runs (id, kind, chain_id, amount, tx_hash, status, error, created_at, updated_at)
+    VALUES (${input.id}, ${input.kind}, ${input.chainId}, ${input.amount}, ${input.txHash ?? null},
+            ${input.status ?? "pending"}, ${input.error ?? null}, ${now}, ${now})
+    ON CONFLICT (id) DO NOTHING
+  `
+}
+
+export async function updateSelfRefillRun(
+  id: string,
+  patch: { txHash?: string | null; status?: "pending" | "done" | "failed"; error?: string | null }
+): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`
+    UPDATE self_refill_runs SET
+      tx_hash = COALESCE(${patch.txHash ?? null}, tx_hash),
+      status = COALESCE(${patch.status ?? null}, status),
+      error = COALESCE(${patch.error ?? null}, error),
+      updated_at = ${Date.now()}
+    WHERE id = ${id}
+  `
+}
+
+/** A self-refill run by id, or null. */
+export async function getSelfRefillRun(id: string): Promise<SelfRefillRun | null> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`SELECT * FROM self_refill_runs WHERE id = ${id}`) as unknown as SelfRefillRow[]
+  if (rows.length === 0) return null
+  const r = rows[0]
+  return {
+    id: r.id,
+    kind: r.kind as SelfRefillRun["kind"],
+    chainId: Number(r.chain_id),
+    amount: r.amount,
+    txHash: r.tx_hash || null,
+    status: r.status as SelfRefillRun["status"],
+    error: r.error || null,
+    createdAt: Number(r.created_at),
+    updatedAt: Number(r.updated_at),
+  }
+}
+
+/** Recent self-refill runs, newest first. */
+export async function listSelfRefillRuns(limit = 25): Promise<SelfRefillRun[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM self_refill_runs ORDER BY created_at DESC LIMIT ${Math.min(limit, 100)}
+  `) as unknown as SelfRefillRow[]
+  return rows.map((r) => ({
+    id: r.id,
+    kind: r.kind as SelfRefillRun["kind"],
+    chainId: Number(r.chain_id),
+    amount: r.amount,
+    txHash: r.tx_hash || null,
+    status: r.status as SelfRefillRun["status"],
+    error: r.error || null,
+    createdAt: Number(r.created_at),
+    updatedAt: Number(r.updated_at),
+  }))
+}
 
 /** Sum of all pending invoice amounts (USD) — the GOAT payout runway demand. */
 export async function getPendingInvoiceTotalUsd(): Promise<number> {

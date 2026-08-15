@@ -1,4 +1,4 @@
-import { getInvoice, markPaid, markMilestonePaid, markEscrowFunded, addTreasuryRevenue, reserveCrossChainTx } from "@/lib/db"
+import { getInvoice, markPaid, markMilestonePaid, markEscrowFunded, addTreasuryRevenue, computePaymateFee, reserveCrossChainTx } from "@/lib/db"
 import { paymentRequirements, verifyTransfer, verifyEscrowFunding, ensureEscrowRegistered, confirmEscrowFunded, isEscrowInvoice, mintReputation, PaymentError, getPublicClient, usdcAmount, verifyCrossChainPayment, settleCrossChainPayout } from "@/lib/chain"
 import { PAYMENT_REQUIRED_HEADER } from "@/lib/paywall"
 import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
@@ -200,9 +200,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     )
   }
 
-  // 💰 The Neural Treasury: Siphon 1% of the settlement amount to the global AI treasury
+  // 💰 The Neural Treasury: Siphon the configured fee (PAYMATE_FEE_RATE,
+  // default 1%) of the settlement amount to the global AI treasury
   try {
-    const fee = targetAmountUsd * 0.01;
+    const fee = computePaymateFee(targetAmountUsd);
     await addTreasuryRevenue(fee);
     console.log(`[Neural Treasury] Autonomous Fee Captured: $${fee}`);
   } catch (e) {
