@@ -182,9 +182,14 @@ export function assertProductionSafeToken() {
 }
 
 export function getIssuerAccount() {
-  const key = process.env.PRIVATE_KEY
-  if (!key || key === "0x...") return null
-  return privateKeyToAccount(key as `0x${string}`)
+  const raw = process.env.PRIVATE_KEY
+  if (!raw || raw === "0x...") return null
+  // Normalize: accept the key with or without the 0x prefix (and trim stray
+  // whitespace). viem rejects a bare 64-hex string, which made custody/escrow
+  // fail closed with "invalid private key" when the env var had no prefix.
+  const key = raw.trim()
+  const hex = /^0x/i.test(key) ? key : `0x${key}`
+  return privateKeyToAccount(hex as `0x${string}`)
 }
 
 
