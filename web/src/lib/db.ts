@@ -241,6 +241,67 @@ async function ready(): Promise<void> {
         updated_at BIGINT NOT NULL
       )`
       await sql`CREATE INDEX IF NOT EXISTS idx_self_refill_status ON self_refill_runs(status, created_at DESC)`.catch(()=>null)
+      // Direct-to-freelancer rail (client-signed BSC → GOAT bridge). One row
+      // per verified bridge send — the PK IS the replay guard, so the same
+      // bridge tx can never settle two invoices. amount = DOGEB (BSC 8-dec).
+      await sql`CREATE TABLE IF NOT EXISTS direct_payments (
+        tx_hash TEXT PRIMARY KEY,
+        invoice_id TEXT NOT NULL,
+        freelancer TEXT NOT NULL,
+        amount_doge TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'paid',
+        created_at BIGINT NOT NULL
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_direct_payments_invoice ON direct_payments(invoice_id)`.catch(()=>null)
+      // Fee-as-spread conversions (DOGEB → USDC.e on GOAT for freelancers who
+      // opted in). The fee DOGEB stays in custody — this is where the platform
+      // fee becomes real money on the zero-custody rail.
+      await sql`CREATE TABLE IF NOT EXISTS direct_conversions (
+        id TEXT PRIMARY KEY,
+        freelancer TEXT NOT NULL,
+        amount_doge TEXT NOT NULL,
+        fee_doge TEXT NOT NULL,
+        principal_doge TEXT NOT NULL,
+        usdc_out TEXT,
+        tx_hash TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        error TEXT,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_direct_conversions_freelancer ON direct_conversions(freelancer, created_at DESC)`.catch(()=>null)
+      // Pivot hop (cron /api/relayer/pivot): moves custody's source-chain USDC
+      // inventory to BSC as BNB (LI.Fi), swaps to DOGEB, and bridges to GOAT —
+      // so client deposits on ANY supported chain self-refill the GOAT pool.
+      // Idempotent PK; a per-chain run is recorded BEFORE moving funds so a
+      // crash can never double-pivot the same inventory.
+      await sql`CREATE TABLE IF NOT EXISTS pivot_runs (
+        id TEXT PRIMARY KEY,
+        chain_id INTEGER NOT NULL,
+        usdc_address TEXT NOT NULL,
+        usdc_amount TEXT NOT NULL,
+        usd_value TEXT NOT NULL,
+        lifi_tx_hash TEXT,
+        bnb_out TEXT,
+        doge_bridged TEXT,
+        bridge_tx_hash TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        error TEXT,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_pivot_runs_chain ON pivot_runs(chain_id, created_at DESC)`.catch(()=>null)
+      // Direct rail plan ledger (SECURITY): the exact DOGEB expected for an
+      // invoice is locked at PLAN time and verified against later — no price
+      // tolerance at verify time, so a payer can never underpay by exploiting
+      // price drift. One row per invoice (re-planned on each new plan).
+      await sql`CREATE TABLE IF NOT EXISTS direct_plans (
+        invoice_id TEXT PRIMARY KEY,
+        expected_doge TEXT NOT NULL,
+        doge_price TEXT NOT NULL,
+        created_at BIGINT NOT NULL
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_direct_plans_created ON direct_plans(created_at DESC)`.catch(()=>null)
       // SECURITY (audit fix 2026-08-13): generic request-budget log backing
       // checkAndConsumeRequestBudget() in lib/rateLimit.ts — coarse abuse/cost
       // control for public AI-calling and invoice/plugin-creation endpoints.
@@ -1400,6 +1461,310 @@ export async function getPendingInvoiceTotalUsd(): Promise<number> {
     SELECT COALESCE(SUM(amount_usd), 0)::float AS total FROM invoices WHERE status = 'pending'
   `) as unknown as { total: number }[]
   return Number(rows[0]?.total || 0)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Direct-to-freelancer rail (zero-custody BSC → GOAT) ledger
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DirectPayment {
+  txHash: string
+  invoiceId: string
+  freelancer: string
+  amountDoge: string
+  status: string
+  createdAt: number
+}
+
+/**
+ * Replay guard for the direct rail: records the client's bridge send txHash
+ * against the invoice. Returns false when the tx was already used — the same
+ * bridge send can never settle two invoices.
+ */
+export async function reserveDirectPayment(txHash: string, invoiceId: string, freelancer: string, amountDoge: string): Promise<boolean> {
+  await ready()
+  const sql = getSql()
+  try {
+    await sql`
+      INSERT INTO direct_payments (tx_hash, invoice_id, freelancer, amount_doge, status, created_at)
+      VALUES (${txHash}, ${invoiceId}, ${freelancer}, ${amountDoge}, 'paid', ${Date.now()})
+    `
+    return true
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes("duplicate key") || message.includes("unique constraint")) return false
+    throw error
+  }
+}
+
+/** Freelancers who have received at least one direct payment (converter targets). */
+export async function listDirectPaidFreelancers(): Promise<string[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT DISTINCT freelancer FROM direct_payments ORDER BY freelancer
+  `) as unknown as { freelancer: string }[]
+  return rows.map((r) => r.freelancer)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pivot hop ledger (USDC@X → BNB@BSC → DOGEB → GOAT)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PivotRun {
+  id: string
+  chainId: number
+  usdcAddress: string
+  usdcAmount: string
+  usdValue: string
+  lifiTxHash: string | null
+  bnbOut: string | null
+  dogeBridged: string | null
+  bridgeTxHash: string | null
+  status: "pending" | "done" | "failed"
+  error: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+interface PivotRunRow {
+  id: string
+  chain_id: number
+  usdc_address: string
+  usdc_amount: string
+  usd_value: string
+  lifi_tx_hash: string | null
+  bnb_out: string | null
+  doge_bridged: string | null
+  bridge_tx_hash: string | null
+  status: string
+  error: string | null
+  created_at: number
+  updated_at: number
+}
+
+/** Records a pivot run BEFORE funds move (idempotent PK = crash-safe). */
+export async function createPivotRun(input: {
+  id: string
+  chainId: number
+  usdcAddress: string
+  usdcAmount: string
+  usdValue: string
+  status?: "pending" | "done" | "failed"
+  error?: string | null
+}): Promise<void> {
+  await ready()
+  const sql = getSql()
+  const now = Date.now()
+  await sql`
+    INSERT INTO pivot_runs (id, chain_id, usdc_address, usdc_amount, usd_value, status, error, created_at, updated_at)
+    VALUES (${input.id}, ${input.chainId}, ${input.usdcAddress}, ${input.usdcAmount}, ${input.usdValue},
+            ${input.status ?? "pending"}, ${input.error ?? null}, ${now}, ${now})
+    ON CONFLICT (id) DO NOTHING
+  `
+}
+
+export async function updatePivotRun(
+  id: string,
+  patch: {
+    lifiTxHash?: string | null
+    bnbOut?: string | null
+    dogeBridged?: string | null
+    bridgeTxHash?: string | null
+    status?: "pending" | "done" | "failed"
+    error?: string | null
+  }
+): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`
+    UPDATE pivot_runs SET
+      lifi_tx_hash = COALESCE(${patch.lifiTxHash ?? null}, lifi_tx_hash),
+      bnb_out = COALESCE(${patch.bnbOut ?? null}, bnb_out),
+      doge_bridged = COALESCE(${patch.dogeBridged ?? null}, doge_bridged),
+      bridge_tx_hash = COALESCE(${patch.bridgeTxHash ?? null}, bridge_tx_hash),
+      status = COALESCE(${patch.status ?? null}, status),
+      error = COALESCE(${patch.error ?? null}, error),
+      updated_at = ${Date.now()}
+    WHERE id = ${id}
+  `
+}
+
+/** Recent pivot runs, newest first. */
+export async function listPivotRuns(limit = 25): Promise<PivotRun[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM pivot_runs ORDER BY created_at DESC LIMIT ${Math.min(limit, 100)}
+  `) as unknown as PivotRunRow[]
+  return rows.map((r) => ({
+    id: r.id,
+    chainId: Number(r.chain_id),
+    usdcAddress: r.usdc_address,
+    usdcAmount: r.usdc_amount,
+    usdValue: r.usd_value,
+    lifiTxHash: r.lifi_tx_hash || null,
+    bnbOut: r.bnb_out || null,
+    dogeBridged: r.doge_bridged || null,
+    bridgeTxHash: r.bridge_tx_hash || null,
+    status: r.status as PivotRun["status"],
+    error: r.error || null,
+    createdAt: Number(r.created_at),
+    updatedAt: Number(r.updated_at),
+  }))
+}
+
+/**
+ * Chains where the relayer recorded done swaps — i.e. custody holds USDC
+ * inventory there. Returns the chain id + the USDC address it swapped to.
+ */
+export async function getPivotCandidatesFromDb(): Promise<{ chainId: number; usdcAddress: string }[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT chain_id, usdc_address FROM relayer_swaps
+    WHERE status = 'done' AND usdc_address IS NOT NULL AND usdc_amount IS NOT NULL
+    GROUP BY chain_id, usdc_address
+  `) as unknown as { chain_id: number; usdc_address: string }[]
+  return rows.map((r) => ({ chainId: Number(r.chain_id), usdcAddress: r.usdc_address }))
+}
+
+/** When the last pivot for a chain started (ms epoch), or 0. */
+export async function getLastPivotAt(chainId: number): Promise<number> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT created_at FROM pivot_runs WHERE chain_id = ${chainId} ORDER BY created_at DESC LIMIT 1
+  `) as unknown as { created_at: number }[]
+  return Number(rows[0]?.created_at || 0)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Direct rail plan ledger (locks the expected DOGEB at plan time)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DirectPlan {
+  invoiceId: string
+  expectedDoge: string
+  dogePrice: string
+  createdAt: number
+}
+
+/** Records/replaces the plan for an invoice. */
+export async function upsertDirectPlan(invoiceId: string, expectedDoge: string, dogePrice: string): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`
+    INSERT INTO direct_plans (invoice_id, expected_doge, doge_price, created_at)
+    VALUES (${invoiceId}, ${expectedDoge}, ${dogePrice}, ${Date.now()})
+    ON CONFLICT (invoice_id) DO UPDATE SET
+      expected_doge = EXCLUDED.expected_doge,
+      doge_price = EXCLUDED.doge_price,
+      created_at = EXCLUDED.created_at
+  `
+}
+
+/** The stored plan for an invoice, or null. */
+export async function getDirectPlan(invoiceId: string): Promise<DirectPlan | null> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM direct_plans WHERE invoice_id = ${invoiceId}
+  `) as unknown as { invoice_id: string; expected_doge: string; doge_price: string; created_at: number }[]
+  if (rows.length === 0) return null
+  const r = rows[0]
+  return { invoiceId: r.invoice_id, expectedDoge: r.expected_doge, dogePrice: r.doge_price, createdAt: Number(r.created_at) }
+}
+
+export interface DirectConversion {
+  id: string
+  freelancer: string
+  amountDoge: string
+  feeDoge: string
+  principalDoge: string
+  usdcOut: string | null
+  txHash: string | null
+  status: "pending" | "done" | "failed"
+  error: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+interface DirectConversionRow {
+  id: string
+  freelancer: string
+  amount_doge: string
+  fee_doge: string
+  principal_doge: string
+  usdc_out: string | null
+  tx_hash: string | null
+  status: string
+  error: string | null
+  created_at: number
+  updated_at: number
+}
+
+/** Records a fee-as-spread conversion attempt (idempotent by id). */
+export async function createDirectConversion(input: {
+  id: string
+  freelancer: string
+  amountDoge: string
+  feeDoge: string
+  principalDoge: string
+  usdcOut?: string | null
+  txHash?: string | null
+  status?: "pending" | "done" | "failed"
+  error?: string | null
+}): Promise<void> {
+  await ready()
+  const sql = getSql()
+  const now = Date.now()
+  await sql`
+    INSERT INTO direct_conversions (id, freelancer, amount_doge, fee_doge, principal_doge, usdc_out, tx_hash, status, error, created_at, updated_at)
+    VALUES (${input.id}, ${input.freelancer}, ${input.amountDoge}, ${input.feeDoge}, ${input.principalDoge},
+            ${input.usdcOut ?? null}, ${input.txHash ?? null}, ${input.status ?? "pending"},
+            ${input.error ?? null}, ${now}, ${now})
+    ON CONFLICT (id) DO NOTHING
+  `
+}
+
+export async function updateDirectConversion(
+  id: string,
+  patch: { usdcOut?: string | null; txHash?: string | null; status?: "pending" | "done" | "failed"; error?: string | null }
+): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`
+    UPDATE direct_conversions SET
+      usdc_out = COALESCE(${patch.usdcOut ?? null}, usdc_out),
+      tx_hash = COALESCE(${patch.txHash ?? null}, tx_hash),
+      status = COALESCE(${patch.status ?? null}, status),
+      error = COALESCE(${patch.error ?? null}, error),
+      updated_at = ${Date.now()}
+    WHERE id = ${id}
+  `
+}
+
+/** Recent direct conversions, newest first. */
+export async function listDirectConversions(limit = 25): Promise<DirectConversion[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM direct_conversions ORDER BY created_at DESC LIMIT ${Math.min(limit, 100)}
+  `) as unknown as DirectConversionRow[]
+  return rows.map((r) => ({
+    id: r.id,
+    freelancer: r.freelancer,
+    amountDoge: r.amount_doge,
+    feeDoge: r.fee_doge,
+    principalDoge: r.principal_doge,
+    usdcOut: r.usdc_out || null,
+    txHash: r.tx_hash || null,
+    status: r.status as DirectConversion["status"],
+    error: r.error || null,
+    createdAt: Number(r.created_at),
+    updatedAt: Number(r.updated_at),
+  }))
 }
 
 function rowToRelayerSwap(row: RelayerSwapRow): RelayerSwap {

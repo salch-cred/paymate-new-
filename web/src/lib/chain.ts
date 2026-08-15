@@ -681,6 +681,13 @@ export function getCrossChainWalletClient(chainId: number) {
   return createWalletClient({ account, chain, transport: http(chain.rpcUrls.default.http[0]) })
 }
 
+/** The Chain object for a cross-chain source network (public reads). */
+export function getCrossChainChainObject(chainId: number) {
+  const chain = CROSS_CHAIN_CHAINS[chainId]
+  if (!chain) throw new PaymentError(400, `Unsupported cross-chain source network: ${chainId}`)
+  return chain
+}
+
 /**
  * Verifies a cross-chain payment receipt (CROSSCHAIN_{chainId}_{txHash}) on the
  * SOURCE chain: the transaction must have succeeded and been sent to PayMate's

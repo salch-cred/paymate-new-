@@ -149,7 +149,7 @@ async function resolveSwapTarget(chainId: number): Promise<string | null> {
   return resolveUsdcAddress(chainId)
 }
 
-async function resolveUsdcAddress(chainId: number): Promise<string | null> {
+export async function resolveUsdcAddress(chainId: number): Promise<string | null> {
   try {
     const tokens = await fetchTokenList(chainId)
     return pickUsdcFromTokens(tokens)
@@ -159,7 +159,7 @@ async function resolveUsdcAddress(chainId: number): Promise<string | null> {
   }
 }
 
-async function getSwapQuote(
+export async function getSwapQuote(
   chainId: number,
   src: string,
   dst: string,
@@ -198,7 +198,7 @@ async function getSwapQuote(
   }
 }
 
-async function executeSwap(chainId: number, quote: OneInchSwapQuote): Promise<string> {
+export async function executeSwap(chainId: number, quote: OneInchSwapQuote): Promise<string> {
   const wallet = getCrossChainWalletClient(chainId)
   const publicClient = getCrossChainPublicClient(chainId)
   const tx = {

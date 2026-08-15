@@ -15,6 +15,14 @@
     {
       "path": "/api/relayer/self-refill",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/relayer/direct-convert",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/relayer/pivot",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

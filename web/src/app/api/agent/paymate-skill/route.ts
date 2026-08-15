@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createBotInvoice, tgMiniAppUrl } from "@/lib/chat-invoice";
+import { createBotInvoice } from "@/lib/chat-invoice";
 import { getAddress } from "viem";
 import { authenticateApiKey, assertApiQuota } from "@/lib/apikey";
 
@@ -46,10 +46,10 @@ export async function POST(request: Request) {
       ok: true, 
       invoiceId: invoice.id, 
       payUrl: payUrl,
-      // Telegram Mini App checkout — present this when the client is on
-      // Telegram: it opens the PayMate Mini App with the on-chain GOAT payment.
-      tgMiniAppUrl: tgMiniAppUrl(invoice.id),
-      message: `Invoice generated successfully. Present the payUrl to the client for settlement — if the client is on Telegram, send them the tgMiniAppUrl instead so they can pay on-chain USDC on GOAT Network inside the Mini App.`,
+      // Payment rails (two, by product decision): (1) pay USDC directly on
+      // GOAT Network, or (2) pay from any of the 39 supported networks via
+      // ClawUp routing. Present payUrl and let the client choose on the page.
+      message: `Invoice generated successfully. Present the payUrl to the client for settlement — they can either pay USDC directly on the GOAT Network or pay from any of the 39 supported networks via ClawUp routing.`,
       apiKey: { name: key.name, quotaUsd: key.quotaUsd }
     });
   } catch (error) {

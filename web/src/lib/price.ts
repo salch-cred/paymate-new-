@@ -67,7 +67,7 @@ const TTL_MS = 60_000
 async function fetchPrices(): Promise<Record<string, number>> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.prices
 
-  const ids = Array.from(new Set(Object.values(COIN_ID_BY_CHAIN_ID))).join(",")
+  const ids = Array.from(new Set([...Object.values(COIN_ID_BY_CHAIN_ID), "dogecoin"])).join(",")
   const res = await fetch(
     `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`,
     { headers: { accept: "application/json" }, cache: "no-store" }
@@ -95,4 +95,17 @@ export async function getNativeUsdPrice(chainId: number): Promise<number | null>
   }
 }
 
-
+/**
+ * Live USD price of DOGE (CoinGecko "dogecoin"), or null when unavailable.
+ * Used by the direct-to-freelancer rail to size the BSC DOGEB swap + bridge
+ * so the freelancer receives the exact invoice value on GOAT. Fails closed
+ * (null → the plan/verify refuses) rather than settling against a stale guess.
+ */
+export async function getDogeUsdPrice(): Promise<number | null> {
+  try {
+    const prices = await fetchPrices()
+    return prices["dogecoin"] ?? null
+  } catch {
+    return null
+  }
+}

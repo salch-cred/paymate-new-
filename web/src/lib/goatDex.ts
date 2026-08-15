@@ -28,6 +28,7 @@ import {
   createWalletClient,
   http,
   encodeFunctionData,
+  getAddress,
   isAddress,
   type Address,
   type Hex,
@@ -195,6 +196,17 @@ const ERC20_APPROVE_ABI = [
     inputs: [{ name: "account", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
   },
+  {
+    type: "function",
+    name: "transferFrom",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
 ] as const
 
 /** Minimal pool view ABI for liquidity() + slot0() reads. */
@@ -253,28 +265,34 @@ export function buildExactInputSingleData(
   })
 }
 
-/** Read-only: the custody wallet's DOGEB balance on GOAT (raw units). */
-export async function getGoatDogeBBalance(account?: CustodyAccount): Promise<bigint> {
+/** Read-only: any wallet's DOGEB balance on GOAT (raw units). */
+export async function getDogeBBalanceOf(address: string): Promise<bigint> {
   const client = getGoatPublicClient()
-  const holder = (account ?? getIssuerAccount() ?? { address: "0x0000000000000000000000000000000000000000" }) as unknown as { address: Address }
   const balance = (await client.readContract({
     address: GOAT_DEX.dogeB as Address,
     abi: ERC20_APPROVE_ABI,
     functionName: "balanceOf",
-    args: [holder.address],
+    args: [getAddress(address) as Address],
   })) as bigint
   return balance
 }
 
+/** Read-only: the custody wallet's DOGEB balance on GOAT (raw units). */
+export async function getGoatDogeBBalance(account?: CustodyAccount): Promise<bigint> {
+  const holder = (account ?? getIssuerAccount() ?? { address: "0x0000000000000000000000000000000000000000" }) as unknown as { address: Address }
+  return getDogeBBalanceOf(holder.address)
+}
+
 /**
- * Swaps DOGEB → USDC.e on the GOAT DEX from the custody wallet. FUND-MOVING:
- * throws unless GOAT_DEX_VERIFIED=true. Approves the router, reads live pool
- * state (liquidity + sqrtPriceX96), computes a conservative amountOutMinimum
- * from the configured slippage, and submits exactInputSingle. Returns the
- * GOAT tx hash.
+ * Swaps DOGEB → USDC.e on the GOAT DEX from the custody wallet to an arbitrary
+ * recipient. FUND-MOVING: throws unless GOAT_DEX_VERIFIED=true. Approves the
+ * router, reads live pool state (liquidity + sqrtPriceX96), computes a
+ * conservative amountOutMinimum from the configured slippage, and submits
+ * exactInputSingle. Returns the GOAT tx hash.
  */
-export async function swapDogeBToUsdcE(
+export async function swapDogeBToUsdcETo(
   amountInRaw: bigint,
+  recipient: string,
   opts?: { slippageBps?: number; dryRun?: boolean }
 ): Promise<string> {
   assertGoatDexVerified()
@@ -322,8 +340,62 @@ export async function swapDogeBToUsdcE(
 
   if (opts?.dryRun) return "dry-run"
 
-  const data = buildExactInputSingleData(amount, minOut, account.address as string)
+  const data = buildExactInputSingleData(amount, minOut, recipient)
   const hash = await wallet.sendTransaction({ to: router, data, gas: BigInt(400_000) })
+  await client.waitForTransactionReceipt({ hash, timeout: 120_000 })
+  return hash
+}
+
+/**
+ * Swaps DOGEB → USDC.e from the custody wallet to the custody wallet itself.
+ * Kept for the self-refill loop (inventory conversion).
+ */
+export async function swapDogeBToUsdcE(
+  amountInRaw: bigint,
+  opts?: { slippageBps?: number; dryRun?: boolean }
+): Promise<string> {
+  const account = getIssuerAccount()
+  if (!account) throw new PaymentError(503, "PRIVATE_KEY is not configured — cannot swap on GOAT")
+  return swapDogeBToUsdcETo(amountInRaw, account.address as string, opts)
+}
+
+/**
+ * Pulls `amount` DOGEB from `from` into the custody wallet (transferFrom,
+ * requires the owner's approval — the fee-as-spread converter only calls this
+ * after confirming allowance). FUND-MOVING: throws unless GOAT_DEX_VERIFIED.
+ * Returns the GOAT tx hash.
+ */
+export async function pullDogeBFrom(
+  from: string,
+  amount: bigint,
+  opts?: { dryRun?: boolean }
+): Promise<string> {
+  assertGoatDexVerified()
+  const account = getIssuerAccount()
+  if (!account) throw new PaymentError(503, "PRIVATE_KEY is not configured — cannot pull DOGEB on GOAT")
+  if (amount <= BigInt(0)) throw new PaymentError(400, "pull amount must be > 0")
+
+  const client = getGoatPublicClient()
+  const wallet = createWalletClient({ account, chain: goat, transport: http(GOAT_RPC) })
+
+  const existing = (await client.readContract({
+    address: GOAT_DEX.dogeB as Address,
+    abi: ERC20_APPROVE_ABI,
+    functionName: "allowance",
+    args: [getAddress(from) as Address, account.address as Address],
+  })) as bigint
+  if (existing < amount) {
+    throw new PaymentError(400, `No DOGEB allowance from ${from} to the custody wallet (${existing} < ${amount}) — the freelancer must approve once before conversion.`)
+  }
+
+  if (opts?.dryRun) return "dry-run"
+
+  const hash = await wallet.writeContract({
+    address: GOAT_DEX.dogeB as Address,
+    abi: ERC20_APPROVE_ABI,
+    functionName: "transferFrom",
+    args: [getAddress(from) as Address, account.address as Address, amount],
+  })
   await client.waitForTransactionReceipt({ hash, timeout: 120_000 })
   return hash
 }

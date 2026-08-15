@@ -394,33 +394,23 @@ async function ensureApproval(
 }
 
 /**
- * Bridges `amountLD` of the asset from the custody wallet (PRIVATE_KEY) on BSC
- * to the custody wallet on GOAT. FUND-MOVING: throws unless
- * GOAT_BRIDGE_VERIFIED=true. Approves the adapter, then calls send() with the
- * quoted fee as msg.value (paid in BNB). Returns the BSC tx hash.
+ * Builds the LayerZero `send` calldata that moves `amountLD` of the asset from
+ * the CALLER's wallet on BSC to `receiver` on GOAT. Pure (no network) — used
+ * both by the custody-driven bridgeToGoat and by the client-signed
+ * direct-to-freelancer rail, where the CLIENT's wallet signs this exact call.
+ * `variant` selects the SendParam shape ("amountLD" is what the live frontend
+ * builds). The quoted nativeFee must be attached as msg.value when sending.
  */
-export async function bridgeToGoat(
+export function buildBridgeSendCalldata(
   asset: GoatBridgeAsset,
   amountLD: bigint,
-  opts?: { dryRun?: boolean }
-): Promise<string> {
-  assertGoatBridgeVerified()
-  const account = getIssuerAccount()
-  if (!account) throw new PaymentError(503, "PRIVATE_KEY is not configured — cannot bridge from BSC")
-
+  receiver: string,
+  variant: BridgeVariant = "amountLD"
+): Hex {
   const cfg = GOAT_BRIDGE_ASSETS[asset]
-  const client = getBscPublicClient()
-  const wallet = getBscWalletClient(account)
-  const receiver = account.address as Address
-
-  const quote = await quoteBridgeToGoat(asset, amountLD, receiver)
-  await ensureApproval(asset, amountLD, account)
-
-  if (opts?.dryRun) return "dry-run"
-
-  let data: Hex
-  if (quote.variant === "amountLD") {
-    data = encodeFunctionData({
+  const dest = getAddress(receiver) as Address
+  if (variant === "amountLD") {
+    return encodeFunctionData({
       abi: AMOUNT_LD_ABI,
       functionName: "send",
       args: [
@@ -433,8 +423,76 @@ export async function bridgeToGoat(
           composeMsg: "0x",
           oftCmd: "0x",
         },
+        { nativeFee: BigInt(0), lzTokenFee: BigInt(0) },
+        dest,
+      ],
+    })
+  }
+  return encodeFunctionData({
+    abi: STANDARD_ABI,
+    functionName: "send",
+    args: [
+      {
+        to: padAddress(receiver),
+        dstEid: GOAT_EID,
+        toAddress: dest,
+        token: cfg.token as Address,
+        amount: amountLD,
+        composeMsg: "0x",
+        extraOptions: "0x",
+        oftCmd: "0x",
+      },
+      { nativeFee: BigInt(0), lzTokenFee: BigInt(0) },
+      dest,
+    ],
+  })
+}
+
+/**
+ * Bridges `amountLD` of the asset from the custody wallet (PRIVATE_KEY) on BSC
+ * to `receiver` on GOAT (defaults to the custody wallet itself). FUND-MOVING:
+ * throws unless GOAT_BRIDGE_VERIFIED=true. Approves the adapter, then calls
+ * send() with the quoted fee as msg.value (paid in BNB). Returns the BSC hash.
+ * Passing a freelancer's GOAT address as `receiver` is the zero-custody
+ * direct rail: the client's DOGEB lands straight in the freelancer's wallet.
+ */
+export async function bridgeToGoat(
+  asset: GoatBridgeAsset,
+  amountLD: bigint,
+  receiver?: string,
+  opts?: { dryRun?: boolean }
+): Promise<string> {
+  assertGoatBridgeVerified()
+  const account = getIssuerAccount()
+  if (!account) throw new PaymentError(503, "PRIVATE_KEY is not configured — cannot bridge from BSC")
+
+  const cfg = GOAT_BRIDGE_ASSETS[asset]
+  const client = getBscPublicClient()
+  const wallet = getBscWalletClient(account)
+  const dest = receiver ? getAddress(receiver) : (account.address as Address)
+
+  const quote = await quoteBridgeToGoat(asset, amountLD, dest)
+  await ensureApproval(asset, amountLD, account)
+
+  if (opts?.dryRun) return "dry-run"
+
+  let data: Hex
+  if (quote.variant === "amountLD") {
+    data = encodeFunctionData({
+      abi: AMOUNT_LD_ABI,
+      functionName: "send",
+      args: [
+        {
+          dstEid: GOAT_EID,
+          to: padAddress(dest),
+          amountLD,
+          minAmountLD: amountLD,
+          extraOptions: "0x",
+          composeMsg: "0x",
+          oftCmd: "0x",
+        },
         { nativeFee: quote.nativeFee, lzTokenFee: quote.lzTokenFee },
-        receiver,
+        dest,
       ],
     })
   } else {
@@ -443,9 +501,9 @@ export async function bridgeToGoat(
       functionName: "send",
       args: [
         {
-          to: padAddress(receiver),
+          to: padAddress(dest),
           dstEid: GOAT_EID,
-          toAddress: receiver as Hex,
+          toAddress: dest as Hex,
           token: cfg.token as Address,
           amount: amountLD,
           composeMsg: "0x",
@@ -453,7 +511,7 @@ export async function bridgeToGoat(
           oftCmd: "0x",
         },
         { nativeFee: quote.nativeFee, lzTokenFee: quote.lzTokenFee },
-        receiver,
+        dest,
       ],
     })
   }
