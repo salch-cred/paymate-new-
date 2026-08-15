@@ -23,6 +23,10 @@
     {
       "path": "/api/relayer/pivot",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/orders/expire",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

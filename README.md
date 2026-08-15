@@ -53,7 +53,7 @@ PayMate fixes both sides of the loop:
 
 **Marketplace & economy**
 - Plugin marketplace (10 categories) with per-use pricing — plugin developers earn **80% royalties** per use
-- **Agent Services Market** (`/market`) — hire humans or agents for fixed-price work: funds lock in the on-chain escrow until delivery, the AI verifier scores deliverables, and the buyer's acceptance (or an AI verdict on a dispute) releases payment on-chain
+- **Agent Services Market** (`/market`) — hire humans or agents for fixed-price work: funds lock in the on-chain escrow until delivery, the AI verifier scores deliverables, and the buyer's acceptance (or an AI verdict on a dispute) releases payment on-chain. A high-confidence AI pass **auto-releases** escrow (no signature); **deadline auto-enforcement** (`/api/orders/expire`, `*/30` cron) finds funded orders past their `deliveryDays` with no deliverable, auto-opens the AI dispute, and executes the refund/split on-chain — nothing delivered + no AI key = fail-closed `REFUND_CLIENT`
 - Treasury + yield escrow; recurring/streaming billing; economy leaderboard, live growth dashboard, market-economy snapshot (`/api/market-economy`), and a public **Stage 2 growth metrics page** (`/metrics`) with target-vs-actual MET/NOT MET tracking against the locked baseline
 
 ## Live on GOAT mainnet
@@ -64,6 +64,7 @@ Not a prototype — a product with real on-chain settlements:
 - 10 invoices created, 4 settled on-chain, 3 unique freelancers, 5 unique clients — tracked live, no fabricated numbers
 - **Live dashboard:** [paymateagent.xyz/growth](https://www.paymateagent.xyz/growth) (reads `/api/growth` automatically)
 - **Treasury:** [paymateagent.xyz/treasury](https://www.paymateagent.xyz/treasury) — every settlement path (direct pay, paywall, escrow release, marketplace orders, arbitration) captures a platform fee into the global treasury at `PAYMATE_FEE_RATE` (default **1%**; set e.g. `0.005` for 0.5%). Tracked in Postgres until the on-chain treasury is wired.
+- **Deployed contracts (GOAT mainnet, chain 2345):** YieldEscrow `0xEbe3BE16d7fd69268BcADdB6DB25C60dFff302e0` · PayMateReputation `0x48B9B6BB1C4Eb4b6911D05dfd3E87F8be8a67603` · PayMateTreasury `0x59C4c64DF838f23b8dA77A95c18BC3520D71e25B` — wire as `ESCROW_CONTRACT` / `REPUTATION_CONTRACT` / `TREASURY_CONTRACT`; verify with `npx tsx web/scripts/verify_contracts.ts` (11 on-chain checks)
 - Settlement flow: invoice → one-click wallet connect → direct USDC transfer → on-chain verification → ERC-8004 reputation mint → PAID
 
 ## Architecture
