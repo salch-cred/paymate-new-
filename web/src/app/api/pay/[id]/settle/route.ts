@@ -1,7 +1,7 @@
 import { getInvoice, markPaid, markMilestonePaid, markEscrowFunded, addTreasuryRevenue, computePaymateFee, reserveCrossChainTx } from "@/lib/db"
 import { paymentRequirements, verifyTransfer, verifyEscrowFunding, ensureEscrowRegistered, confirmEscrowFunded, isEscrowInvoice, mintReputation, PaymentError, getPublicClient, usdcAmount, verifyCrossChainPayment, settleCrossChainPayout } from "@/lib/chain"
 import { PAYMENT_REQUIRED_HEADER } from "@/lib/paywall"
-import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
+import { isClawUpReferral } from "@/lib/constants"
 import { buildCheckoutWebhook, signMerchantWebhook } from "@/lib/merchant"
 import { sendReceipt } from "@/lib/email"
 import { isSafeWebhookUrl } from "@/lib/webhookSafety"
@@ -211,7 +211,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const multiplier = updated.webhookUrl === REFERRAL_MULTIPLIER_TAG ? 1.2 : 1.0;
+    const multiplier = isClawUpReferral(updated.webhookUrl) ? 1.2 : 1.0;
     await mintReputation(updated.freelancer, updated.isPrivate ? 0 : targetAmountUsd, multiplier)
   } catch (error) {
     console.log(`Reputation recording queued/failed: ${error}`)

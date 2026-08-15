@@ -4,7 +4,7 @@ import { getAddress, isAddress } from "viem";
 import { verifyInvoiceSignature } from "@/lib/eip712";
 import { checkAndConsumeIntentBudget } from "@/lib/rateLimit";
 import { requireBearerAuth } from "@/lib/auth";
-import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants";
+import { resolveClawUpTag } from "@/lib/constants";
 
 // SECURITY NOTE (fixed 2026-07-29 audit finding C-1 / C-2):
 // This endpoint used to (a) accept requests with zero authentication, and
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
         return Response.json({ detail: "Autonomous payout budget exceeded for this window. Manual review required." }, { status: 429 });
       }
 
-      const referralCode = process.env.CLAWUP_REFERRAL_ID || REFERRAL_MULTIPLIER_TAG;
+      const referralCode = resolveClawUpTag();
       const invoice = await createInvoice({
         freelancer: getAddress(freelancer),
         client: getAddress(client),

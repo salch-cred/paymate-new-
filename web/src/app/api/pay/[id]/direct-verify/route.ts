@@ -2,7 +2,7 @@ import { getInvoice, markPaid, addTreasuryRevenue, computePaymateFee, reserveDir
 import { PaymentError, mintReputation } from "@/lib/chain"
 import { screenWallets } from "@/lib/security"
 import { verifyBscDirectBridge } from "@/lib/directPay"
-import { REFERRAL_MULTIPLIER_TAG } from "@/lib/constants"
+import { isClawUpReferral } from "@/lib/constants"
 import { buildCheckoutWebhook, signMerchantWebhook } from "@/lib/merchant"
 import { sendReceipt } from "@/lib/email"
 import { isSafeWebhookUrl } from "@/lib/webhookSafety"
@@ -88,7 +88,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const multiplier = updated.webhookUrl === REFERRAL_MULTIPLIER_TAG ? 1.2 : 1.0
+    const multiplier = isClawUpReferral(updated.webhookUrl) ? 1.2 : 1.0
     await mintReputation(updated.freelancer, targetAmountUsd, multiplier)
   } catch (error) {
     console.log(`Reputation recording queued/failed: ${error}`)

@@ -2,6 +2,7 @@ import { neon } from "@neondatabase/serverless"
 import crypto from "node:crypto"
 import type { Plugin } from "./marketplace/types"
 import type { Service, ServiceOrder } from "./services/types"
+import { resolveClawUpTag } from "./constants"
 
 export type InvoiceStatus = "pending" | "paid" | "cancelled"
 
@@ -606,7 +607,11 @@ export async function createInvoice(input: {
     createdAt: Date.now(),
     paidAt: null,
     cancelledAt: null,
-    webhookUrl: input.webhookUrl || null,
+    // Default to the ClawUp referral tag so every payment path (web invoice,
+    // cross-chain settle, direct-verify, paywall, recurring) counts toward
+    // ClawUp-originated growth metrics and the 1.2x reputation multiplier.
+    // Real merchant/automation webhook URLs are kept as-is.
+    webhookUrl: input.webhookUrl || resolveClawUpTag(),
     signature: safeSignature,
     ipfsReceipt: null,
     splits: input.splits || null,
@@ -2192,11 +2197,14 @@ export async function getGrowthStats(): Promise<GrowthStats> {
     SELECT role, COUNT(*)::int AS count FROM feedback GROUP BY role
   `) as unknown as { role: string; count: number }[]
 
+  // ClawUp-originated invoices: the fixed fallback tag, or any configured
+  // CLAWUP_REFERRAL_ID (createInvoice defaults webhook_url to one of these).
   const clawUpRows = (await sql`
     SELECT
       COUNT(*)::int AS total,
       COALESCE(SUM(amount_usd) FILTER (WHERE status='paid'), 0)::float AS settled
-    FROM invoices WHERE webhook_url LIKE 'clawup%'
+    FROM invoices
+    WHERE webhook_url LIKE 'clawup%' OR webhook_url = ${process.env.CLAWUP_REFERRAL_ID || "__none__"}
   `) as unknown as { total: number; settled: number }[]
 
   return {
