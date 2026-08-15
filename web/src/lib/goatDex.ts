@@ -1,26 +1,55 @@
 /**
- * GOAT DEX swap — the last link of the self-refilling custody loop.
+ * GOAT DEX swaps — converting inbound liquidity into USDC.e on GOAT.
  *
  * Bridges land DOGEB (bridged from BSC) on the custody wallet on GOAT. This
  * module converts that DOGEB → USDC.e through the GOAT DEX (Oku's Uniswap v3
  * fork) so the custody wallet's GOAT USDC pool refills itself and can keep
  * paying freelancers — the client's own money literally becomes the payout.
  *
- * Contracts (recovered live from Oku's frontend + GOAT explorer, verified
- * on-chain today):
- *   - SwapRouter02  0xaa52bB8110fE38D0d2d2AF0B85C3A3eE622CA455
- *     (factory() == 0xcb2436774c3e191c85056d248ef4260ce5f27a9d == the pool's
- *      factory, confirmed via getPool(DOGEB, USDC.e, 3000) → 0x186F458E…)
+ * Executor (recovered live, NOT the naive SwapRouter02):
+ *   The GOAT DEX does NOT expose a plain `exactInputSingle` router. The real
+ *   executor is a Universal Router-style contract:
+ *
+ *     0x738fD6d10bCc05c230388B4027CAd37f82fe2AF2
+ *     function execute(bytes commands, bytes[] inputs, uint256 deadline) payable
+ *
+ *   Recovered by decoding a live swap tx (block 14595410: 0x00008 BTC →
+ *   5.04 USDC.e) and proven by a real wrap+swap on 2026-08-15 (wallet now
+ *   holds USDC.e). Commands:
+ *     - 0x0b = WRAP_ETH   input: abi.encode(address recipient, uint256 min)
+ *                          (recipient 0x…02 = the router placeholder)
+ *     - 0x00 = V3_SWAP_EXACT_IN
+ *                          input: abi.encode(address to, uint256 amountIn,
+ *                          uint256 amountOutMin, bytes path, bool payerIsUser)
+ *   Path layout: [tokenIn, uint24 fee, tokenOut] packed.
+ *
+ *   HOW ERC20 INPUT WORKS (proven with a real 0.05 USDC deposit + swap): this
+ *   fork does NOT pull tokens from the user. payerIsUser=true reverts even
+ *   with a full ERC20 allowance, and the constructor's permit2 slot is a stub
+ *   contract (0xdd489c75…, fallback-only — decoded from the creation bytecode;
+ *   the canonical Uniswap Permit2 0x000000000022… is NOT used). Real Oku
+ *   swaps (commands 0a00/00 with payerIsUser=1) only work because a permit
+ *   command stores the allowance inside the router first. For external callers
+ *   the reliable pattern is: DEPOSIT the input token into the executor via a
+ *   plain ERC20 transfer, then execute([V3_SWAP_EXACT_IN], payerIsUser=false)
+ *   so the executor pays from its own balance (identical semantics to WRAP).
+ *   Stranded deposits are recoverable with the SWEEP command (0x04).
+ *
+ * Contracts (verified on-chain):
+ *   - Executor  0x738fD6d10bCc05c230388B4027CAd37f82fe2AF2
+ *   - Factory   0xcb2436774c3e191c85056d248ef4260ce5f27a9d
  *   - Pool DOGEB/USDC.e (fee 3000)  0x186F458E878fFDc45795D61946eff7a97471D77D
  *   - DOGEB (18 dec) 0x1E0d0303a8c4aD428953f5ACB1477dB42bb838cf
  *   - USDC.e (6 dec) 0x3022b87ac063DE95b1570F46f5e470F8B53112D8
+ *   - WGBTC (wrapped native BTC, 18 dec) 0xbc10000000000000000000000000000000000000
+ *   - WGBTC/USDC.e pool (fee 500) — resolved live via factory.getPool
  *   - Native gas on GOAT is BTC.
  *
  * SECURITY / HONESTY GATE: like the bridge hop, every fund-moving function
- * fails closed unless GOAT_DEX_VERIFIED=true. The pool + router were verified
- * read-only on-chain, but a live swap is the one thing that can't be proven
- * without spending dust. Set the flag ONLY after scripts/goat_dex_probe.ts
- * --send succeeds with a tiny amount.
+ * fails closed unless GOAT_DEX_VERIFIED=true. The pool + executor were
+ * verified read-only on-chain, and the executor interface was proven with a
+ * small real-money swap (the round-trip in scripts/goat_dex_probe.ts). Set
+ * the flag only after scripts/goat_dex_probe.ts --send succeeds.
  */
 
 import {
@@ -28,6 +57,7 @@ import {
   createWalletClient,
   http,
   encodeFunctionData,
+  encodePacked,
   getAddress,
   isAddress,
   type Address,
@@ -40,12 +70,17 @@ const GOAT_RPC = process.env.RPC_GOAT_MAINNET || "https://rpc.goat.network"
 
 /** Recovered GOAT DEX contracts (see header). */
 export const GOAT_DEX = {
-  router: "0xaa52bB8110fE38D0d2d2AF0B85C3A3eE622CA455",
+  /** Universal Router-style executor — the ONLY contract with swap functions. */
+  executor: "0x738fD6d10bCc05c230388B4027CAd37f82fe2AF2",
   factory: "0xcb2436774c3e191c85056d248ef4260ce5f27a9d",
   dogeB: "0x1E0d0303a8c4aD428953f5ACB1477dB42bb838cf",
   usdcE: "0x3022b87ac063DE95b1570F46f5e470F8B53112D8",
+  wgbtc: "0xbc10000000000000000000000000000000000000",
+  /** DOGEB/USDC.e pool (documented; swaps resolve the pool via the factory). */
   pool: "0x186F458E878fFDc45795D61946eff7a97471D77D",
   fee: 3000,
+  /** WGBTC/USDC.e pool fee tier. */
+  btcFee: 500,
 } as const
 
 /** Whole DOGE → raw DOGEB wei (18 decimals on GOAT, unlike BSC's 8). */
@@ -134,39 +169,101 @@ export function applySlippage(estimatedOutRaw: bigint, slippageBps: number): big
 export function validateGoatDexConfig(): string[] {
   const problems: string[] = []
   for (const [key, addr] of Object.entries(GOAT_DEX)) {
-    if (key !== "fee" && typeof addr === "string" && !isAddress(addr)) problems.push(`${key} is not a valid address`)
+    if (typeof addr === "string" && !isAddress(addr)) problems.push(`${key} is not a valid address`)
   }
   if (!(GOAT_DEX.fee > 0)) problems.push("fee must be > 0")
+  if (!(GOAT_DEX.btcFee > 0)) problems.push("btcFee must be > 0")
   return problems
+}
+
+// ---------------------------------------------------------------------------
+// Universal Router encoding (pure — exported for tests)
+// ---------------------------------------------------------------------------
+
+const EXECUTE_ABI = [
+  {
+    type: "function",
+    name: "execute",
+    stateMutability: "payable",
+    inputs: [
+      { name: "commands", type: "bytes" },
+      { name: "inputs", type: "bytes[]" },
+      { name: "deadline", type: "uint256" },
+    ],
+    outputs: [],
+  },
+] as const
+
+/** Universal Router command codes (verified against the live executor). */
+const COMMAND_V3_SWAP_EXACT_IN = 0x00
+const COMMAND_WRAP_ETH = 0x0b
+/** The executor replaces this placeholder with its own address (wrap recipient). */
+const ROUTER_PLACEHOLDER = "0x0000000000000000000000000000000000000002" as Address
+
+function pad64(hex: string): string {
+  return hex.padStart(64, "0")
+}
+function word(v: bigint | number): string {
+  return pad64(BigInt(v).toString(16))
+}
+function addrWord(a: Address): string {
+  return pad64(a.slice(2).toLowerCase())
+}
+
+/** WRAP_ETH input: abi.encode(address recipient, uint256 amountMin). */
+export function encodeWrapInput(recipient: Address, amountMin: bigint): Hex {
+  return ("0x" + addrWord(recipient) + word(amountMin)) as Hex
+}
+
+/**
+ * V3_SWAP_EXACT_IN input: abi.encode(address to, uint256 amountIn,
+ * uint256 amountOutMinimum, bytes path, bool payerIsUser). The 160 offset
+ * matches the 5-word static section; payerIsUser=false means the executor
+ * pays from what the WRAP command deposited (never from our wallet).
+ */
+export function encodeV3SwapInput(
+  recipient: Address,
+  amountIn: bigint,
+  amountOutMinimum: bigint,
+  path: Hex,
+  payerIsUser: boolean
+): Hex {
+  const pathHex = path.slice(2)
+  const pathLen = pathHex.length / 2
+  const padded = pathHex + "0".repeat(64 - (pathHex.length % 64 || 64))
+  return (
+    "0x" +
+    addrWord(recipient) +
+    word(amountIn) +
+    word(amountOutMinimum) +
+    word(160) +
+    word(payerIsUser ? 1 : 0) +
+    word(pathLen) +
+    padded
+  ) as Hex
+}
+
+/** Uniswap v3 path: [tokenIn, uint24 fee, tokenOut] packed. */
+export function buildV3Path(tokenIn: Address, fee: number, tokenOut: Address): Hex {
+  return encodePacked(["address", "uint24", "address"], [tokenIn, fee, tokenOut])
+}
+
+/** Full execute calldata: commands + inputs + deadline (pure — exported for tests). */
+export function buildExecuteData(
+  commands: Hex,
+  inputs: Hex[],
+  deadline = BigInt(Math.floor(Date.now() / 1000) + 600)
+): Hex {
+  return encodeFunctionData({
+    abi: EXECUTE_ABI,
+    functionName: "execute",
+    args: [commands, inputs, deadline],
+  })
 }
 
 // ---------------------------------------------------------------------------
 // Live swap
 // ---------------------------------------------------------------------------
-
-const EXACT_INPUT_SINGLE_ABI = [
-  {
-    type: "function",
-    name: "exactInputSingle",
-    stateMutability: "payable",
-    inputs: [
-      {
-        name: "params",
-        type: "tuple",
-        components: [
-          { name: "tokenIn", type: "address" },
-          { name: "tokenOut", type: "address" },
-          { name: "fee", type: "uint24" },
-          { name: "recipient", type: "address" },
-          { name: "amountIn", type: "uint256" },
-          { name: "amountOutMinimum", type: "uint256" },
-          { name: "sqrtPriceLimitX96", type: "uint160" },
-        ],
-      },
-    ],
-    outputs: [{ name: "amountOut", type: "uint256" }],
-  },
-] as const
 
 const ERC20_APPROVE_ABI = [
   {
@@ -198,6 +295,16 @@ const ERC20_APPROVE_ABI = [
   },
   {
     type: "function",
+    name: "transfer",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    type: "function",
     name: "transferFrom",
     stateMutability: "nonpayable",
     inputs: [
@@ -209,8 +316,15 @@ const ERC20_APPROVE_ABI = [
   },
 ] as const
 
-/** Minimal pool view ABI for liquidity() + slot0() reads. */
+/** Minimal pool view ABI for token0() + liquidity() + slot0() reads. */
 const POOL_VIEW_ABI = [
+  {
+    type: "function",
+    name: "token0",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
   {
     type: "function",
     name: "liquidity",
@@ -235,34 +349,50 @@ const POOL_VIEW_ABI = [
   },
 ] as const
 
+const FACTORY_ABI = [
+  {
+    type: "function",
+    name: "getPool",
+    stateMutability: "view",
+    inputs: [
+      { name: "tokenA", type: "address" },
+      { name: "tokenB", type: "address" },
+      { name: "fee", type: "uint24" },
+    ],
+    outputs: [{ name: "", type: "address" }],
+  },
+] as const
+
 function getGoatPublicClient() {
   return createPublicClient({ chain: goat, transport: http(GOAT_RPC) })
 }
 
 type CustodyAccount = NonNullable<ReturnType<typeof getIssuerAccount>>
 
-/** Builds the exactInputSingle calldata (pure — exported for tests). */
-export function buildExactInputSingleData(
-  amountIn: bigint,
-  amountOutMinimum: bigint,
-  recipient: string,
-  sqrtPriceLimitX96 = BigInt(0)
-): Hex {
-  return encodeFunctionData({
-    abi: EXACT_INPUT_SINGLE_ABI,
-    functionName: "exactInputSingle",
-    args: [
-      {
-        tokenIn: GOAT_DEX.dogeB as Address,
-        tokenOut: GOAT_DEX.usdcE as Address,
-        fee: GOAT_DEX.fee,
-        recipient: recipient as Address,
-        amountIn,
-        amountOutMinimum,
-        sqrtPriceLimitX96,
-      },
-    ],
-  })
+async function readPoolState(pool: Address): Promise<{ liquidity: bigint; sqrtPriceX96: bigint; token0: Address }> {
+  const client = getGoatPublicClient()
+  const [token0, liquidity, slot] = await Promise.all([
+    client.readContract({ address: pool, abi: POOL_VIEW_ABI, functionName: "token0" }) as Promise<Address>,
+    client.readContract({ address: pool, abi: POOL_VIEW_ABI, functionName: "liquidity" }) as Promise<bigint>,
+    client.readContract({ address: pool, abi: POOL_VIEW_ABI, functionName: "slot0" }) as Promise<
+      readonly [bigint, number, number, number, number, number, boolean]
+    >,
+  ])
+  return { liquidity, sqrtPriceX96: slot[0], token0: getAddress(token0) }
+}
+
+async function resolvePool(tokenIn: Address, tokenOut: Address, fee: number): Promise<Address> {
+  const client = getGoatPublicClient()
+  const pool = (await client.readContract({
+    address: GOAT_DEX.factory as Address,
+    abi: FACTORY_ABI,
+    functionName: "getPool",
+    args: [tokenIn, tokenOut, fee],
+  })) as Address
+  if (!pool || pool === "0x0000000000000000000000000000000000000000") {
+    throw new PaymentError(503, `No pool for ${tokenIn}/${tokenOut} at fee ${fee} on the GOAT DEX factory.`)
+  }
+  return getAddress(pool)
 }
 
 /** Read-only: any wallet's DOGEB balance on GOAT (raw units). */
@@ -284,14 +414,22 @@ export async function getGoatDogeBBalance(account?: CustodyAccount): Promise<big
 }
 
 /**
- * Swaps DOGEB → USDC.e on the GOAT DEX from the custody wallet to an arbitrary
- * recipient. FUND-MOVING: throws unless GOAT_DEX_VERIFIED=true. Approves the
- * router, reads live pool state (liquidity + sqrtPriceX96), computes a
- * conservative amountOutMinimum from the configured slippage, and submits
- * exactInputSingle. Returns the GOAT tx hash.
+ * Generic ERC20 exact-input swap through the Universal Router executor.
+ * Because this fork can't pull from the user (no working Permit2 — see the
+ * header), the token is first DEPOSITED into the executor with a plain ERC20
+ * transfer, then execute([V3_SWAP_EXACT_IN], payerIsUser=false) swaps from the
+ * executor's own balance and sends the output to the recipient. Sizes a
+ * conservative amountOutMinimum from live pool state + slippage. If the swap
+ * ever reverts, the deposit is recoverable via sweepExecutorBalanceTo().
+ * FUND-MOVING: throws unless GOAT_DEX_VERIFIED=true. Returns the GOAT tx hash.
  */
-export async function swapDogeBToUsdcETo(
+export async function swapExactInTo(
   amountInRaw: bigint,
+  tokenIn: Address,
+  tokenOut: Address,
+  fee: number,
+  decimalsIn: number,
+  decimalsOut: number,
   recipient: string,
   opts?: { slippageBps?: number; dryRun?: boolean }
 ): Promise<string> {
@@ -303,47 +441,107 @@ export async function swapDogeBToUsdcETo(
   const slippageBps = opts?.slippageBps ?? 200 // 2% default
   const client = getGoatPublicClient()
   const wallet = createWalletClient({ account, chain: goat, transport: http(GOAT_RPC) })
-  const router = GOAT_DEX.router as Address
+  const executor = GOAT_DEX.executor as Address
 
   // Balance guard: never try to swap more than the wallet actually holds.
-  const held = await getGoatDogeBBalance(account)
+  const held = (await client.readContract({
+    address: tokenIn,
+    abi: ERC20_APPROVE_ABI,
+    functionName: "balanceOf",
+    args: [account.address],
+  })) as bigint
   const amount = amountInRaw > held ? held : amountInRaw
-  if (amount <= BigInt(0)) throw new PaymentError(400, "no DOGEB balance on GOAT to swap")
+  if (amount <= BigInt(0)) throw new PaymentError(400, `no ${tokenIn} balance on GOAT to swap`)
 
   // Live pool state for a conservative output estimate.
-  const liquidity = (await client
-    .readContract({ address: GOAT_DEX.pool as Address, abi: POOL_VIEW_ABI, functionName: "liquidity" })
-    .catch(() => BigInt(0))) as bigint
-  const slot = (await client
-    .readContract({ address: GOAT_DEX.pool as Address, abi: POOL_VIEW_ABI, functionName: "slot0" })
-    .catch(() => ({ sqrtPriceX96: BigInt(0), tick: 0, observationIndex: 0, observationCardinality: 0, observationCardinalityNext: 0, feeProtocol: 0, unlocked: false }))) as { sqrtPriceX96: bigint }
-  const sqrtPriceX96 = slot.sqrtPriceX96
-  const estimated = estimateV3Output(sqrtPriceX96, liquidity, 18, 6, amount, GOAT_DEX.fee, true)
+  const pool = await resolvePool(tokenIn, tokenOut, fee)
+  const { liquidity, sqrtPriceX96, token0 } = await readPoolState(pool)
+  const zeroForOne = token0.toLowerCase() === tokenIn.toLowerCase()
+  const estDecimals0 = zeroForOne ? decimalsIn : decimalsOut
+  const estDecimals1 = zeroForOne ? decimalsOut : decimalsIn
+  const estimated = estimateV3Output(sqrtPriceX96, liquidity, estDecimals0, estDecimals1, amount, fee, zeroForOne)
   const minOut = applySlippage(estimated, slippageBps)
 
-  // Approve the router to spend DOGEB.
-  const existing = (await client.readContract({
-    address: GOAT_DEX.dogeB as Address,
+  // This fork's UniversalRouter does NOT support pulling ERC20s from the user:
+  //   - payerIsUser=true reverts even with a full ERC20 allowance (proven), and
+  //   - its Permit2 constructor slot points at a stub contract (0xdd489c75…,
+  //     fallback-only — recovered from the executor's creation bytecode), so
+  //     the permit commands (0x0a/0x02) can't be driven externally.
+  // The ONLY proven pull-in mechanism (decoded from live Oku swaps + verified
+  // with a real 0.05 USDC deposit + swap): DEPOSIT the input token into the
+  // executor with a plain ERC20 transfer, then swap with payerIsUser=false
+  // (the executor pays from its own balance — the same semantics as WRAP_ETH).
+  // A deposit whose swap reverts is recoverable via the SWEEP command (0x04).
+  if (opts?.dryRun) return "dry-run"
+
+  const depositHash = await wallet.writeContract({
+    address: tokenIn,
     abi: ERC20_APPROVE_ABI,
-    functionName: "allowance",
-    args: [account.address as Address, router],
-  })) as bigint
-  if (existing < amount) {
-    const approveHash = await wallet.writeContract({
-      address: GOAT_DEX.dogeB as Address,
-      abi: ERC20_APPROVE_ABI,
-      functionName: "approve",
-      args: [router, amount],
-    })
-    await client.waitForTransactionReceipt({ hash: approveHash, timeout: 120_000 })
-  }
+    functionName: "transfer",
+    args: [executor, amount],
+  })
+  await client.waitForTransactionReceipt({ hash: depositHash, timeout: 120_000 })
+
+  const path = buildV3Path(tokenIn, fee, tokenOut)
+  const input = encodeV3SwapInput(getAddress(recipient) as Address, amount, minOut, path, false)
+  const data = buildExecuteData("0x00" as Hex, [input])
+  const hash = await wallet.sendTransaction({ to: executor, data, gas: BigInt(400_000) })
+  await client.waitForTransactionReceipt({ hash, timeout: 120_000 })
+  return hash
+}
+
+/**
+ * Recovers tokens stranded in the executor (e.g. a deposit whose swap then
+ * reverted) via the SWEEP command (0x04): SWEEP input is
+ * abi.encode(address token, address recipient, uint256 amountMin). Sweeps the
+ * executor's ENTIRE balance of `token` to `recipient`. FUND-MOVING: gated.
+ * Returns the GOAT tx hash.
+ */
+export async function sweepExecutorBalanceTo(
+  token: Address,
+  recipient: string,
+  opts?: { dryRun?: boolean }
+): Promise<string> {
+  assertGoatDexVerified()
+  const account = getIssuerAccount()
+  if (!account) throw new PaymentError(503, "PRIVATE_KEY is not configured — cannot sweep on GOAT")
 
   if (opts?.dryRun) return "dry-run"
 
-  const data = buildExactInputSingleData(amount, minOut, recipient)
-  const hash = await wallet.sendTransaction({ to: router, data, gas: BigInt(400_000) })
+  const wallet = createWalletClient({ account, chain: goat, transport: http(GOAT_RPC) })
+  const sweepInput = ("0x" +
+    addrWord(token) +
+    addrWord(getAddress(recipient) as Address) +
+    word(BigInt(0))) as Hex
+  const data = buildExecuteData("0x04" as Hex, [sweepInput])
+  const hash = await wallet.sendTransaction({ to: GOAT_DEX.executor as Address, data, gas: BigInt(300_000) })
+  const client = getGoatPublicClient()
   await client.waitForTransactionReceipt({ hash, timeout: 120_000 })
   return hash
+}
+
+/**
+ * Swaps DOGEB → USDC.e on the GOAT DEX from the custody wallet to an arbitrary
+ * recipient. FUND-MOVING: throws unless GOAT_DEX_VERIFIED=true.
+ */
+export async function swapDogeBToUsdcETo(
+  amountInRaw: bigint,
+  recipient: string,
+  opts?: { slippageBps?: number; dryRun?: boolean }
+): Promise<string> {
+  return swapExactInTo(amountInRaw, GOAT_DEX.dogeB as Address, GOAT_DEX.usdcE as Address, GOAT_DEX.fee, 18, 6, recipient, opts)
+}
+
+/**
+ * Swaps USDC.e → DOGEB (the inverse leg — used by the probe's round trip and
+ * available to the fee-as-spread converter). FUND-MOVING: gated like the rest.
+ */
+export async function swapUsdcEToDogeBTo(
+  amountInRaw: bigint,
+  recipient: string,
+  opts?: { slippageBps?: number; dryRun?: boolean }
+): Promise<string> {
+  return swapExactInTo(amountInRaw, GOAT_DEX.usdcE as Address, GOAT_DEX.dogeB as Address, GOAT_DEX.fee, 6, 18, recipient, opts)
 }
 
 /**
@@ -357,6 +555,51 @@ export async function swapDogeBToUsdcE(
   const account = getIssuerAccount()
   if (!account) throw new PaymentError(503, "PRIVATE_KEY is not configured — cannot swap on GOAT")
   return swapDogeBToUsdcETo(amountInRaw, account.address as string, opts)
+}
+
+/**
+ * Swaps native BTC → USDC.e via WRAP_ETH + V3_SWAP_EXACT_IN in a single
+ * execute() call (proven live: the wallet's current USDC.e was bought this
+ * way). The executor wraps the msg.value, swaps WGBTC → USDC.e, and sweeps
+ * the USDC.e to the recipient — the wallet never needs to hold WGBTC.
+ * FUND-MOVING: throws unless GOAT_DEX_VERIFIED=true. Returns the GOAT tx hash.
+ */
+export async function swapNativeBtcToUsdcETo(
+  amountBtcRaw: bigint,
+  recipient: string,
+  opts?: { slippageBps?: number; dryRun?: boolean }
+): Promise<string> {
+  assertGoatDexVerified()
+  const account = getIssuerAccount()
+  if (!account) throw new PaymentError(503, "PRIVATE_KEY is not configured — cannot swap on GOAT")
+  if (amountBtcRaw <= BigInt(0)) throw new PaymentError(400, "swap amount must be > 0")
+
+  const slippageBps = opts?.slippageBps ?? 200
+  const client = getGoatPublicClient()
+  const wallet = createWalletClient({ account, chain: goat, transport: http(GOAT_RPC) })
+  const executor = GOAT_DEX.executor as Address
+
+  // Balance guard against the native BTC balance.
+  const held = await client.getBalance({ address: account.address })
+  const amount = amountBtcRaw > held ? held : amountBtcRaw
+  if (amount <= BigInt(0)) throw new PaymentError(400, "no native BTC balance on GOAT to swap")
+
+  // Live WGBTC/USDC.e pool state for a conservative output estimate.
+  const pool = await resolvePool(GOAT_DEX.wgbtc as Address, GOAT_DEX.usdcE as Address, GOAT_DEX.btcFee)
+  const { liquidity, sqrtPriceX96, token0 } = await readPoolState(pool)
+  const zeroForOne = token0.toLowerCase() === GOAT_DEX.wgbtc.toLowerCase()
+  const estimated = estimateV3Output(sqrtPriceX96, liquidity, 18, 6, amount, GOAT_DEX.btcFee, zeroForOne)
+  const minOut = applySlippage(estimated, slippageBps)
+
+  if (opts?.dryRun) return "dry-run"
+
+  const path = buildV3Path(GOAT_DEX.wgbtc as Address, GOAT_DEX.btcFee, GOAT_DEX.usdcE as Address)
+  const inputWrap = encodeWrapInput(ROUTER_PLACEHOLDER, amount)
+  const inputSwap = encodeV3SwapInput(getAddress(recipient) as Address, amount, minOut, path, false)
+  const data = buildExecuteData("0x0b00" as Hex, [inputWrap, inputSwap])
+  const hash = await wallet.sendTransaction({ to: executor, data, value: amount, gas: BigInt(400_000) })
+  await client.waitForTransactionReceipt({ hash, timeout: 120_000 })
+  return hash
 }
 
 /**
@@ -400,7 +643,7 @@ export async function pullDogeBFrom(
   return hash
 }
 
-/** Quick sanity for the smoke tests: router + pool + tokens must be sane. */
+/** Quick sanity for the smoke tests: executor + pool + tokens must be sane. */
 export function validateGoatDexAddresses(): string[] {
   return validateGoatDexConfig()
 }

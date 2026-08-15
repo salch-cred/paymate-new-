@@ -6,7 +6,7 @@ export type { PayMateTreasury } from './PayMateTreasury.js';
 export type { TestUSDC } from './TestUSDC.js';
 export type { YieldEscrow } from './YieldEscrow.js';
 export * as factories from './factories/index.js';
-export { TestUSDC__factory } from './factories/TestUSDC__factory.js';
 export { PayMateReputation__factory } from './factories/PayMateReputation__factory.js';
 export { PayMateTreasury__factory } from './factories/PayMateTreasury__factory.js';
 export { YieldEscrow__factory } from './factories/YieldEscrow__factory.js';
+export { TestUSDC__factory } from './factories/TestUSDC__factory.js';

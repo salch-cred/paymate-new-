@@ -389,26 +389,6 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
     <Icon name="network" size={14} /> Pay with Any Network (ClawUp Routing)
   </button>
 )}
-<div style={{ marginTop: 6, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <Icon name="network" size={13} />
-                      <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: 'var(--muted)' }}>CLAWUP CROSS-CHAIN</span>
-                    </div>
-                    <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.55, margin: '0 0 10px' }}>
-                      Bridge to GOAT yourself, then pay from the button above — fully non-custodial, funds never pass through PayMate.
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <a href="https://oku.trade/bridge/goat" target="_blank" rel="noreferrer" className="button button-outline" style={{ width: '100%', justifyContent: 'center', height: 42, fontSize: 12 }}>
-                        <Icon name="network" size={14} /> ClawUp — Bridge USDC from any network
-                      </a>
-                      <a href="https://bridge.goat.network" target="_blank" rel="noreferrer" className="button button-outline" style={{ width: '100%', justifyContent: 'center', height: 42, fontSize: 12 }}>
-                        <Icon name="network" size={14} /> ClawUp — Bridge BTC / BNB / DOGE
-                      </a>
-                      <a href="https://gas.zip" target="_blank" rel="noreferrer" className="button button-outline" style={{ width: '100%', justifyContent: 'center', height: 42, fontSize: 12 }}>
-                        <Icon name="network" size={14} /> ClawUp — Bridge gas & tokens
-                      </a>
-                    </div>
-                  </div>
                 </>
               )}
             </div>

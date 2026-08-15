@@ -10,25 +10,25 @@ import * as Contracts from "./index.js";
 
 declare module "@nomicfoundation/hardhat-ethers/types" {
   interface HardhatEthersHelpers extends HardhatEthersHelpersBase {
-  getContractFactory(name: 'TestUSDC', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.TestUSDC__factory>
-getContractFactory(name: 'PayMateReputation', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.PayMateReputation__factory>
+  getContractFactory(name: 'PayMateReputation', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.PayMateReputation__factory>
 getContractFactory(name: 'PayMateTreasury', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.PayMateTreasury__factory>
 getContractFactory(name: 'YieldEscrow', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.YieldEscrow__factory>
+getContractFactory(name: 'TestUSDC', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.TestUSDC__factory>
 
-  getContractAt(name: 'TestUSDC', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.TestUSDC>
-getContractAt(name: 'PayMateReputation', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.PayMateReputation>
+  getContractAt(name: 'PayMateReputation', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.PayMateReputation>
 getContractAt(name: 'PayMateTreasury', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.PayMateTreasury>
 getContractAt(name: 'YieldEscrow', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.YieldEscrow>
+getContractAt(name: 'TestUSDC', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.TestUSDC>
 
-  deployContract(name: 'TestUSDC', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.TestUSDC>
-deployContract(name: 'PayMateReputation', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PayMateReputation>
+  deployContract(name: 'PayMateReputation', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PayMateReputation>
 deployContract(name: 'PayMateTreasury', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PayMateTreasury>
 deployContract(name: 'YieldEscrow', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.YieldEscrow>
+deployContract(name: 'TestUSDC', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.TestUSDC>
 
-  deployContract(name: 'TestUSDC', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.TestUSDC>
-deployContract(name: 'PayMateReputation', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PayMateReputation>
+  deployContract(name: 'PayMateReputation', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PayMateReputation>
 deployContract(name: 'PayMateTreasury', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PayMateTreasury>
 deployContract(name: 'YieldEscrow', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.YieldEscrow>
+deployContract(name: 'TestUSDC', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.TestUSDC>
 
     // default types
     getContractFactory(

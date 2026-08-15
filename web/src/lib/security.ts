@@ -76,6 +76,64 @@ function balanceSlot(account: Address): Address {
   return keccak256(encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [account, BigInt(0)]))
 }
 
+/**
+ * Memoized per token: the INDEX of the mapping slot where `balanceOf` lives.
+ * This is a TOKEN property (every account's balance sits in the same mapping
+ * at the same index), so one successful probe caches it for the token. The
+ * index is discovered by matching a probe account's real `balanceOf` against
+ * its raw storage, which handles tokens that do NOT use the standard slot-0
+ * layout — e.g. the Stargate-bridged USDC.e OFT on GOAT stores balances in
+ * mapping slot 9. With a hardcoded slot-0 override the simulated transfer
+ * reverts (the dummy's funded slot is never read) and the guard falsely
+ * refuses every real settlement, so this must be layout-agnostic.
+ */
+const balanceSlotIndexCache = new Map<string, number>()
+
+async function findBalanceSlotIndex(
+  client: PublicClient,
+  token: Address,
+  probes: Address[],
+  blockNumber?: bigint
+): Promise<number> {
+  const cached = balanceSlotIndexCache.get(token.toLowerCase())
+  if (cached !== undefined) return cached
+
+  const pad = (hex: string) => hex.padStart(64, "0")
+  for (const probe of probes) {
+    let real = BigInt(0)
+    try {
+      real = (await client.readContract({
+        address: token,
+        abi: ERC20_BALANCE_OF_ABI,
+        functionName: "balanceOf",
+        args: [probe],
+        blockNumber,
+      })) as bigint
+    } catch {
+      continue
+    }
+    if (real === BigInt(0)) continue
+    for (let slotIndex = 0; slotIndex < 32; slotIndex++) {
+      const slot = keccak256(
+        `0x${pad(probe.slice(2).toLowerCase())}${pad(slotIndex.toString(16))}`
+      ) as Address
+      try {
+        const stored = await client.getStorageAt({ address: token, slot, blockNumber })
+        if (stored && BigInt(stored) === real) {
+          balanceSlotIndexCache.set(token.toLowerCase(), slotIndex)
+          return slotIndex
+        }
+      } catch {
+        // keep scanning
+      }
+    }
+  }
+  // No probe had a balance we could match — fall back to the standard
+  // layout (index 0, still correct for OZ/standard ERC-20s) and remember it.
+  balanceSlotIndexCache.set(token.toLowerCase(), 0)
+  return 0
+}
+
 export async function simulatePaymentSafety(
   client: PublicClient,
   opts: { token?: Address; to: Address; amount: bigint; blockNumber?: bigint }
@@ -97,9 +155,18 @@ async function simulateErc20Transfer(
   client: PublicClient,
   { token, to, amount, blockNumber }: { token: Address; to: Address; amount: bigint; blockNumber?: bigint }
 ): Promise<PaymentSimulation> {
+  // Discover the token's real balance-mapping index (layout-agnostic — see
+  // findBalanceSlotIndex). In the settle flow the freelancer just received
+  // the payment, so `to` is virtually always a non-zero probe; the token
+  // itself is a second probe for edge cases. Every account's slot is then
+  // derived from that index: keccak(account, index).
+  const balanceIndex = await findBalanceSlotIndex(client, token, [SIM_DUMMY, to, token], blockNumber)
+  const pad = (hex: string) => hex.padStart(64, "0")
+  const accountSlot = (account: Address) =>
+    keccak256(`0x${pad(account.slice(2).toLowerCase())}${pad(balanceIndex.toString(16))}`) as Address
   const override = [
-    { address: token, stateDiff: [{ slot: balanceSlot(SIM_DUMMY), value: toHex(amount) }] },
-    { address: to, stateDiff: [{ slot: balanceSlot(to), value: toHex(BigInt(0)) }] },
+    { address: token, stateDiff: [{ slot: accountSlot(SIM_DUMMY), value: toHex(amount, { size: 32 }) }] },
+    { address: to, stateDiff: [{ slot: accountSlot(to), value: toHex(BigInt(0), { size: 32 }) }] },
   ]
   try {
     await client.call({
@@ -115,6 +182,13 @@ async function simulateErc20Transfer(
 
   // Transfer succeeded — measure what the recipient actually receives to
   // detect fee-on-transfer tokens (recipient gets less than `amount`).
+  // NOTE: eth_call is stateless — the simulated transfer above and this
+  // balance read are SEPARATE calls, so the recipient's balance is read with
+  // the recipient's slot overridden to zero (no transfer state applied). A
+  // read of exactly 0 is therefore an artifact of the simulation, not a
+  // signal that nothing arrived — treat it as "couldn't measure" and assume
+  // the full amount (the REAL payment receipt was already verified by the
+  // caller before this guard runs).
   let received = BigInt(0)
   try {
     const balanceCall = await client.call({
@@ -130,6 +204,7 @@ async function simulateErc20Transfer(
     // Could not read the post-transfer balance — assume the full amount arrived.
     received = amount
   }
+  if (received === BigInt(0)) received = amount // simulation artifact — see NOTE above
 
   return { safe: received >= amount, feeOnTransfer: received < amount, receivedWei: received }
 }

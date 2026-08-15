@@ -73,8 +73,10 @@ check("0.5 DOGE → 5e17 raw", dogeBAmount(0.5) === BigInt("500000000000000000")
 
 console.log("\n— validateGoatDexConfig —")
 check("no config problems", validateGoatDexConfig().length === 0, validateGoatDexConfig())
-check("router is checksummed-sane", /^0x[0-9a-fA-F]{40}$/.test(GOAT_DEX.router))
+check("executor is checksummed-sane", /^0x[0-9a-fA-F]{40}$/.test(GOAT_DEX.executor))
+check("executor is the Universal Router-style contract", GOAT_DEX.executor.toLowerCase() === "0x738fd6d10bcc05c230388b4027cad37f82fe2af2")
 check("fee is 3000", GOAT_DEX.fee === 3000)
+check("btcFee is 500", GOAT_DEX.btcFee === 500)
 
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)
