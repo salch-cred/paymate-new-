@@ -126,6 +126,37 @@ export interface PublishServicePayload {
   providerProof?: { message?: unknown; signature?: unknown; ts?: unknown };
 }
 
+/** A client-posted job (Upwork-style) that providers apply to with proposals. */
+export interface JobPost {
+  id: string;
+  title: string;
+  description: string;
+  category: ServiceCategory;
+  budgetMin: number;
+  budgetMax: number;
+  deadlineDays: number;
+  client: string; // wallet (lowercase)
+  clientName: string;
+  tags: string[];
+  status: 'open' | 'in_progress' | 'filled' | 'closed';
+  acceptedProposalId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A provider's bid on a job post. */
+export interface JobProposal {
+  id: string;
+  jobId: string;
+  provider: string; // wallet (lowercase)
+  providerName: string;
+  bidUsd: number;
+  deliveryDays: number;
+  message: string;
+  status: 'pending' | 'accepted' | 'declined';
+  createdAt: string;
+}
+
 export interface MarketEconomySnapshot {
   services: {
     total: number;

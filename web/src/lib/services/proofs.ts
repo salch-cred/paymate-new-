@@ -9,6 +9,12 @@ export const acceptOrderProofMessage = (orderId: string, ts: number) =>
   `PayMate accept order ${orderId} at ${ts}`;
 export const disputeOrderProofMessage = (orderId: string, ts: number) =>
   `PayMate dispute order ${orderId} at ${ts}`;
+export const postJobProofMessage = (clientAddress: string, ts: number) =>
+  `PayMate job post by ${clientAddress} at ${ts}`;
+export const proposeProofMessage = (jobId: string, providerAddress: string, ts: number) =>
+  `PayMate proposal on ${jobId} by ${providerAddress} at ${ts}`;
+export const acceptProposalProofMessage = (proposalId: string, ts: number) =>
+  `PayMate accept proposal ${proposalId} at ${ts}`;
 
 /** Signs the given message with the connected wallet and returns a proof tuple. */
 export async function signWalletProof(

@@ -1,7 +1,7 @@
 import { neon } from "@neondatabase/serverless"
 import crypto from "node:crypto"
 import type { Plugin } from "./marketplace/types"
-import type { Service, ServiceOrder } from "./services/types"
+import type { Service, ServiceOrder, JobPost, JobProposal } from "./services/types"
 import { resolveClawUpTag } from "./constants"
 
 export type InvoiceStatus = "pending" | "paid" | "cancelled"
@@ -496,6 +496,38 @@ async function ready(): Promise<void> {
       )`
       await sql`CREATE INDEX IF NOT EXISTS idx_orders_buyer ON service_orders(buyer, created_at DESC)`
       await sql`CREATE INDEX IF NOT EXISTS idx_orders_provider ON service_orders(provider, created_at DESC)`
+      // Upwork-style job posts (client posts work, providers apply with proposals).
+      await sql`CREATE TABLE IF NOT EXISTS job_posts (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        category TEXT NOT NULL,
+        budget_min DOUBLE PRECISION NOT NULL,
+        budget_max DOUBLE PRECISION NOT NULL,
+        deadline_days INTEGER NOT NULL,
+        client TEXT NOT NULL,
+        client_name TEXT NOT NULL,
+        tags TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'open',
+        accepted_proposal_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_jobs_client ON job_posts(client, created_at DESC)`
+      await sql`CREATE INDEX IF NOT EXISTS idx_jobs_status ON job_posts(status, created_at DESC)`
+      await sql`CREATE TABLE IF NOT EXISTS job_proposals (
+        id TEXT PRIMARY KEY,
+        job_id TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        provider_name TEXT NOT NULL,
+        bid_usd DOUBLE PRECISION NOT NULL,
+        delivery_days INTEGER NOT NULL,
+        message TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TEXT NOT NULL
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_proposals_job ON job_proposals(job_id, created_at)`
+      await sql`CREATE INDEX IF NOT EXISTS idx_proposals_provider ON job_proposals(provider, created_at DESC)`
     })()
   }
   return globalThis.__paymateSchemaReady
@@ -957,6 +989,115 @@ export async function upsertOrder(order: ServiceOrder): Promise<void> {
       funded_at = EXCLUDED.funded_at,
       delivered_at = EXCLUDED.delivered_at,
       completed_at = EXCLUDED.completed_at
+  `;
+}
+
+interface JobPostRow {
+  id: string; title: string; description: string; category: string;
+  budget_min: number; budget_max: number; deadline_days: number;
+  client: string; client_name: string; tags: string; status: string;
+  accepted_proposal_id: string | null; created_at: string; updated_at: string;
+}
+
+function rowToJobPost(row: JobPostRow): JobPost {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    category: row.category as JobPost["category"],
+    budgetMin: Number(row.budget_min),
+    budgetMax: Number(row.budget_max),
+    deadlineDays: row.deadline_days,
+    client: row.client,
+    clientName: row.client_name,
+    tags: (JSON.parse(row.tags || "[]") as string[]) ?? [],
+    status: row.status as JobPost["status"],
+    acceptedProposalId: row.accepted_proposal_id || null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** All job posts, newest first. */
+export async function listJobsFromDb(): Promise<JobPost[]> {
+  await ready();
+  const sql = getSql();
+  const rows = (await sql`SELECT * FROM job_posts ORDER BY created_at DESC`) as unknown as JobPostRow[];
+  return rows.map(rowToJobPost);
+}
+
+/** Insert or refresh a job post. */
+export async function upsertJobPost(job: JobPost): Promise<void> {
+  await ready();
+  const sql = getSql();
+  await sql`
+    INSERT INTO job_posts (
+      id, title, description, category, budget_min, budget_max, deadline_days,
+      client, client_name, tags, status, accepted_proposal_id, created_at, updated_at
+    ) VALUES (
+      ${job.id}, ${job.title}, ${job.description}, ${job.category}, ${job.budgetMin}, ${job.budgetMax},
+      ${job.deadlineDays}, ${job.client}, ${job.clientName}, ${JSON.stringify(job.tags)},
+      ${job.status}, ${job.acceptedProposalId}, ${job.createdAt}, ${job.updatedAt}
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title,
+      description = EXCLUDED.description,
+      category = EXCLUDED.category,
+      budget_min = EXCLUDED.budget_min,
+      budget_max = EXCLUDED.budget_max,
+      deadline_days = EXCLUDED.deadline_days,
+      client_name = EXCLUDED.client_name,
+      tags = EXCLUDED.tags,
+      status = EXCLUDED.status,
+      accepted_proposal_id = EXCLUDED.accepted_proposal_id,
+      updated_at = EXCLUDED.updated_at
+  `;
+}
+
+interface JobProposalRow {
+  id: string; job_id: string; provider: string; provider_name: string;
+  bid_usd: number; delivery_days: number; message: string; status: string; created_at: string;
+}
+
+function rowToJobProposal(row: JobProposalRow): JobProposal {
+  return {
+    id: row.id,
+    jobId: row.job_id,
+    provider: row.provider,
+    providerName: row.provider_name,
+    bidUsd: Number(row.bid_usd),
+    deliveryDays: row.delivery_days,
+    message: row.message,
+    status: row.status as JobProposal["status"],
+    createdAt: row.created_at,
+  };
+}
+
+/** All proposals, oldest first within a job. */
+export async function listProposalsFromDb(): Promise<JobProposal[]> {
+  await ready();
+  const sql = getSql();
+  const rows = (await sql`SELECT * FROM job_proposals ORDER BY created_at ASC`) as unknown as JobProposalRow[];
+  return rows.map(rowToJobProposal);
+}
+
+/** Insert or refresh a proposal. */
+export async function upsertJobProposal(proposal: JobProposal): Promise<void> {
+  await ready();
+  const sql = getSql();
+  await sql`
+    INSERT INTO job_proposals (
+      id, job_id, provider, provider_name, bid_usd, delivery_days, message, status, created_at
+    ) VALUES (
+      ${proposal.id}, ${proposal.jobId}, ${proposal.provider}, ${proposal.providerName},
+      ${proposal.bidUsd}, ${proposal.deliveryDays}, ${proposal.message}, ${proposal.status}, ${proposal.createdAt}
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      provider_name = EXCLUDED.provider_name,
+      bid_usd = EXCLUDED.bid_usd,
+      delivery_days = EXCLUDED.delivery_days,
+      message = EXCLUDED.message,
+      status = EXCLUDED.status
   `;
 }
 

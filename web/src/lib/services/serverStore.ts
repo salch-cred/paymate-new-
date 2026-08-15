@@ -1,8 +1,13 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { hydrateServices, hydrateOrders, addService, createOrder, updateOrder, getOrders, getServices, getService, getOrder, recordServiceCompletion } from './store';
-import type { Service, ServiceOrder } from './types';
-import { listServicesFromDb, upsertService, listOrdersFromDb, upsertOrder } from '@/lib/db';
+import {
+  hydrateServices, hydrateOrders, hydrateJobs, hydrateProposals,
+  addService, createOrder, updateOrder, getOrders, getServices, getService, getOrder,
+  recordServiceCompletion, createJob, updateJob, createProposal, updateProposal,
+  getJobs, getProposals,
+} from './store';
+import type { Service, ServiceOrder, JobPost, JobProposal } from './types';
+import { listServicesFromDb, upsertService, listOrdersFromDb, upsertOrder, listJobsFromDb, upsertJobPost, listProposalsFromDb, upsertJobProposal } from '@/lib/db';
 
 /**
  * Server-only layer tying the pure in-memory services/orders store to durable
@@ -18,6 +23,8 @@ import { listServicesFromDb, upsertService, listOrdersFromDb, upsertOrder } from
 const DATA_DIR = path.join(process.cwd(), 'data');
 const SERVICES_FILE = path.join(DATA_DIR, 'services.json');
 const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
+const JOBS_FILE = path.join(DATA_DIR, 'jobs.json');
+const PROPOSALS_FILE = path.join(DATA_DIR, 'proposals.json');
 
 async function readJson<T>(file: string): Promise<T[]> {
   try {
@@ -40,16 +47,25 @@ async function writeJson<T>(file: string, items: T[]): Promise<void> {
 
 async function loadIntoMemory(): Promise<void> {
   try {
-    const [savedServices, savedOrders] = await Promise.all([listServicesFromDb(), listOrdersFromDb()]);
+    const [savedServices, savedOrders, savedJobs, savedProposals] = await Promise.all([
+      listServicesFromDb(), listOrdersFromDb(), listJobsFromDb(), listProposalsFromDb(),
+    ]);
     hydrateServices(savedServices);
     hydrateOrders(savedOrders);
+    hydrateJobs(savedJobs);
+    hydrateProposals(savedProposals);
     return;
   } catch (e) {
     console.warn('[services] Postgres unavailable, falling back to JSON files:', (e as Error).message);
   }
-  const [fromFileSvc, fromFileOrd] = await Promise.all([readJson<Service>(SERVICES_FILE), readJson<ServiceOrder>(ORDERS_FILE)]);
+  const [fromFileSvc, fromFileOrd, fromFileJobs, fromFileProps] = await Promise.all([
+    readJson<Service>(SERVICES_FILE), readJson<ServiceOrder>(ORDERS_FILE),
+    readJson<JobPost>(JOBS_FILE), readJson<JobProposal>(PROPOSALS_FILE),
+  ]);
   hydrateServices(fromFileSvc);
   hydrateOrders(fromFileOrd);
+  hydrateJobs(fromFileJobs);
+  hydrateProposals(fromFileProps);
 }
 
 let storeReady: Promise<void> | null = null;
@@ -130,6 +146,66 @@ export async function markServiceCompleted(serviceId: string, rating: number | n
   const updated = recordServiceCompletion(serviceId, rating);
   if (!updated) return null;
   await persistService(updated);
+  return updated;
+}
+
+// ---------------------------------------------------------------------------
+// Jobs + proposals persistence
+// ---------------------------------------------------------------------------
+
+export async function createJobPersisted(
+  data: Pick<JobPost, 'title' | 'description' | 'category' | 'budgetMin' | 'budgetMax' | 'deadlineDays' | 'client' | 'clientName' | 'tags'>
+): Promise<JobPost> {
+  await initServicesStore();
+  const job = createJob(data);
+  try {
+    await upsertJobPost(job);
+    return job;
+  } catch (e) {
+    console.warn('[services] Postgres write failed, falling back to JSON file:', (e as Error).message);
+  }
+  await writeJson(JOBS_FILE, getJobs());
+  return job;
+}
+
+export async function createProposalPersisted(
+  data: Pick<JobProposal, 'jobId' | 'provider' | 'providerName' | 'bidUsd' | 'deliveryDays' | 'message'>
+): Promise<JobProposal> {
+  await initServicesStore();
+  const proposal = createProposal(data);
+  try {
+    await upsertJobProposal(proposal);
+    return proposal;
+  } catch (e) {
+    console.warn('[services] Postgres write failed, falling back to JSON file:', (e as Error).message);
+  }
+  await writeJson(PROPOSALS_FILE, getProposals());
+  return proposal;
+}
+
+export async function patchJob(id: string, patch: Parameters<typeof updateJob>[1]): Promise<JobPost | null> {
+  await initServicesStore();
+  const updated = updateJob(id, patch);
+  if (!updated) return null;
+  try {
+    await upsertJobPost(updated);
+  } catch (e) {
+    console.warn('[services] Postgres write failed, falling back to JSON file:', (e as Error).message);
+    await writeJson(JOBS_FILE, getJobs());
+  }
+  return updated;
+}
+
+export async function patchProposal(id: string, patch: Parameters<typeof updateProposal>[1]): Promise<JobProposal | null> {
+  await initServicesStore();
+  const updated = updateProposal(id, patch);
+  if (!updated) return null;
+  try {
+    await upsertJobProposal(updated);
+  } catch (e) {
+    console.warn('[services] Postgres write failed, falling back to JSON file:', (e as Error).message);
+    await writeJson(PROPOSALS_FILE, getProposals());
+  }
   return updated;
 }
 

@@ -3,6 +3,8 @@ import {
   SERVICE_CATEGORY_MAP,
   type Service,
   type ServiceOrder,
+  type JobPost,
+  type JobProposal,
   type MarketEconomySnapshot,
   type OrderStatus,
 } from './types';
@@ -92,6 +94,103 @@ export function setServiceActive(id: string, active: boolean): Service | undefin
   service.active = active;
   service.updatedAt = new Date().toISOString();
   return service;
+}
+
+// ---------------------------------------------------------------------------
+// Jobs + proposals (Upwork-style job posts)
+// ---------------------------------------------------------------------------
+const jobs: JobPost[] = [];
+const proposals: JobProposal[] = [];
+
+/** Called once by the server API routes with jobs loaded from storage. */
+export function hydrateJobs(saved: JobPost[]): void {
+  jobs.length = 0;
+  jobs.push(...saved);
+}
+
+/** Called once by the server API routes with proposals loaded from storage. */
+export function hydrateProposals(saved: JobProposal[]): void {
+  proposals.length = 0;
+  proposals.push(...saved);
+}
+
+/** Current jobs (for persistence writes). */
+export function getJobs(): JobPost[] {
+  return [...jobs];
+}
+
+/** Current proposals (for persistence writes). */
+export function getProposals(): JobProposal[] {
+  return [...proposals];
+}
+
+export function listJobs(onlyOpen = true): JobPost[] {
+  const list = onlyOpen ? jobs.filter((j) => j.status === 'open') : jobs;
+  return [...list].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export function getJob(id: string): JobPost | undefined {
+  return jobs.find((j) => j.id === id);
+}
+
+export function listProposalsForJob(jobId: string): JobProposal[] {
+  return proposals
+    .filter((p) => p.jobId === jobId)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+}
+
+export function listProposalsForProvider(provider: string): JobProposal[] {
+  const w = provider.toLowerCase();
+  return proposals.filter((p) => p.provider === w);
+}
+
+export function getProposal(id: string): JobProposal | undefined {
+  return proposals.find((p) => p.id === id);
+}
+
+export function createJob(
+  data: Pick<JobPost, 'title' | 'description' | 'category' | 'budgetMin' | 'budgetMax' | 'deadlineDays' | 'client' | 'clientName' | 'tags'>,
+  id?: string
+): JobPost {
+  const now = new Date().toISOString();
+  const job: JobPost = {
+    ...data,
+    id: id ?? `job_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`,
+    status: 'open',
+    acceptedProposalId: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  jobs.unshift(job);
+  return job;
+}
+
+export function createProposal(
+  data: Pick<JobProposal, 'jobId' | 'provider' | 'providerName' | 'bidUsd' | 'deliveryDays' | 'message'>,
+  id?: string
+): JobProposal {
+  const proposal: JobProposal = {
+    ...data,
+    id: id ?? `prop_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  };
+  proposals.unshift(proposal);
+  return proposal;
+}
+
+export function updateJob(id: string, patch: Partial<Pick<JobPost, 'status' | 'acceptedProposalId'>>): JobPost | undefined {
+  const job = jobs.find((j) => j.id === id);
+  if (!job) return undefined;
+  Object.assign(job, patch, { updatedAt: new Date().toISOString() });
+  return job;
+}
+
+export function updateProposal(id: string, patch: Partial<Pick<JobProposal, 'status'>>): JobProposal | undefined {
+  const proposal = proposals.find((p) => p.id === id);
+  if (!proposal) return undefined;
+  Object.assign(proposal, patch);
+  return proposal;
 }
 
 // ---------------------------------------------------------------------------
