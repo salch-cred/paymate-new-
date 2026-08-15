@@ -237,32 +237,69 @@ async function quoteOneInchSwap(
   dst: string,
   from: string
 ): Promise<OneInchTx> {
+  // Primary: 1inch (only when the key is configured).
   const key = oneInchApiKey()
-  if (!key) throw new PaymentError(503, "ONEINCH_API_KEY is not configured — cannot quote a swap")
+  if (key) {
+    try {
+      const params = new URLSearchParams({
+        src,
+        dst,
+        amount: amountWei.toString(),
+        from,
+        slippage: String(SWAP_SLIPPAGE_BPS),
+        disableEstimate: "true",
+        allowPartialFill: "false",
+      })
+      const res = await fetch(`${ONEINCH_V6_SWAP}/${BSC_CHAIN_ID}/swap?${params}`, {
+        headers: { Authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      })
+      if (res.ok) {
+        const data = (await res.json()) as {
+          tx: { to?: string; data?: string; value?: string; gas?: string }
+          dstAmount?: string
+        }
+        return {
+          to: data.tx.to as string,
+          data: data.tx.data as Hex,
+          value: BigInt(data.tx.value || "0"),
+          gas: BigInt(data.tx.gas || "0"),
+          dstAmount: data.dstAmount ? BigInt(data.dstAmount) : null,
+        }
+      }
+      console.error(`[directPay] 1inch quote ${res.status}, falling back to LI.Fi`)
+    } catch (error) {
+      console.error(`[directPay] 1inch quote failed, falling back to LI.Fi:`, error)
+    }
+  }
+  // Fallback: LI.Fi same-chain swap on BSC — no API key required (zero KYC).
   const params = new URLSearchParams({
-    src,
-    dst,
-    amount: amountWei.toString(),
-    from,
-    slippage: String(SWAP_SLIPPAGE_BPS),
-    disableEstimate: "true",
-    allowPartialFill: "false",
+    fromChain: String(BSC_CHAIN_ID),
+    toChain: String(BSC_CHAIN_ID),
+    fromToken: src,
+    toToken: dst,
+    fromAmount: amountWei.toString(),
+    fromAddress: getAddress(from),
+    toAddress: getAddress(from),
+    slippage: String(SWAP_SLIPPAGE_BPS / 10_000), // 2% as a decimal
+    order: "CHEAPEST",
   })
-  const res = await fetch(`${ONEINCH_V6_SWAP}/${BSC_CHAIN_ID}/swap?${params}`, {
-    headers: { Authorization: `Bearer ${key}` },
+  const res = await fetch(`https://li.quest/v1/quote?${params}`, {
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
-  if (!res.ok) throw new PaymentError(502, `1inch swap quote failed (${res.status})`)
+  if (!res.ok) throw new PaymentError(502, `LI.Fi swap quote failed (${res.status})`)
   const data = (await res.json()) as {
-    tx: { to?: string; data?: string; value?: string; gas?: string }
-    dstAmount?: string
+    transactionRequest?: { to?: string; data?: string; value?: string; gasLimit?: string }
+    estimate?: { toAmount?: string }
   }
+  const tr = data.transactionRequest
+  if (!tr?.to || !tr?.data) throw new PaymentError(502, "No LI.Fi BSC swap route.")
   return {
-    to: data.tx.to as string,
-    data: data.tx.data as Hex,
-    value: BigInt(data.tx.value || "0"),
-    gas: BigInt(data.tx.gas || "0"),
-    dstAmount: data.dstAmount ? BigInt(data.dstAmount) : null,
+    to: tr.to as string,
+    data: tr.data as Hex,
+    value: BigInt(tr.value || "0"),
+    gas: BigInt(tr.gasLimit || "0"),
+    dstAmount: data.estimate?.toAmount ? BigInt(data.estimate.toAmount) : null,
   }
 }
 

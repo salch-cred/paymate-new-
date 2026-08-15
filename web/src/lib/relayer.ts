@@ -22,7 +22,7 @@
  * capped at MAX_SWAP_RETRIES then left for manual review in the ledger.
  */
 
-import { isAddress, type Hex } from "viem"
+import { getAddress, isAddress, type Hex } from "viem"
 import {
   getCustodyAddress,
   getCrossChainPublicClient,
@@ -119,19 +119,30 @@ interface OneInchSwapQuote {
 async function fetchTokenList(
   chainId: number
 ): Promise<{ symbol?: string; address?: string }[]> {
+  // Primary: 1inch (only when the key is configured).
   const key = oneInchApiKey()
-  if (!key) {
-    throw new Error(
-      "ONEINCH_API_KEY is not configured — 1inch's public v5 endpoint is deprecated (HTTP 301). Set ONEINCH_API_KEY to enable swaps."
-    )
+  if (key) {
+    try {
+      const res = await fetch(`${ONEINCH_V6_TOKEN}/${chainId}`, {
+        headers: { Authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      })
+      if (res.ok) {
+        const data = (await res.json()) as Record<string, { symbol?: string }>
+        return Object.entries(data).map(([address, t]) => ({ symbol: t.symbol, address }))
+      }
+    } catch (error) {
+      console.error(`[Relayer] 1inch token list failed on chain ${chainId}, falling back to LI.Fi:`, error)
+    }
   }
-  const res = await fetch(`${ONEINCH_V6_TOKEN}/${chainId}`, {
-    headers: { Authorization: `Bearer ${key}` },
+  // Fallback: LI.Fi token list — no API key required (zero KYC).
+  const res = await fetch(`https://li.quest/v1/tokens?chains=${chainId}`, {
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
-  if (!res.ok) throw new Error(`1inch token list ${res.status}`)
-  const data = (await res.json()) as Record<string, { symbol?: string }>
-  return Object.entries(data).map(([address, t]) => ({ symbol: t.symbol, address }))
+  if (!res.ok) throw new Error(`token list unavailable (1inch + LI.Fi failed: ${res.status})`)
+  const data = (await res.json()) as { tokens?: Record<string, { symbol?: string; address?: string }[]> }
+  const chainTokens = data.tokens?.[String(chainId)] ?? []
+  return chainTokens.map((t) => ({ symbol: t.symbol, address: t.address }))
 }
 
 /** Binance-Peg DOGEB on BSC (the bridge-ready asset, from goatBridge.ts). */
@@ -166,35 +177,71 @@ export async function getSwapQuote(
   amountWei: bigint,
   from: string
 ): Promise<OneInchSwapQuote> {
-  const params = new URLSearchParams({
-    src,
-    dst,
-    amount: amountWei.toString(),
-    from,
-    slippage: String(DEFAULT_SLIPPAGE_BPS),
-    disableEstimate: "true",
-    allowPartialFill: "false",
-  })
+  // Primary: 1inch (only when the key is configured).
   const key = oneInchApiKey()
-  if (!key) {
-    throw new Error("ONEINCH_API_KEY is not configured — cannot quote a swap")
+  if (key) {
+    try {
+      const params = new URLSearchParams({
+        src,
+        dst,
+        amount: amountWei.toString(),
+        from,
+        slippage: String(DEFAULT_SLIPPAGE_BPS),
+        disableEstimate: "true",
+        allowPartialFill: "false",
+      })
+      const res = await fetch(`${ONEINCH_V6_SWAP}/${chainId}/swap?${params}`, {
+        headers: { Authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      })
+      if (res.ok) {
+        const data = (await res.json()) as {
+          tx: { to?: string; data?: string; value?: string; gas?: string; gasPrice?: string }
+          dstAmount?: string
+        }
+        return {
+          to: data.tx.to as `0x${string}`,
+          data: data.tx.data as Hex,
+          value: BigInt(data.tx.value || "0"),
+          gas: BigInt(data.tx.gas || "0"),
+          gasPrice: data.tx.gasPrice ? BigInt(data.tx.gasPrice) : undefined,
+          dstAmount: data.dstAmount ? BigInt(data.dstAmount) : null,
+        }
+      }
+      console.error(`[Relayer] 1inch quote ${res.status} on chain ${chainId}, falling back to LI.Fi`)
+    } catch (error) {
+      console.error(`[Relayer] 1inch quote failed on chain ${chainId}, falling back to LI.Fi:`, error)
+    }
   }
-  const res = await fetch(`${ONEINCH_V6_SWAP}/${chainId}/swap?${params}`, {
-    headers: { Authorization: `Bearer ${key}` },
+  // Fallback: LI.Fi same-chain swap — no API key required (zero KYC).
+  const params = new URLSearchParams({
+    fromChain: String(chainId),
+    toChain: String(chainId),
+    fromToken: src,
+    toToken: dst,
+    fromAmount: amountWei.toString(),
+    fromAddress: getAddress(from),
+    toAddress: getAddress(from),
+    slippage: String(DEFAULT_SLIPPAGE_BPS / 10_000), // 2% as a decimal
+    order: "CHEAPEST",
+  })
+  const res = await fetch(`https://li.quest/v1/quote?${params}`, {
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
-  if (!res.ok) throw new Error(`1inch v6 quote ${res.status}`)
+  if (!res.ok) throw new Error(`LI.Fi quote ${res.status} on chain ${chainId}`)
   const data = (await res.json()) as {
-    tx: { to?: string; data?: string; value?: string; gas?: string; gasPrice?: string }
-    dstAmount?: string
+    transactionRequest?: { to?: string; data?: string; value?: string; gasLimit?: string }
+    estimate?: { toAmount?: string }
   }
+  const tr = data.transactionRequest
+  if (!tr?.to || !tr?.data) throw new Error(`No LI.Fi same-chain swap route on chain ${chainId}`)
   return {
-    to: data.tx.to as `0x${string}`,
-    data: data.tx.data as Hex,
-    value: BigInt(data.tx.value || "0"),
-    gas: BigInt(data.tx.gas || "0"),
-    gasPrice: data.tx.gasPrice ? BigInt(data.tx.gasPrice) : undefined,
-    dstAmount: data.dstAmount ? BigInt(data.dstAmount) : null,
+    to: tr.to as `0x${string}`,
+    data: tr.data as Hex,
+    value: BigInt(tr.value || "0"),
+    gas: BigInt(tr.gasLimit || "0"),
+    gasPrice: undefined,
+    dstAmount: data.estimate?.toAmount ? BigInt(data.estimate.toAmount) : null,
   }
 }
 

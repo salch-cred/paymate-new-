@@ -232,6 +232,11 @@ export default function OrdersPage() {
                     <div className="panel" style={{ marginTop: 12, padding: 12, background: verdict.verdict === 'complete' ? '#F0FDF4' : verdict.verdict === 'incomplete' ? '#FEF2F2' : '#FFFBEB', fontSize: 13 }}>
                       <b>AI delivery verification: {verdict.verdict.toUpperCase()}</b> <span style={{ color: 'var(--muted)' }}>({Math.round(verdict.confidence * 100)}% confidence)</span>
                       <p style={{ margin: '6px 0 0', color: '#333', lineHeight: 1.5 }}>{verdict.reasoning}</p>
+                      {order.status === 'completed' && verdict.verdict === 'complete' && (
+                        <p style={{ margin: '8px 0 0', fontSize: 12, fontWeight: 600, color: '#16A34A' }}>
+                          ⚡ AI verdict was high-confidence — escrow auto-released to the provider. No buyer signature needed.
+                        </p>
+                      )}
                     </div>
                   )}
 

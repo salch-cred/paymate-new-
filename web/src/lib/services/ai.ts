@@ -9,6 +9,30 @@ function hasMistralKey(): boolean {
 }
 
 /**
+ * Auto-release gate for the escrow-protected jobs rail. When the AI verifier
+ * returns a high-confidence "complete" verdict, the escrow auto-releases to the
+ * provider — no buyer signature needed. Controlled by:
+ *   - ORDER_AUTO_RELEASE          (default "on")
+ *   - ORDER_AUTO_RELEASE_CONFIDENCE (default 0.75)
+ * Fail-closed: auto-release only ever happens on an explicit "complete" verdict
+ * at or above the confidence floor; anything ambiguous stays on the manual
+ * accept path so the buyer keeps control.
+ */
+export function shouldAutoRelease(verdict: AiVerdict | null): boolean {
+  if (!verdict) return false;
+  if ((process.env.ORDER_AUTO_RELEASE ?? 'on') !== 'on') return false;
+  if (verdict.verdict !== 'complete') return false;
+  const floor = Number(process.env.ORDER_AUTO_RELEASE_CONFIDENCE ?? '0.75');
+  const threshold = Number.isFinite(floor) ? Math.min(1, Math.max(0, floor)) : 0.75;
+  return verdict.confidence >= threshold;
+}
+
+/** Human-readable note appended to the order when escrow auto-releases. */
+export function autoReleaseReason(verdict: AiVerdict): string {
+  return `AI verifier scored the delivery ${verdict.verdict} at ${Math.round(verdict.confidence * 100)}% confidence (threshold ${Math.round((Number(process.env.ORDER_AUTO_RELEASE_CONFIDENCE ?? '0.75')) * 100)}%) — escrow auto-released to the provider.`;
+}
+
+/**
  * AI verification of a delivered engagement: the model checks the provider's
  * deliverable against the agreed scope + the service description and returns a
  * verdict + confidence. The buyer sees this recommendation before accepting or

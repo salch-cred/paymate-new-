@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-import { initServicesStore, getOrder, patchOrder } from '@/lib/services/serverStore';
-import { verifyDeliverable } from '@/lib/services/ai';
+import { initServicesStore, getOrder, patchOrder, markServiceCompleted } from '@/lib/services/serverStore';
+import { verifyDeliverable, shouldAutoRelease, autoReleaseReason } from '@/lib/services/ai';
+import { resolveEscrowOnChain, mintReputation, PaymentError } from '@/lib/services/escrow';
+import { addTreasuryRevenue, computePaymateFee } from '@/lib/db';
 import type { AiVerdict } from '@/lib/services/types';
 
 const ETH_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
@@ -46,6 +48,53 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     };
   }
 
+  // AUTO-RELEASE: a high-confidence "complete" AI verdict releases the escrow
+  // to the provider automatically — no buyer signature. This is the
+  // escrow-protected jobs rail: AI verifies against the spec, then pays.
+  if (shouldAutoRelease(aiVerdict)) {
+    try {
+      const releaseTxHash = order.fundTxHash
+        ? await resolveEscrowOnChain(order.id)
+        : null;
+      try {
+        await mintReputation(order.provider, order.amountUsd, 1.0);
+      } catch (error) {
+        console.log(`[orders/deliver] reputation mint skipped: ${error}`);
+      }
+      try {
+        await addTreasuryRevenue(computePaymateFee(order.amountUsd));
+      } catch (error) {
+        console.error('[orders/deliver] treasury fee failed:', error);
+      }
+      await markServiceCompleted(order.serviceId, null);
+      const updated = await patchOrder(order.id, {
+        status: 'completed',
+        deliverable,
+        aiVerdict,
+        deliveredAt: Date.now(),
+        releaseTxHash,
+        completedAt: Date.now(),
+      });
+      return NextResponse.json({
+        order: updated,
+        aiVerdict,
+        autoReleased: true,
+        autoReleaseReason: autoReleaseReason(aiVerdict),
+        onChain: releaseTxHash ? { released: true, releaseTxHash } : { released: false, note: 'No escrowed funds on-chain to release' },
+      });
+    } catch (error) {
+      // Fail-closed: if the on-chain release fails, keep the order delivered so
+      // the buyer can still accept/dispute — never strand funds in a half state.
+      if (error instanceof PaymentError) {
+        const updated = await patchOrder(order.id, { status: 'delivered', deliverable, aiVerdict, deliveredAt: Date.now() });
+        return NextResponse.json({ order: updated, aiVerdict, autoReleased: false, autoReleaseError: error.message });
+      }
+      console.error('[orders/deliver] auto-release failed:', error);
+      const updated = await patchOrder(order.id, { status: 'delivered', deliverable, aiVerdict, deliveredAt: Date.now() });
+      return NextResponse.json({ order: updated, aiVerdict, autoReleased: false, autoReleaseError: 'Auto-release failed on-chain — buyer acceptance can still release escrow.' });
+    }
+  }
+
   const updated = await patchOrder(order.id, { status: 'delivered', deliverable, aiVerdict, deliveredAt: Date.now() });
-  return NextResponse.json({ order: updated, aiVerdict });
+  return NextResponse.json({ order: updated, aiVerdict, autoReleased: false });
 }

@@ -390,6 +390,12 @@ export default function MarketPage() {
                 {!isConnected && (
                   <p style={{ fontSize: 12, color: '#B45309', marginTop: 8 }}>Connect a wallet to place the order — it will be the buyer.</p>
                 )}
+                <div className="panel" style={{ marginTop: 12, padding: 12, background: '#F0FDF4', fontSize: 12, lineHeight: 1.6 }}>
+                  <b>🛡️ Escrow-protected job</b>
+                  <p style={{ margin: '4px 0 0', color: '#333' }}>
+                    Your {formatUsd(hireTarget.price)} locks in the on-chain escrow at funding. The provider delivers, the AI verifier checks the work against this scope, and a high-confidence pass <b>auto-releases the payment</b> — no signature needed. PayMate keeps only 1% (configurable via PAYMATE_FEE_RATE) on settlement.
+                  </p>
+                </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
                   <button className="button button-primary" disabled={!isConnected || scope.trim().length < 5 || fundState.step === 'loading'} onClick={placeOrder} style={{ height: 38 }}>
                     {fundState.step === 'loading' ? 'Placing order…' : 'Place order'}
@@ -410,7 +416,7 @@ export default function MarketPage() {
                       <b>Send {funding?.price ?? formatUsd(order.amountUsd)} USDC to the escrow contract:</b>
                       <div style={{ fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all', marginTop: 4 }}>{funding?.payTo ?? '…'}</div>
                       <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-                        Token: <span style={{ fontFamily: 'monospace' }}>{funding?.token ? `${funding.token.slice(0, 10)}…${funding.token.slice(-6)}` : 'USDC on GOAT mainnet'}</span> — funds stay locked until you accept or an AI verdict releases them.
+                        Token: <span style={{ fontFamily: 'monospace' }}>{funding?.token ? `${funding.token.slice(0, 10)}…${funding.token.slice(-6)}` : 'USDC on GOAT mainnet'}</span> — funds stay locked until the AI verifier passes the delivery (auto-release) or you accept.
                       </div>
                     </div>
                     <label style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, display: 'block' }}>PAYMENT TRANSACTION HASH</label>
