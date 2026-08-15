@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/recurring",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/relayer/run",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

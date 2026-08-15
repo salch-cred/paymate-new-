@@ -581,6 +581,12 @@ interface CrossChainClient {
   waitForTransactionReceipt: (args: { hash: `0x${string}`; timeout?: number }) => Promise<{ status: "success" | "reverted" }>
   getTransaction: (args: { hash: `0x${string}` }) => Promise<{ to: string | null; value: bigint; from: string | null }>
 }
+
+/** Read-only client surface the background relayer needs (balance/gas). */
+export interface CrossChainPublicClient extends CrossChainClient {
+  getBalance: (args: { address: `0x${string}` }) => Promise<bigint>
+  getGasPrice: () => Promise<bigint>
+}
 const CROSS_CHAIN_CLIENTS: Record<number, CrossChainClient> = {
   1: createPublicClient({ chain: mainnet, transport: http(mainnet.rpcUrls.default.http[0]) }),
   56: createPublicClient({ chain: bsc, transport: http(bsc.rpcUrls.default.http[0]) }),
@@ -628,6 +634,17 @@ export function getCrossChainClient(chainId: number) {
   return client
 }
 
+/** Extended read-only client for a cross-chain source network (balance/gas
+ *  reads used by the background relayer). Fails closed on unknown chains. */
+export function getCrossChainPublicClient(chainId: number): CrossChainPublicClient {
+  return getCrossChainClient(chainId) as CrossChainPublicClient
+}
+
+/** Every chain id the custody relayer watches for deposits. */
+export function getCrossChainChainIds(): number[] {
+  return Object.keys(CROSS_CHAIN_CLIENTS).map(Number)
+}
+
 /**
  * The custody wallet that receives source-chain native tokens for cross-chain
  * settlement. This is the PRIVATE_KEY account (the same one already used for
@@ -640,6 +657,28 @@ export function getCustodyAddress(): `0x${string}` {
     throw new PaymentError(503, "PRIVATE_KEY is not configured - cross-chain custody wallet unavailable")
   }
   return account.address
+}
+
+/** Chain objects for every cross-chain source network (swap execution). */
+const CROSS_CHAIN_CHAINS: Record<number, Chain> = {
+  1: mainnet, 56: bsc, 8453: base, 10: optimism, 42161: arbitrum, 137: polygon,
+  43114: avalanche, 250: fantom, 42220: celo, 324: zksync, 59144: linea,
+  534352: scroll, 81457: blast, 1088: metis, 5000: mantle, 204: opBNB,
+  1101: polygonZkEvm, 42170: arbitrumNova, 25: cronos, 100: gnosis,
+  1313161554: aurora, 1284: moonbeam, 1285: moonriver, 8217: klaytn,
+  1666600000: harmonyOne, 1116: coreDao, 252: fraxtal, 34443: mode,
+  13371: immutableZkEvm, 40: telos, 82: meter, 592: astar, 66: okc,
+  2222: kava, 30: rootstock, 146: sonic, 7777777: zora, 4663: robinhood,
+}
+
+/** Wallet client (custody key) for a cross-chain source network — used by the
+ *  relayer to submit the 1inch swap. Fails closed without PRIVATE_KEY. */
+export function getCrossChainWalletClient(chainId: number) {
+  const chain = CROSS_CHAIN_CHAINS[chainId]
+  if (!chain) throw new PaymentError(400, `Unsupported cross-chain source network: ${chainId}`)
+  const account = getIssuerAccount()
+  if (!account) throw new PaymentError(503, "PRIVATE_KEY is not configured - cross-chain custody wallet unavailable")
+  return createWalletClient({ account, chain, transport: http(chain.rpcUrls.default.http[0]) })
 }
 
 /**

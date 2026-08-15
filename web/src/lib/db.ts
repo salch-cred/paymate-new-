@@ -196,6 +196,35 @@ async function ready(): Promise<void> {
         milestone_id TEXT,
         created_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint
       )`
+      // Background relayer (cron): per-chain custody-wallet balance snapshots
+      // used to detect incoming native deposits (balance deltas). One row per chain;
+      // the first scan of an unknown chain baselines to its current balance (no
+      // surprise-sweeping of pre-existing inventory).
+      await sql`CREATE TABLE IF NOT EXISTS relayer_snapshots (
+        chain_id INTEGER PRIMARY KEY,
+        last_balance TEXT NOT NULL,
+        updated_at BIGINT NOT NULL
+      )`
+      // One row per custody deposit the relayer converted (or tried to convert)
+      // to USDC via 1inch. Idempotent PK (chain_id, swap_id) so a crashed run can
+      // never double-process a deposit. status: detected -> swapping -> swapped,
+      // failed (retryable), skipped (terminal, reason in error).
+      await sql`CREATE TABLE IF NOT EXISTS relayer_swaps (
+        chain_id INTEGER NOT NULL,
+        swap_id TEXT NOT NULL,
+        native_amount TEXT NOT NULL,
+        usd_value DOUBLE PRECISION,
+        usdc_address TEXT,
+        status TEXT NOT NULL DEFAULT 'detected',
+        swap_tx_hash TEXT,
+        usdc_amount TEXT,
+        error TEXT,
+        retries INTEGER NOT NULL DEFAULT 0,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL,
+        PRIMARY KEY (chain_id, swap_id)
+      )`
+      await sql`CREATE INDEX IF NOT EXISTS idx_relayer_swaps_status ON relayer_swaps(status, created_at DESC)`.catch(()=>null)
       // SECURITY (audit fix 2026-08-13): generic request-budget log backing
       // checkAndConsumeRequestBudget() in lib/rateLimit.ts — coarse abuse/cost
       // control for public AI-calling and invoice/plugin-creation endpoints.
@@ -1097,6 +1126,113 @@ export async function reserveCrossChainTx(chainId: number, sourceTxHash: string,
     ON CONFLICT (tx_hash) DO NOTHING RETURNING tx_hash
   `
   return reserved.length > 0
+}
+
+export interface RelayerSwap {
+  chainId: number
+  swapId: string
+  nativeAmount: string
+  usdValue: number | null
+  usdcAddress: string | null
+  status: "detected" | "swapping" | "swapped" | "failed" | "skipped"
+  swapTxHash: string | null
+  usdcAmount: string | null
+  error: string | null
+  retries: number
+  createdAt: number
+  updatedAt: number
+}
+
+export async function getRelayerSnapshot(chainId: number): Promise<{ chainId: number; lastBalance: string; updatedAt: number } | null> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`SELECT * FROM relayer_snapshots WHERE chain_id=${chainId}`) as unknown as { chain_id: number; last_balance: string; updated_at: number }[]
+  if (rows.length === 0) return null
+  return { chainId: rows[0].chain_id, lastBalance: rows[0].last_balance, updatedAt: rows[0].updated_at }
+}
+
+export async function setRelayerSnapshot(chainId: number, lastBalance: string, at: number): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`
+    INSERT INTO relayer_snapshots (chain_id, last_balance, updated_at) VALUES (${chainId}, ${lastBalance}, ${at})
+    ON CONFLICT (chain_id) DO UPDATE SET last_balance=${lastBalance}, updated_at=${at}
+  `
+}
+
+/** Persists a detected deposit (idempotent — re-runs are no-ops). */
+export async function createRelayerSwap(
+  chainId: number, swapId: string, nativeAmount: string, usdValue: number | null, at: number
+): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`
+    INSERT INTO relayer_swaps (chain_id, swap_id, native_amount, usd_value, status, created_at, updated_at)
+    VALUES (${chainId}, ${swapId}, ${nativeAmount}, ${usdValue}, 'detected', ${at}, ${at})
+    ON CONFLICT (chain_id, swap_id) DO NOTHING
+  `
+}
+
+/** Pending (new, retryable, or in-flight) swaps, oldest first. */
+export async function getPendingRelayerSwaps(): Promise<RelayerSwap[]> {
+  await ready()
+  const sql = getSql()
+  const rows = (await sql`
+    SELECT * FROM relayer_swaps WHERE status IN ('detected', 'failed', 'swapping') ORDER BY created_at ASC
+  `) as unknown as RelayerSwapRow[]
+  return rows.map(rowToRelayerSwap)
+}
+
+export async function updateRelayerSwap(
+  chainId: number,
+  swapId: string,
+  patch: { status?: string; swapTxHash?: string | null; usdcAmount?: string | null; usdcAddress?: string | null; error?: string | null; retries?: number }
+): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql`
+    UPDATE relayer_swaps SET
+      status = COALESCE(${patch.status ?? null}, status),
+      swap_tx_hash = COALESCE(${patch.swapTxHash ?? null}, swap_tx_hash),
+      usdc_amount = COALESCE(${patch.usdcAmount ?? null}, usdc_amount),
+      usdc_address = COALESCE(${patch.usdcAddress ?? null}, usdc_address),
+      error = COALESCE(${patch.error ?? null}, error),
+      retries = COALESCE(${patch.retries ?? null}, retries),
+      updated_at = ${Date.now()}
+    WHERE chain_id = ${chainId} AND swap_id = ${swapId}
+  `
+}
+
+interface RelayerSwapRow {
+  chain_id: number
+  swap_id: string
+  native_amount: string
+  usd_value: number | null
+  usdc_address: string | null
+  status: string
+  swap_tx_hash: string | null
+  usdc_amount: string | null
+  error: string | null
+  retries: number
+  created_at: number
+  updated_at: number
+}
+
+function rowToRelayerSwap(row: RelayerSwapRow): RelayerSwap {
+  return {
+    chainId: row.chain_id,
+    swapId: row.swap_id,
+    nativeAmount: row.native_amount,
+    usdValue: row.usd_value,
+    usdcAddress: row.usdc_address,
+    status: row.status as RelayerSwap["status"],
+    swapTxHash: row.swap_tx_hash,
+    usdcAmount: row.usdc_amount,
+    error: row.error,
+    retries: row.retries,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }
 
 /** Persists (or replaces) the paywall deliverable for an invoice. */
