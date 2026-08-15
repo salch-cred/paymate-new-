@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAccount, useConnect, useConfig, useDisconnect, useSwitchAccount } from "wagmi"
 import { usePrivy, useWallets } from "@privy-io/react-auth"
 
@@ -28,6 +28,16 @@ export function useWallet() {
   const { switchAccount } = useSwitchAccount()
   const config = useConfig()
 
+  // Once the user clicks Log out, flip the UI to the disconnected state
+  // IMMEDIATELY — before any async session teardown. Without this, a
+  // hung/rejected privyLogout() (network, iframe, session) is swallowed by
+  // the handler's catch, `authenticated` stays true, and `isConnected`
+  // derives true forever: the Log out button appears to do nothing on both
+  // desktop and mobile. The local flag guarantees a visible logout no matter
+  // which teardown step fails.
+  const [forceLoggedOut, setForceLoggedOut] = useState(false)
+  const clearForceLoggedOut = useCallback(() => setForceLoggedOut(false), [])
+
   // The embedded Privy wallet address (restored with the session even before
   // wagmi reconnects). External linked wallets fall back to wagmi's address.
   const privyAddress = useMemo(() => {
@@ -38,7 +48,10 @@ export function useWallet() {
     return (wallet?.address as `0x${string}`) ?? undefined
   }, [user])
 
-  const isConnected = ready && authenticated ? true : wagmi.isConnected
+  // SECURITY (fixed 2026-08-15): forceLoggedOut takes precedence over every
+  // other source of truth. A freshly logged-out user must never briefly look
+  // connected because a teardown call is still resolving.
+  const isConnected = forceLoggedOut ? false : ready && authenticated ? true : wagmi.isConnected
   const address = isConnected ? (wagmi.address ?? privyAddress) : undefined
 
   // Force wagmi to reconnect the Privy wallet when Privy has a session but
@@ -72,6 +85,12 @@ export function useWallet() {
     void syncWagmi()
   }, [syncWagmi])
 
+  // A fresh login must lift the forced-logged-out flag, otherwise the UI
+  // would stay stuck on the disconnected state after re-authenticating.
+  useEffect(() => {
+    if (ready && authenticated) clearForceLoggedOut()
+  }, [ready, authenticated, clearForceLoggedOut])
+
   /**
    * Full logout: disconnect every wagmi connection, clear wagmi persistence,
    * then clear the Privy session.
@@ -83,6 +102,9 @@ export function useWallet() {
    * disconnects the *current* connection, so iterate all connections.
    */
   const handleLogout = useCallback(async () => {
+    // 1. Flip the UI immediately — guaranteed visible logout on every device.
+    setForceLoggedOut(true)
+
     const connections = [...config.state.connections.values()]
     for (const connection of connections) {
       try {
@@ -98,12 +120,17 @@ export function useWallet() {
       // "disconnected" flags that prevent auto-reconnect on reload.
     }
     try {
-      await privyLogout()
+      // Bound the Privy session call so a hung logout can never leave the
+      // user stuck in a half-cleared state (the UI already shows logged out).
+      await Promise.race([
+        privyLogout(),
+        new Promise<void>((resolve) => setTimeout(resolve, 4_000)),
+      ])
     } catch {
       // Even if the Privy session call fails, wagmi is already cleared and
-      // the UI falls back to the disconnected state.
+      // the UI already flipped to the disconnected state above.
     }
   }, [config, disconnect, privyLogout])
 
-  return { isConnected, address, ready, authenticated, logout: handleLogout }
+  return { isConnected, address, ready, authenticated, logout: handleLogout, clearForceLoggedOut }
 }

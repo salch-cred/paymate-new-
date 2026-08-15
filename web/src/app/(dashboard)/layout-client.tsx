@@ -45,6 +45,10 @@ const NAV = [
     ],
   },
   {
+    label: "NETWORK",
+    items: [{ href: "/docs#cross-chain", icon: "network" as const, label: "GOAT Chain Support" }],
+  },
+  {
     label: "MERCHANT",
     items: [{ href: "/merchant", icon: "store" as const, label: "Checkout Portal" }],
   },

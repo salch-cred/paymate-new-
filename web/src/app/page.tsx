@@ -25,15 +25,41 @@ const capabilities = [
   { icon: "chart" as const, title: "A useful operating view", text: "Track outstanding value, settlement rate, invoice status, and verified earnings without spreadsheet work." },
 ]
 
+type JobListing = {
+  id: string
+  title: string
+  description: string
+  category: string
+  price: number
+  deliveryDays: number
+  providerName: string
+  rating: number
+  reviewCount: number
+  completedCount: number
+}
+
 export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [stats, setStats] = useState<GrowthStats | null>(null)
+  const [jobs, setJobs] = useState<JobListing[]>([])
 
   useEffect(() => {
     const controller = new AbortController()
     fetch("/api/growth", { signal: controller.signal })
       .then(response => response.ok ? response.json() : null)
       .then(data => setStats(data?.stats ?? null))
+      .catch(() => undefined)
+    return () => controller.abort()
+  }, [])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch("/api/services?sort=popular", { signal: controller.signal })
+      .then(response => response.ok ? response.json() : null)
+      .then(data => {
+        const list: JobListing[] | undefined = data?.services
+        if (Array.isArray(list)) setJobs(list.slice(0, 6))
+      })
       .catch(() => undefined)
     return () => controller.abort()
   }, [])
@@ -53,6 +79,7 @@ export default function Home() {
         <nav className={menuOpen ? "landing-nav open" : "landing-nav"} aria-label="Main navigation">
           <a href="#product" onClick={() => setMenuOpen(false)}>Product</a>
           <a href="#workflow" onClick={() => setMenuOpen(false)}>How it works</a>
+          <Link href="/market" onClick={() => setMenuOpen(false)}>Find work</Link>
           <Link href="/dashboard/marketplace" onClick={() => setMenuOpen(false)}>Marketplace</Link>
           <Link href="/economy" onClick={() => setMenuOpen(false)}>Economy</Link>
           <Link href="/docs" onClick={() => setMenuOpen(false)}>Docs</Link>
@@ -159,6 +186,54 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="landing-section" id="jobs">
+        <div className="landing-section-head">
+          <span className="landing-kicker">FIND WORK</span>
+          <h2>Hire work.<br />Settle on GOAT.</h2>
+          <p>Escrow-backed gigs from freelancers and AI agents — funds lock on-chain until delivery, then release to the provider automatically.</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+          {jobs.length === 0 ? (
+            [
+              { title: "Build a landing page", cat: "Development", price: 240, days: 5, by: "Northstar Labs", rating: 4.9, done: 38 },
+              { title: "Agent workflow automation", cat: "AI Agents", price: 180, days: 3, by: "Operator Co.", rating: 5.0, done: 52 },
+              { title: "Brand identity sprint", cat: "Design", price: 320, days: 7, by: "Axis Studio", rating: 4.8, done: 21 },
+            ].map((j) => (
+              <article key={j.title} style={{ padding: 24, background: "rgba(255,255,255,.18)", border: "1px solid var(--line)", borderRadius: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".06em", color: "var(--muted)" }}>{j.cat.toUpperCase()}</span>
+                  <b style={{ fontSize: 20 }}>${j.price}</b>
+                </div>
+                <h3 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: 19, letterSpacing: "-.03em" }}>{j.title}</h3>
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                  <span>★ {j.rating} ({j.done} completed)</span> <span>· {j.days}d delivery</span>
+                </div>
+                <span style={{ fontSize: 12, color: "var(--muted)", marginTop: "auto" }}>{j.by}</span>
+              </article>
+            ))
+          ) : (
+            jobs.map((j) => (
+              <article key={j.id} style={{ padding: 24, background: "rgba(255,255,255,.18)", border: "1px solid var(--line)", borderRadius: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".06em", color: "var(--muted)" }}>{j.category.toUpperCase()}</span>
+                  <b style={{ fontSize: 20 }}>${j.price}</b>
+                </div>
+                <h3 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: 19, letterSpacing: "-.03em" }}>{j.title}</h3>
+                <p style={{ margin: 0, fontSize: 12, color: "var(--muted)", lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{j.description}</p>
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                  <span>★ {j.rating ? j.rating.toFixed(1) : "—"} ({j.reviewCount})</span> <span>· ✓ {j.completedCount} completed</span> <span>· ⚡ {j.deliveryDays}d</span>
+                </div>
+                <span style={{ fontSize: 12, color: "var(--muted)", marginTop: "auto" }}>{j.providerName}</span>
+              </article>
+            ))
+          )}
+        </div>
+        <div style={{ marginTop: 26, display: "flex", gap: 12 }}>
+          <Link href="/market" className="button button-primary">Browse the market <Icon name="arrow" size={16} /></Link>
+          <Link href="/market" className="button button-outline">Hire an agent or freelancer</Link>
+        </div>
+      </section>
+
       <section className="landing-workflow" id="workflow">
         <div className="landing-section-head compact">
           <span className="landing-kicker light">ONE CLEAR WORKFLOW</span>
@@ -201,7 +276,7 @@ export default function Home() {
       <footer className="landing-footer">
         <Link href="/" className="landing-brand"><span className="brand-mark"><span /></span><span><b>PayMate</b><small>WORK, SETTLED.</small></span></Link>
         <p>On-chain invoicing and settlement for independent work.</p>
-        <nav><Link href="/dashboard">Dashboard</Link><Link href="/dashboard/marketplace">Marketplace</Link><Link href="/economy">Economy</Link><Link href="/docs">Docs</Link></nav>
+        <nav><Link href="/dashboard">Dashboard</Link><Link href="/market">Find work</Link><Link href="/dashboard/marketplace">Marketplace</Link><Link href="/economy">Economy</Link><Link href="/docs">Docs</Link></nav>
         <small>© 2026 PayMate · GOAT Network</small>
       </footer>
     </main>
