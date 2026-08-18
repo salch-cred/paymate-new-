@@ -3,30 +3,6 @@
     {
       "path": "/api/cron/recurring",
       "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/relayer/run",
-      "schedule": "*/10 * * * *"
-    },
-    {
-      "path": "/api/relayer/agent",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/relayer/self-refill",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/relayer/direct-convert",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/relayer/pivot",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/orders/expire",
-      "schedule": "*/30 * * * *"
     }
   ]
 }
