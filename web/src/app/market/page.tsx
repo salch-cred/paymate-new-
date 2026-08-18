@@ -8,6 +8,8 @@ import { SERVICE_CATEGORIES, type Service, type ServiceOrder, type MarketEconomy
 import { fundOrderProofMessage, serviceProofMessage, signWalletProof, postJobProofMessage, proposeProofMessage, acceptProposalProofMessage } from '@/lib/services/proofs'
 import { ORDER_STATUS_LABEL, shortAddress, timeAgo, formatUsd } from '@/lib/services/ui'
 import { Icon } from '@/components/icons'
+import { SiteHeader } from '@/components/site-header'
+import { SiteFooter } from '@/components/site-footer'
 
 type FundState =
   | { step: 'idle' }
@@ -31,7 +33,6 @@ export default function MarketPage() {
   const [sort, setSort] = useState('popular')
   const [showPublish, setShowPublish] = useState(false)
   const [publishMsg, setPublishMsg] = useState('')
-  const [navOpen, setNavOpen] = useState(false)
 
   // Jobs (Upwork-style posts + proposals)
   const [tab, setTab] = useState<'services' | 'jobs'>('services')
@@ -324,24 +325,20 @@ export default function MarketPage() {
   const topProviders = snapshot?.topProviders ?? []
 
   return (
-    <>
-      <header className="app-topbar market-topbar" style={{ marginBottom: 0, position: 'sticky', top: 0, zIndex: 30 }}>
-        <Link href="/" aria-label="PayMate home" className="market-brand">
-          <span className="brand-mark"><span /></span>
-          <span className="market-brand-name">PayMate <small>MARKET</small></span>
-        </Link>
-        <nav
-          className={navOpen ? 'market-nav open' : 'market-nav'}
-          aria-label="Main navigation"
-        >
-          <Link href="/" onClick={() => setNavOpen(false)}>Product</Link>
-          <Link href="/dashboard" onClick={() => setNavOpen(false)}>Dashboard</Link>
-          <Link href="/market/orders" onClick={() => setNavOpen(false)}>My Orders</Link>
-          <Link href="/economy" onClick={() => setNavOpen(false)}>Economy</Link>
-          <Link href="/metrics" onClick={() => setNavOpen(false)}>Metrics</Link>
-          <Link href="/docs" onClick={() => setNavOpen(false)}>Docs</Link>
-        </nav>
-        <div className="topbar-actions">
+    <main className="landing-shell">
+      <SiteHeader
+        active="/market"
+        links={[
+          { href: "/", label: "Product" },
+          { href: "/market", label: "Find work" },
+          { href: "/dashboard/marketplace", label: "Marketplace" },
+          { href: "/economy", label: "Economy" },
+          { href: "/docs", label: "Docs" },
+        ]}
+      />
+
+      <div className="app-content" style={{ padding: '24px 28px', background: '#f8f6f1', minHeight: '100%' }}>
+        <div className="topbar-actions market-page-actions" style={{ marginBottom: 20 }}>
           <Link href="/market/orders" className="topbar-icon" title="My orders">
             <Icon name="receipt" size={17} />
           </Link>
@@ -355,17 +352,6 @@ export default function MarketPage() {
             </button>
           )}
         </div>
-        <button
-          className="landing-menu market-menu"
-          onClick={() => setNavOpen((v) => !v)}
-          aria-label="Toggle navigation"
-          aria-expanded={navOpen}
-        >
-          <Icon name={navOpen ? 'close' : 'menu'} size={20} />
-        </button>
-      </header>
-
-      <div className="app-content" style={{ padding: '24px 28px', background: '#f8f6f1', minHeight: '100%' }}>
         {/* Services vs Jobs tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
           <button
@@ -815,7 +801,9 @@ export default function MarketPage() {
           </div>
         </div>
       )}
-    </>
+
+      <SiteFooter />
+    </main>
   )
 }
 

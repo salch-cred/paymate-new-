@@ -4,6 +4,8 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { Icon } from "@/components/icons"
 import { PayInvoiceBox } from "@/components/pay-invoice-box"
+import { SiteHeader } from "@/components/site-header"
+import { SiteFooter } from "@/components/site-footer"
 
 type GrowthStats = {
   totalInvoices: number
@@ -39,7 +41,6 @@ type JobListing = {
 }
 
 export default function Home() {
-  const [menuOpen, setMenuOpen] = useState(false)
   const [stats, setStats] = useState<GrowthStats | null>(null)
   const [jobs, setJobs] = useState<JobListing[]>([])
 
@@ -66,31 +67,16 @@ export default function Home() {
 
   return (
     <main className="landing-shell">
-      <header className="landing-header">
-        <Link href="/" className="landing-brand" aria-label="PayMate home">
-          <span className="brand-mark"><span /></span>
-          <span><b>PayMate</b><small>WORK, SETTLED.</small></span>
-        </Link>
-
-        <button className="landing-menu" onClick={() => setMenuOpen(value => !value)} aria-label="Toggle navigation" aria-expanded={menuOpen}>
-          <Icon name={menuOpen ? "close" : "menu"} size={21} />
-        </button>
-
-        <nav className={menuOpen ? "landing-nav open" : "landing-nav"} aria-label="Main navigation">
-          <a href="#product" onClick={() => setMenuOpen(false)}>Product</a>
-          <a href="#workflow" onClick={() => setMenuOpen(false)}>How it works</a>
-          <Link href="/market" onClick={() => setMenuOpen(false)}>Find work</Link>
-          <Link href="/dashboard/marketplace" onClick={() => setMenuOpen(false)}>Marketplace</Link>
-          <Link href="/economy" onClick={() => setMenuOpen(false)}>Economy</Link>
-          <Link href="/docs" onClick={() => setMenuOpen(false)}>Docs</Link>
-        </nav>
-
-        <div className="landing-header-actions">
-          <span className="landing-network"><i />GOAT MAINNET</span>
-          <Link href="/pay" className="landing-pay-link">Pay an invoice</Link>
-          <Link href="/dashboard" className="button button-dark">Open dashboard <Icon name="arrow" size={16} /></Link>
-        </div>
-      </header>
+      <SiteHeader
+        payLink
+        links={[
+          { href: "/", label: "Product" },
+          { href: "/market", label: "Find work" },
+          { href: "/dashboard/marketplace", label: "Marketplace" },
+          { href: "/economy", label: "Economy" },
+          { href: "/docs", label: "Docs" },
+        ]}
+      />
 
       <section className="landing-hero">
         <div className="landing-hero-copy">
@@ -290,12 +276,7 @@ export default function Home() {
         <Link href="/dashboard" className="button button-primary">Open your workspace <Icon name="arrow" size={17} /></Link>
       </section>
 
-      <footer className="landing-footer">
-        <Link href="/" className="landing-brand"><span className="brand-mark"><span /></span><span><b>PayMate</b><small>WORK, SETTLED.</small></span></Link>
-        <p>On-chain invoicing and settlement for independent work.</p>
-        <nav><Link href="/dashboard">Dashboard</Link><Link href="/market">Find work</Link><Link href="/dashboard/marketplace">Marketplace</Link><Link href="/economy">Economy</Link><Link href="/docs">Docs</Link></nav>
-        <small>© 2026 PayMate · GOAT Network</small>
-      </footer>
+      <SiteFooter />
     </main>
   )
 }

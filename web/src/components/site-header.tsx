@@ -16,10 +16,12 @@ export function SiteHeader({
   active,
   links = DEFAULT_LINKS,
   showActions = true,
+  payLink = false,
 }: {
   active?: string
   links?: { href: string; label: string }[]
   showActions?: boolean
+  payLink?: boolean
 }) {
   const [open, setOpen] = useState(false)
 
@@ -52,6 +54,9 @@ export function SiteHeader({
       {showActions && (
         <div className="landing-header-actions">
           <span className="landing-network"><i />GOAT MAINNET</span>
+          {payLink && (
+            <Link href="/pay" className="landing-pay-link">Pay an invoice</Link>
+          )}
           <Link href="/dashboard" className="button button-dark">
             Open dashboard <Icon name="arrow" size={16} />
           </Link>

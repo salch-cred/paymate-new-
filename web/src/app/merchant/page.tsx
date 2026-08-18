@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { SiteHeader } from "@/components/site-header"
 
 /**
  * Merchant Checkout portal. API-key driven: paste a `pm_...` key (mint one at
@@ -188,7 +189,9 @@ function MerchantPortal() {
   const base = "https://paymateagent.xyz"
 
   return (
-    <main style={{ maxWidth: 860, margin: "0 auto", padding: "48px 24px 80px", color: "#171813" }}>
+    <main className="landing-shell">
+      <SiteHeader active="/dashboard/marketplace" />
+      <div style={{ maxWidth: 860, margin: "0 auto", padding: "48px 24px 80px", color: "#171813" }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 6 }}>
         <h1 style={{ fontSize: 34, letterSpacing: "-.04em", margin: 0 }}>Merchant Checkout</h1>
         <span style={{ fontSize: 12, fontWeight: 800, color: "#FF5B2E" }}>ACCEPT USDC ON GOAT</span>
@@ -452,6 +455,7 @@ function MerchantPortal() {
           </section>
         </>
       )}
+      </div>
     </main>
   )
 }
