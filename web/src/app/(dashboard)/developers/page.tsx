@@ -193,7 +193,7 @@ export default function DevelopersPage() {
                     {createdKey && (
                       <div style={{marginTop:'16px', padding:'16px', background:'rgba(0,0,0,0.9)', color:'white', borderRadius:'12px'}}>
                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px'}}>
-                          <b style={{fontSize:'13px'}}>🔑 Your key (shown once)</b>
+                          <b style={{fontSize:'13px', display:'inline-flex', alignItems:'center', gap:6}}><Icon name="key" size={14}/> Your key (shown once)</b>
                           <button onClick={() => copy(createdKey, 'raw')} style={{background:'none', border:'none', color:'#c9fa78', cursor:'pointer', display:'flex', alignItems:'center', gap:'4px', fontSize:'11px', fontWeight:700}}>
                             <Icon name={copied === 'raw' ? "check" : "copy"} size={13}/> {copied === 'raw' ? "Copied" : "Copy"}
                           </button>

@@ -137,7 +137,7 @@ export default function MarketPage() {
     })
     const data = await res.json().catch(() => ({}))
     if (res.ok) {
-      setPublishMsg('Service published! 🎉')
+      setPublishMsg('Service published!')
       setShowPublish(false)
       void load()
     } else {
@@ -242,7 +242,7 @@ export default function MarketPage() {
     })
     const data = await res.json().catch(() => ({}))
     if (res.ok) {
-      setPostJobMsg('Job posted! 🎉')
+      setPostJobMsg('Job posted!')
       setShowPostJob(false)
       void load()
     } else {
@@ -432,7 +432,7 @@ export default function MarketPage() {
               <input name="tags" placeholder="Tags, comma-separated (optional)" style={inputStyle} />
               <button className="button button-primary" type="submit" style={{ height: 40 }}>Publish service</button>
             </form>
-            {publishMsg && <p style={{ marginTop: 12, fontSize: 13, color: publishMsg.includes('🎉') ? '#16A34A' : '#DC2626' }}>{publishMsg}</p>}
+            {publishMsg && <p style={{ marginTop: 12, fontSize: 13, color: publishMsg.startsWith('Service published') ? '#16A34A' : '#DC2626' }}>{publishMsg}</p>}
           </div>
         )}
 
@@ -475,12 +475,12 @@ export default function MarketPage() {
                 <h3 style={{ margin: 0, fontSize: 17, letterSpacing: '-0.02em' }}>{s.title}</h3>
                 <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{s.description}</p>
                 <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--muted)', flexWrap: 'wrap' }}>
-                  <span>★ {s.rating ? s.rating.toFixed(1) : '—'} ({s.reviewCount})</span>
-                  <span>✓ {s.completedCount} completed</span>
-                  <span>⚡ {s.deliveryDays}d</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="star" size={12} /> {s.rating ? s.rating.toFixed(1) : '—'} ({s.reviewCount})</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="check" size={12} /> {s.completedCount} completed</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="bolt" size={12} /> {s.deliveryDays}d</span>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0' }}>🛡️ Escrow-protected</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="shield" size={11} /> Escrow-protected</span>
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>AI-verified delivery</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
@@ -565,7 +565,7 @@ export default function MarketPage() {
                   <input name="tags" placeholder="Tags, comma-separated (optional)" style={inputStyle} />
                   <button className="button button-primary" type="submit" style={{ height: 40 }}>Post job</button>
                 </form>
-                {postJobMsg && <p style={{ marginTop: 12, fontSize: 13, color: postJobMsg.includes('🎉') ? '#16A34A' : '#DC2626' }}>{postJobMsg}</p>}
+                {postJobMsg && <p style={{ marginTop: 12, fontSize: 13, color: postJobMsg.startsWith('Job posted') ? '#16A34A' : '#DC2626' }}>{postJobMsg}</p>}
               </div>
             )}
 
@@ -611,7 +611,7 @@ export default function MarketPage() {
                                       {acceptingJob === p.id ? 'Accepting…' : 'Accept & create escrow'}
                                     </button>
                                   )}
-                                  {p.status === 'accepted' && <span style={{ fontSize: 11, fontWeight: 700, color: '#15803D' }}>✓ ACCEPTED — fund from My Orders</span>}
+                                  {p.status === 'accepted' && <span style={{ fontSize: 11, fontWeight: 700, color: '#15803D', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="check" size={12} /> ACCEPTED — fund from My Orders</span>}
                                 </div>
                                 {p.message && <p style={{ margin: '8px 0 0', fontSize: 12, lineHeight: 1.5, color: '#444' }}>{p.message}</p>}
                               </div>
@@ -645,8 +645,8 @@ export default function MarketPage() {
                       <h3 style={{ margin: 0, fontSize: 17, letterSpacing: '-0.02em' }}>{j.title}</h3>
                       <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{j.description}</p>
                       <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--muted)', flexWrap: 'wrap' }}>
-                        <span>⌛ {j.deadlineDays}d deadline</span>
-                        <span>👤 {j.clientName}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="clock" size={12} /> {j.deadlineDays}d deadline</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="user" size={12} /> {j.clientName}</span>
                         {j.tags.slice(0, 3).map((t) => <span key={t} style={{ color: '#7C3AED' }}>#{t}</span>)}
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
@@ -695,7 +695,7 @@ export default function MarketPage() {
                   <p style={{ fontSize: 12, color: '#B45309', marginTop: 8 }}>Connect a wallet to place the order — it will be the buyer.</p>
                 )}
                 <div className="panel" style={{ marginTop: 12, padding: 12, background: '#F0FDF4', fontSize: 12, lineHeight: 1.6 }}>
-                  <b>🛡️ Escrow-protected job</b>
+                  <b style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="shield" size={13} /> Escrow-protected job</b>
                   <p style={{ margin: '4px 0 0', color: '#333' }}>
                     Your {formatUsd(hireTarget.price)} locks in the on-chain escrow at funding. The provider delivers, the AI verifier checks the work against this scope, and a high-confidence pass <b>auto-releases the payment</b> — no signature needed. PayMate keeps only 1% (configurable via PAYMATE_FEE_RATE) on settlement.
                   </p>
@@ -762,7 +762,7 @@ export default function MarketPage() {
             </div>
 
             <div className="panel" style={{ marginTop: 12, padding: 12, background: '#F0FDF4', fontSize: 12, lineHeight: 1.6 }}>
-              <b>🛡️ Accepted proposal → escrow order</b>
+              <b style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="shield" size={13} /> Accepted proposal → escrow order</b>
               <p style={{ margin: '4px 0 0', color: '#333' }}>
                 If the client picks your proposal, your bid becomes a funded order with the same escrow + AI-verified auto-release protection as a service hire.
               </p>

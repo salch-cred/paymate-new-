@@ -233,8 +233,8 @@ export default function OrdersPage() {
                       <b>AI delivery verification: {verdict.verdict.toUpperCase()}</b> <span style={{ color: 'var(--muted)' }}>({Math.round(verdict.confidence * 100)}% confidence)</span>
                       <p style={{ margin: '6px 0 0', color: '#333', lineHeight: 1.5 }}>{verdict.reasoning}</p>
                       {order.status === 'completed' && verdict.verdict === 'complete' && (
-                        <p style={{ margin: '8px 0 0', fontSize: 12, fontWeight: 600, color: '#16A34A' }}>
-                          ⚡ AI verdict was high-confidence — escrow auto-released to the provider. No buyer signature needed.
+                        <p style={{ margin: '8px 0 0', fontSize: 12, fontWeight: 600, color: '#16A34A', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <Icon name="bolt" size={13} /> AI verdict was high-confidence — escrow auto-released to the provider. No buyer signature needed.
                         </p>
                       )}
                     </div>
@@ -321,7 +321,7 @@ export default function OrdersPage() {
                       </p>
                       <div style={{ display: 'flex', gap: 6 }}>
                         {[1, 2, 3, 4, 5].map((n) => (
-                          <button key={n} onClick={() => setRating((m) => ({ ...m, [order.id]: n }))} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid var(--border, #e5e5e5)', background: rating[order.id] === n ? '#1a1a1a' : '#fff', color: rating[order.id] === n ? '#fff' : '#333', cursor: 'pointer' }}>{n}★</button>
+                          <button key={n} onClick={() => setRating((m) => ({ ...m, [order.id]: n }))} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid var(--border, #e5e5e5)', background: rating[order.id] === n ? '#1a1a1a' : '#fff', color: rating[order.id] === n ? '#fff' : '#333', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>{n}<Icon name="star" size={13} /></button>
                         ))}
                       </div>
                       <input value={review[order.id] || ''} onChange={(e) => setReview((m) => ({ ...m, [order.id]: e.target.value }))} placeholder="Review (optional)" style={inputStyle} />

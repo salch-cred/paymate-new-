@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
+import { Icon } from "@/components/icons"
 
 // Minimal Telegram WebApp API surface we use.
 declare global {
@@ -308,7 +309,7 @@ function TgApp() {
               margin: "0 auto 14px",
             }}
           >
-            ✓
+            <Icon name="check" size={24} />
           </div>
           <h2 style={{ fontSize: 20, margin: "0 0 6px" }}>Payment verified</h2>
           <p style={{ fontSize: 13, opacity: 0.7, margin: 0 }}>
@@ -441,7 +442,7 @@ function TgApp() {
                 cursor: "pointer",
               }}
             >
-              ⛓️ Pay on GOAT Network
+              <Icon name="link" size={14} /> Pay on GOAT Network
             </button>
             {goatOpened && (
               <button

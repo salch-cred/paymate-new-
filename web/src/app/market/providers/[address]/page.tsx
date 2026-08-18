@@ -96,14 +96,14 @@ export default function ProviderProfilePage() {
                   <span>Earned</span><b>${profile.earnedUsd.toLocaleString()}</b><small>escrow released</small>
                 </div>
                 <div className="metric-card" style={{ minWidth: 110 }}>
-                  <span>Rating</span><b>★ {profile.avgRating.toFixed(1)}</b><small>verified reviews</small>
+                  <span>Rating</span><b style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="star" size={13} /> {profile.avgRating.toFixed(1)}</b><small>verified reviews</small>
                 </div>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 18, marginTop: 16, fontSize: 12, color: 'var(--muted)', flexWrap: 'wrap' }}>
-              <span>📦 {profile.servicesCount} active service{profile.servicesCount === 1 ? '' : 's'}</span>
-              <span>💼 {profile.openProposals} open proposal{profile.openProposals === 1 ? '' : 's'}</span>
-              <span>🛡️ Escrow-backed · AI-verified delivery · USDC on GOAT</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="package" size={13} /> {profile.servicesCount} active service{profile.servicesCount === 1 ? '' : 's'}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="briefcase" size={13} /> {profile.openProposals} open proposal{profile.openProposals === 1 ? '' : 's'}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="shield" size={13} /> Escrow-backed · AI-verified delivery · USDC on GOAT</span>
             </div>
           </div>
 
@@ -122,7 +122,7 @@ export default function ProviderProfilePage() {
                       {s.title}
                     </Link>
                     <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                      {s.categoryLabel} · ${s.price} · {s.deliveryDays}d · ★ {s.rating.toFixed(1)} ({s.reviewCount}) · ✓ {s.completedCount} completed
+                      {s.categoryLabel} · ${s.price} · {s.deliveryDays}d · <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, verticalAlign: 'middle' }}><Icon name="star" size={11} /> {s.rating.toFixed(1)}</span> ({s.reviewCount}) · <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, verticalAlign: 'middle' }}><Icon name="check" size={11} /> {s.completedCount} completed</span>
                     </div>
                   </div>
                 ))
@@ -144,7 +144,7 @@ export default function ProviderProfilePage() {
                       <span style={{ color: 'var(--muted)' }}>{r.completedAt ? timeAgo(r.completedAt) : ''}</span>
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                      {r.rating ? `★ ${r.rating} / 5 · ` : ''}${r.amountUsd.toLocaleString()}
+                      {r.rating ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, verticalAlign: 'middle' }}><Icon name="star" size={11} /> {r.rating} / 5 · </span> : ''}{r.amountUsd.toLocaleString()}
                     </div>
                     {r.review && <p style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.5, color: '#444' }}>{r.review}</p>}
                   </div>

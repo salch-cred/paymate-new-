@@ -27,12 +27,19 @@ import {
   Package01Icon,
   Store01Icon,
   Logout01Icon,
+  StarIcon,
+  PartyIcon,
+  Briefcase01Icon,
+  Key01Icon,
+  RefreshIcon,
+  Clock01Icon,
 } from "hugeicons-react"
 
 export type IconName =
   | "arrow" | "spark" | "bell" | "wallet" | "shield" | "bolt" | "link" | "chart" | "check" | "copy"
   | "invoice" | "users" | "globe" | "send" | "menu" | "close" | "receipt" | "lock"
   | "network" | "chevron" | "search" | "code" | "calendar" | "user" | "package" | "store" | "logout"
+  | "star" | "party" | "briefcase" | "key" | "refresh" | "clock"
 
 const components: Record<IconName, typeof ArrowRight01Icon> = {
   arrow: ArrowRight01Icon,
@@ -62,6 +69,12 @@ const components: Record<IconName, typeof ArrowRight01Icon> = {
   package: Package01Icon,
   store: Store01Icon,
   logout: Logout01Icon,
+  star: StarIcon,
+  party: PartyIcon,
+  briefcase: Briefcase01Icon,
+  key: Key01Icon,
+  refresh: RefreshIcon,
+  clock: Clock01Icon,
 }
 
 export function Icon({ name, size = 20, ...props }: SVGProps<SVGSVGElement> & { name: IconName; size?: number }) {

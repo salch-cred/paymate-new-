@@ -48,7 +48,7 @@ export default async function DashboardPage() {
                 <b>{s.value}</b>
                 <span>{s.label}</span>
               </div>
-              {s.trend && <span className="mp-dash-trend">↑ {s.trend}</span>}
+              {s.trend && <span className="mp-dash-trend"><Icon name="arrow" size={12} style={{ transform: 'rotate(-90deg)', verticalAlign: '-2px' }} /> {s.trend}</span>}
             </div>
           ))}
         </div>
@@ -89,7 +89,7 @@ export default async function DashboardPage() {
                   <div className="mp-row-stats">
                     <div className="mp-row-stat"><span>Uses</span><b>{formatNumber(p.usageCount)}</b></div>
                     <div className="mp-row-stat"><span>Earned</span><b>{formatUSDC(p.usageCount * p.price * 0.8)}</b></div>
-                    <div className="mp-row-stat"><span>Rating</span><b>{p.rating.toFixed(1)}★</b></div>
+                    <div className="mp-row-stat"><span>Rating</span><b style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{p.rating.toFixed(1)}<Icon name="star" size={12} /></b></div>
                   </div>
                 </div>
               ))

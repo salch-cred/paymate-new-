@@ -38,7 +38,7 @@ export default function MarketplaceFooter() {
             <span><Icon name="shield" size={12} />ERC-8004</span>
             <span><Icon name="network" size={12} />GOAT</span>
           </div>
-          <Link href="/" style={{ fontWeight: 700 }}>← Back to PayMate</Link>
+          <Link href="/" style={{ fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="arrow" size={14} style={{ transform: 'rotate(180deg)' }} /> Back to PayMate</Link>
         </div>
       </div>
     </footer>

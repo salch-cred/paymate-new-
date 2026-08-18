@@ -206,7 +206,7 @@ export default function Home() {
                 </div>
                 <h3 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: 19, letterSpacing: "-.03em" }}>{j.title}</h3>
                 <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                  <span>★ {j.rating} ({j.done} completed)</span> <span>· {j.days}d delivery</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="star" size={12} /> {j.rating} ({j.done} completed)</span> <span>· {j.days}d delivery</span>
                 </div>
                 <span style={{ fontSize: 12, color: "var(--muted)", marginTop: "auto" }}>{j.by}</span>
               </article>
@@ -221,7 +221,7 @@ export default function Home() {
                 <h3 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: 19, letterSpacing: "-.03em" }}>{j.title}</h3>
                 <p style={{ margin: 0, fontSize: 12, color: "var(--muted)", lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{j.description}</p>
                 <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                  <span>★ {j.rating ? j.rating.toFixed(1) : "—"} ({j.reviewCount})</span> <span>· ✓ {j.completedCount} completed</span> <span>· ⚡ {j.deliveryDays}d</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="star" size={12} /> {j.rating ? j.rating.toFixed(1) : "—"} ({j.reviewCount})</span> <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>· <Icon name="check" size={12} /> {j.completedCount} completed</span> <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>· <Icon name="bolt" size={12} /> {j.deliveryDays}d</span>
                 </div>
                 <span style={{ fontSize: 12, color: "var(--muted)", marginTop: "auto" }}>{j.providerName}</span>
               </article>

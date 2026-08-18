@@ -337,7 +337,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
                 <div style={{display:'flex', justifyContent:'space-between', marginBottom:'8px'}}>
                   <span style={{fontWeight:600}}>Streaming Status</span>
                   <span style={{color: isStreaming ? '#317454' : 'var(--muted)'}}>
-                    {isStreaming ? "🔴 LIVE" : "PAUSED"}
+                    {isStreaming ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} /> LIVE</span> : "PAUSED"}
                   </span>
                 </div>
                 <div style={{fontSize:'24px', fontWeight:800, fontFamily:'var(--font-display)', marginBottom:'8px'}}>

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useAccount, useSwitchChain, useWalletClient } from "wagmi"
 import { goatChain } from "@/lib/chain"
 import { WalletConnectMenu } from "@/components/wallet-connect-menu"
+import { Icon } from "@/components/icons"
 
 type AcceptOption = {
   scheme: string
@@ -307,7 +308,7 @@ export default function PaywallPage() {
                 <span>pageUrl: <a href={`https://paymateagent.xyz${created.pageUrl}`} target="_blank" rel="noreferrer" style={{ color: "#8ab4f8", textDecoration: "underline" }}>https://paymateagent.xyz{created.pageUrl}</a></span>
                 <span>· payUrl: <a href={`https://paymateagent.xyz${created.payUrl}`} target="_blank" rel="noreferrer" style={{ color: "#8ab4f8", textDecoration: "underline" }}>https://paymateagent.xyz{created.payUrl}</a></span>
                 <button onClick={() => loadPaywall(created.invoiceId)} style={{ background: "transparent", border: "1px solid " + GOAT_GREEN, color: GOAT_GREEN, padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
-                  Load & unlock it ↓
+                  Load & unlock it <Icon name="arrow" size={13} style={{ transform: 'rotate(90deg)', verticalAlign: '-2px' }} />
                 </button>
               </div>
             )}
@@ -375,7 +376,7 @@ export default function PaywallPage() {
                 )}
                 {challenge && (
                   <button onClick={() => { setUnlocked(null); setChallenge(null); setTxHash(null); loadPaywall(challenge.invoiceId) }} style={{ background: "transparent", border: "1px solid #333", color: "#ccc", padding: "10px 16px", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>
-                    ↻ New buyer
+                    <Icon name="refresh" size={13} style={{ verticalAlign: '-2px' }} /> New buyer
                   </button>
                 )}
               </div>
