@@ -323,11 +323,31 @@ button, a { touch-action: manipulation; }
 
 .market-nav { display: none; }
 
+/* Compact market header — slim top bar, not the heavy dashboard topbar */
+.market-topbar { min-height: 58px !important; height: 58px !important; padding: 0 20px !important; gap: 14px; flex-wrap: nowrap; }
+.app-topbar.market-topbar .topbar-actions { margin-left: auto !important; flex: 0 0 auto; }
+.market-brand { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 9px; min-width: 0; }
+.market-brand .brand-mark { width: 26px !important; height: 26px !important; }
+.market-brand-name { display: flex; flex-direction: column; line-height: 1; white-space: nowrap; font-size: 13px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); }
+.market-brand-name small { margin-top: 3px; font-size: 6px; letter-spacing: .16em; font-weight: 800; color: #999a92; }
+
+@media (min-width: 861px) {
+  .market-nav { display: flex !important; align-items: center; gap: 22px; margin-left: 22px; }
+  .market-nav a { font-size: 12px; font-weight: 650; color: #5e5f58; white-space: nowrap; }
+  .market-nav a:hover { color: var(--orange); }
+  .market-menu { display: none !important; }
+}
+
 @media (max-width: 860px) {
   .market-nav { display: none; position: absolute; top: 100%; left: 0; right: 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 18px 45px rgba(32,29,23,.12); z-index: 45; }
   .market-nav.open { display: block; }
   .market-nav a { min-height: 44px; padding: 0 12px; display: flex; align-items: center; border-radius: 7px; font-size: 12px; font-weight: 650; color: #5e5f58; }
   .market-nav a:hover { background: #f3f1eb; }
+  .market-menu { order: 10 !important; margin-left: auto !important; flex: 0 0 auto !important; }
+  .app-topbar.market-topbar .topbar-actions .topbar-icon { display: none; }
+  .app-topbar.market-topbar .topbar-actions .market-publish { height: 36px !important; min-height: 36px !important; font-size: 12px !important; padding: 0 13px !important; gap: 6px !important; min-width: 0; width: auto !important; }
+  .app-topbar.market-topbar .topbar-actions .market-publish svg { width: 14px; height: 14px; flex: 0 0 auto; margin: 0; }
+  .app-topbar.market-topbar { padding: 0 14px !important; }
 }
 
 @media (max-width: 620px) {
