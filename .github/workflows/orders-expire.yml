@@ -1,0 +1,49 @@
+name: Orders Expire (every 30 min)
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: orders-expire
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Ping /api/orders/expire
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/expire_body.txt -w "%{http_code}" \
+            --max-time 280 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "https://www.paymateagent.xyz/api/orders/expire")
+          echo "${code}" > /tmp/expire_code.txt
+          echo "HTTP ${code}"
+          cat /tmp/expire_body.txt
+          [ "${code}" = "200" ]
+
+      - name: Notify Discord on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "${DISCORD_WEBHOOK_URL}" ]; then
+            code=$(cat /tmp/expire_code.txt 2>/dev/null || echo "?")
+            body=$(cat /tmp/expire_body.txt 2>/dev/null | head -c 1200)
+            python3 - "$code" "$body" <<'PY'
+import json, os, subprocess, sys
+code, body = sys.argv[1], sys.argv[2]
+msg = "🔴 PayMate orders/expire failed (HTTP {})\n```{}```".format(code, body)
+subprocess.run(["curl", "-sS", "--max-time", "20", "-H", "Content-Type: application/json",
+                "-d", json.dumps({"content": msg}), os.environ["DISCORD_WEBHOOK_URL"]])
+PY
+          fi
