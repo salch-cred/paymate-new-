@@ -14,10 +14,12 @@ export const metadata: Metadata = {
   description: "Create intelligent invoices, collect on-chain payments, and build portable ERC-8004 reputation.",
   icons: {
     icon: [
+      { url: "/logo-app-v2.png", sizes: "32x32", type: "image/png" },
+      { url: "/logo-app-v2.png", sizes: "16x16", type: "image/png" },
       { url: "/logo-app-v2.png", sizes: "any", type: "image/png" },
-      { url: "/favicon.ico", sizes: "48x48", type: "image/x-icon" },
     ],
     apple: [{ url: "/logo-app-v2.png", sizes: "180x180", type: "image/png" }],
+    shortcut: [{ url: "/logo-app-v2.png", type: "image/png" }],
   },
 }
 
