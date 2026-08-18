@@ -85,6 +85,7 @@ export default function Home() {
           <p>Create a clear invoice, collect USDC directly, and turn every verified payment into portable reputation.</p>
           <div className="landing-actions">
             <Link href="/dashboard" className="button button-primary">Create an invoice <Icon name="arrow" size={17} /></Link>
+            <Link href="/market" className="button button-primary">Service Market <Icon name="network" size={17} /></Link>
             <Link href="/docs" className="button button-outline">Read the docs</Link>
           </div>
           <div className="landing-trust-row">
