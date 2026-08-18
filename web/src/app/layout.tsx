@@ -12,6 +12,13 @@ const editorial = localFont({ src: "../../public/fonts/Georgia.ttf", variable: "
 export const metadata: Metadata = {
   title: { default: "PayMate — Get paid. Keep the proof.", template: "%s · PayMate" },
   description: "Create intelligent invoices, collect on-chain payments, and build portable ERC-8004 reputation.",
+  icons: {
+    icon: [
+      { url: "/logo-app-v2.png", sizes: "any", type: "image/png" },
+      { url: "/favicon.ico", sizes: "48x48", type: "image/x-icon" },
+    ],
+    apple: [{ url: "/logo-app-v2.png", sizes: "180x180", type: "image/png" }],
+  },
 }
 
 export const viewport = {
