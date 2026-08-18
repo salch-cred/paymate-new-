@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { Icon } from "@/components/icons"
 import { SiteHeader } from "@/components/site-header"
+import { SiteFooter } from "@/components/site-footer"
 
 interface EconomyData {
   stats: {
@@ -189,6 +190,8 @@ export default function EconomyPage() {
         </div>
         <Link href="/dashboard" className="button button-primary">Create your first invoice <Icon name="arrow" size={17} /></Link>
       </section>
+
+      <SiteFooter />
     </main>
   )
 }
