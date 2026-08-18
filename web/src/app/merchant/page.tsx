@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { SiteHeader } from "@/components/site-header"
+import { SiteFooter } from "@/components/site-footer"
 
 /**
  * Merchant Checkout portal. API-key driven: paste a `pm_...` key (mint one at
@@ -456,6 +457,7 @@ function MerchantPortal() {
         </>
       )}
       </div>
+      <SiteFooter />
     </main>
   )
 }
