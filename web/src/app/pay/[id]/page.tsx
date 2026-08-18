@@ -386,7 +386,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
                   </button>
                   {!isEscrowInvoice && !invoice.isStream && !invoice.milestones && !invoice.splits && !invoice.isPrivate && (
   <button className="button button-outline" style={{ width: '100%', justifyContent: 'center', height: 42, fontSize: 12, marginTop: 10 }} onClick={()=>setShowClawUp(true)}>
-    <Icon name="network" size={14} /> Pay with Any Network (ClawUp Routing)
+    <img src="/clawup-mark-orange.svg" alt="ClawUp" style={{width:16,height:16,borderRadius:3,flexShrink:0}} /> Pay with Any Network (ClawUp Routing)
   </button>
 )}
                 </>
