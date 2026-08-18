@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { Icon } from "@/components/icons"
+import { SiteHeader } from "@/components/site-header"
 
 interface EconomyData {
   stats: {
@@ -65,22 +66,7 @@ export default function EconomyPage() {
 
   return (
     <main className="landing-shell">
-      <header className="landing-header">
-        <Link href="/" className="landing-brand" aria-label="PayMate home">
-          <span className="brand-mark"><span /></span>
-          <span><b>PayMate</b><small>WORK, SETTLED.</small></span>
-        </Link>
-        <nav className="landing-nav" aria-label="Main navigation">
-          <Link href="/">Product</Link>
-          <Link href="/dashboard/marketplace">Marketplace</Link>
-          <Link href="/economy" className="landing-nav-active">Economy</Link>
-          <Link href="/docs">Docs</Link>
-        </nav>
-        <div className="landing-header-actions">
-          <span className="landing-network"><i />GOAT MAINNET</span>
-          <Link href="/dashboard" className="button button-dark">Open dashboard <Icon name="arrow" size={16} /></Link>
-        </div>
-      </header>
+      <SiteHeader active="/economy" />
 
       <section className="landing-hero" style={{ paddingTop: 64 }}>
         <div className="landing-section-head">

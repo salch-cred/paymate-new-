@@ -1,6 +1,6 @@
 import { getTopFreelancers } from "@/lib/db"
-import Link from "next/link"
 import { Icon } from "@/components/icons"
+import { SiteHeader } from "@/components/site-header"
 
 export const dynamic = "force-dynamic" // Always fetch fresh leaderboard data per-request;
 // avoids failing `next build`/Vercel builds when DATABASE_URL isn't reachable at build time.
@@ -10,18 +10,15 @@ export default async function LeaderboardPage() {
 
   return (
     <main className="dashboard-layout">
-      <header className="dashboard-header">
-        <div className="header-brand">
-          <div className="brand-mark"></div>
-          <b>PayMate</b>
-        </div>
-        <nav className="header-nav">
-          <Link href="/">Home</Link>
-          <Link href="/dashboard">Dashboard</Link>
-          <Link href="/leaderboard" className="active">Leaderboard</Link>
-          <Link href="/growth">Growth</Link>
-        </nav>
-      </header>
+      <SiteHeader
+        active="/leaderboard"
+        links={[
+          { href: "/", label: "Home" },
+          { href: "/dashboard", label: "Dashboard" },
+          { href: "/leaderboard", label: "Leaderboard" },
+          { href: "/growth", label: "Growth" },
+        ]}
+      />
 
       <section className="dashboard-content" style={{maxWidth: 800, margin: '0 auto'}}>
         <div className="dashboard-top" style={{textAlign: 'center', marginBottom: 40}}>

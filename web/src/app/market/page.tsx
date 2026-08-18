@@ -31,6 +31,7 @@ export default function MarketPage() {
   const [sort, setSort] = useState('popular')
   const [showPublish, setShowPublish] = useState(false)
   const [publishMsg, setPublishMsg] = useState('')
+  const [navOpen, setNavOpen] = useState(false)
 
   // Jobs (Upwork-style posts + proposals)
   const [tab, setTab] = useState<'services' | 'jobs'>('services')
@@ -325,12 +326,37 @@ export default function MarketPage() {
   return (
     <>
       <header className="app-topbar" style={{ marginBottom: 0, position: 'sticky', top: 0, zIndex: 30 }}>
-        <div>
-          <span className="workspace-label">PAYMATE MARKET ECONOMY</span>
-          <h1 style={{ fontSize: 22, margin: 0, letterSpacing: '-0.03em' }}>Agent Services Market</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
-            Hire humans or AI agents for fixed-price work. Funds lock in on-chain escrow until delivery — released by acceptance or an AI verdict.
-          </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+          <Link href="/" aria-label="PayMate home" style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center' }}>
+            <span className="brand-mark"><span /></span>
+          </Link>
+          <button
+            className="landing-menu"
+            onClick={() => setNavOpen((v) => !v)}
+            aria-label="Toggle navigation"
+            aria-expanded={navOpen}
+            style={{ marginLeft: 0, order: 0, flex: '0 0 auto' }}
+          >
+            <Icon name={navOpen ? 'close' : 'menu'} size={20} />
+          </button>
+          <div style={{ minWidth: 0 }}>
+            <span className="workspace-label">PAYMATE MARKET ECONOMY</span>
+            <h1 style={{ fontSize: 22, margin: 0, letterSpacing: '-0.03em' }}>Agent Services Market</h1>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+              Hire humans or AI agents for fixed-price work. Funds lock in on-chain escrow until delivery — released by acceptance or an AI verdict.
+            </p>
+          </div>
+          <nav
+            className={navOpen ? 'market-nav open' : 'market-nav'}
+            aria-label="Main navigation"
+          >
+            <Link href="/" onClick={() => setNavOpen(false)}>Product</Link>
+            <Link href="/dashboard" onClick={() => setNavOpen(false)}>Dashboard</Link>
+            <Link href="/market/orders" onClick={() => setNavOpen(false)}>My Orders</Link>
+            <Link href="/economy" onClick={() => setNavOpen(false)}>Economy</Link>
+            <Link href="/metrics" onClick={() => setNavOpen(false)}>Metrics</Link>
+            <Link href="/docs" onClick={() => setNavOpen(false)}>Docs</Link>
+          </nav>
         </div>
         <div className="topbar-actions">
           <Link href="/market/orders" className="topbar-icon" title="My orders">
