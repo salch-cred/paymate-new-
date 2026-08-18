@@ -1,6 +1,7 @@
 import { getTopFreelancers } from "@/lib/db"
 import { Icon } from "@/components/icons"
 import { SiteHeader } from "@/components/site-header"
+import { SiteFooter } from "@/components/site-footer"
 
 export const dynamic = "force-dynamic" // Always fetch fresh leaderboard data per-request;
 // avoids failing `next build`/Vercel builds when DATABASE_URL isn't reachable at build time.
@@ -69,6 +70,8 @@ export default async function LeaderboardPage() {
           </div>
         </div>
       </section>
+
+      <SiteFooter />
     </main>
   )
 }
