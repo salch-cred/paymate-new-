@@ -378,7 +378,7 @@ export default function MarketPage() {
             { n: '1', icon: 'receipt', title: 'Hire & fund', text: 'Pick a service, write the scope. Your USDC locks in the on-chain escrow contract.' },
             { n: '2', icon: 'send', title: 'Provider delivers', text: 'The freelancer or agent submits the work against the agreed scope.' },
             { n: '3', icon: 'spark', title: 'AI verifies', text: 'An AI verifier checks the deliverable against the scope — high confidence passes release.' },
-            { n: '4', icon: 'shield', title: 'Auto-release', text: 'Payment releases from escrow to the provider. 1% platform fee, on-chain, verifiable.' },
+            { n: '4', icon: 'shield', title: 'Auto-release', text: 'Payment releases from escrow to the provider. 0.5% platform fee, on-chain, verifiable.' },
           ].map((s) => (
             <div key={s.n} className="panel" style={{ padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'flex-start', background: '#fff' }}>
               <span style={{ width: 28, height: 28, borderRadius: 8, background: '#1a1a1a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{s.n}</span>
@@ -700,7 +700,7 @@ export default function MarketPage() {
                 <div className="panel" style={{ marginTop: 12, padding: 12, background: '#F0FDF4', fontSize: 12, lineHeight: 1.6 }}>
                   <b style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="shield" size={13} /> Escrow-protected job</b>
                   <p style={{ margin: '4px 0 0', color: '#333' }}>
-                    Your {formatUsd(hireTarget.price)} locks in the on-chain escrow at funding. The provider delivers, the AI verifier checks the work against this scope, and a high-confidence pass <b>auto-releases the payment</b> — no signature needed. PayMate keeps only 1% (configurable via PAYMATE_FEE_RATE) on settlement.
+                    Your {formatUsd(hireTarget.price)} locks in the on-chain escrow at funding. The provider delivers, the AI verifier checks the work against this scope, and a high-confidence pass <b>auto-releases the payment</b> — no signature needed. PayMate keeps only 0.5% (configurable via PAYMATE_FEE_RATE) on settlement.
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>

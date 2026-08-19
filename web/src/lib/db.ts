@@ -704,14 +704,14 @@ export async function addTreasuryRevenue(amountUsd: number): Promise<void> {
 }
 
 /**
- * Platform fee rate as a fraction (0.01 = 1%). Reads PAYMATE_FEE_RATE,
- * defaults to 1%, clamped to [0, 0.5] so a typo can never charge 50%+ or go
+ * Platform fee rate as a fraction (0.005 = 0.5%). Reads PAYMATE_FEE_RATE,
+ * defaults to 0.5%, clamped to [0, 0.5] so a typo can never charge 50%+ or go
  * negative. All treasury capture sites call computePaymateFee() instead of
- * hardcoding `* 0.01`, so changing the rate is a single env var.
+ * hardcoding `* 0.005`, so changing the rate is a single env var.
  */
 export function paymateFeeRate(): number {
-  const v = Number(process.env.PAYMATE_FEE_RATE ?? "0.01")
-  if (!Number.isFinite(v)) return 0.01
+  const v = Number(process.env.PAYMATE_FEE_RATE ?? "0.005")
+  if (!Number.isFinite(v)) return 0.005
   return Math.min(0.5, Math.max(0, v))
 }
 

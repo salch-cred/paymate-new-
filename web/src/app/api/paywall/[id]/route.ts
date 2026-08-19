@@ -13,7 +13,7 @@ import type { Invoice } from "@/lib/db"
  *     deliverable content is NEVER sent on this path).
  *
  * `GET /api/paywall/[id]` with `PAYMENT-SIGNATURE: base64({"txHash":"0x..."})`
- *   → verifies the transfer on-chain, marks the invoice paid (1% treasury fee,
+ *   → verifies the transfer on-chain, marks the invoice paid (0.5% treasury fee,
  *     ERC-8004 reputation mint) and returns the stored deliverable content
  *     (invoices.paywall_content) + a signed Delivery Receipt (evidence chain).
  *

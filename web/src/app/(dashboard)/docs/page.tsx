@@ -526,8 +526,8 @@ export default function DocsPage() {
                 refund/split on-chain.
               </Li>
               <Li>
-                <strong className="text-gray-900 font-semibold">1% platform fee:</strong> PayMate keeps a single
-                configurable fee (PAYMATE_FEE_RATE, default 1%) on settlement. The provider receives the rest directly.
+                <strong className="text-gray-900 font-semibold">0.5% platform fee:</strong> PayMate keeps a single
+                configurable fee (PAYMATE_FEE_RATE, default 0.5%) on settlement. The provider receives the rest directly.
               </Li>
               <Li>
                 <strong className="text-gray-900 font-semibold">Live economy page:</strong>{" "}

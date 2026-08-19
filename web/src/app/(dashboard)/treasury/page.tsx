@@ -7,7 +7,7 @@ export default function TreasuryPage() {
   const [stats, setStats] = useState({ balanceUsd: 0, totalDonatedUsd: 0, totalBurnedUsd: 0 })
   // Static, factual protocol status — no simulated activity.
   const logs = [
-    "[FEE] 1% of every PayMate settlement accrues to this treasury on-chain.",
+    "[FEE] 0.5% of every PayMate settlement accrues to this treasury on-chain.",
     "[DONATE] Autonomous donation routing activates via the on-chain AI_AGENT_ROLE once balance accrues.",
     "[BURN] Burn engine is pending on-chain activation — no amounts burned to date."
   ]
@@ -33,7 +33,7 @@ export default function TreasuryPage() {
         <div>
           <span className="workspace-label">PROTOCOL · NEURAL TREASURY</span>
           <h1>PayMate Autonomous Treasury</h1>
-          <p>1% of every network settlement accrues here for autonomous philanthropy and deflationary burns.</p>
+          <p>0.5% of every network settlement accrues here for autonomous philanthropy and deflationary burns.</p>
         </div>
         <div className="topbar-actions">
           <span style={{background:'rgba(49, 130, 93, 0.1)', color:'#317454', padding:'6px 12px', borderRadius:'100px', fontSize:'12px', fontWeight:700, display:'flex', alignItems:'center', gap:'6px', border:'1px solid rgba(49, 130, 93, 0.2)'}}>
@@ -48,7 +48,7 @@ export default function TreasuryPage() {
         <div className="metric-card">
           <span>Current Balance (USDC)</span>
           <b>${stats.balanceUsd.toFixed(2)}</b>
-          <small>From 1% protocol fees</small>
+          <small>From 0.5% protocol fees</small>
         </div>
         <div className="metric-card">
           <span>Total Philanthropy (USDC)</span>
