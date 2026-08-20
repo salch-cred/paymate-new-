@@ -118,10 +118,13 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
  }
 
  async function handlePay(milestoneId?: string){if(!isConnected||!address||!walletClient)return;setStatus("paying");if(milestoneId)setActiveMilestone(milestoneId);setError(null);try{if(chain?.id!==goatChain.id)await switchChainAsync({chainId:goatChain.id});const res=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({milestoneId,viewKey:viewKey||undefined})});if(res.status!==402){if(res.ok){setStatus("paid");setActiveMilestone(null);setInvoice(v=>v?{...v,status:"paid"}:v);return}throw new Error(`Unexpected settlement status: ${res.status}`)}const requirements=await res.json();if(!requirements.accepts||requirements.accepts.length===0)throw new Error("No valid payment options returned.");const txHashes=[];for(const option of requirements.accepts){if(!option.token)throw new Error("Payment requirements missing the USDC token address");if(!option.maxAmountRequired)throw new Error("Payment requirements missing the exact settlement amount");const amount=BigInt(option.maxAmountRequired);const hash=await walletClient.writeContract({address:option.token as `0x${string}`,abi:[{inputs:[{name:"recipient",type:"address"},{name:"amount",type:"uint256"}],name:"transfer",outputs:[{name:"",type:"bool"}],stateMutability:"nonpayable",type:"function"}],functionName:"transfer",args:[option.payTo as `0x${string}`,amount],account:address,chain:goatChain});txHashes.push(hash);}const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":txHashes.join(",")},body:JSON.stringify({milestoneId,viewKey:viewKey||undefined})});if(!settle.ok)throw new Error("Payment verification failed.");const updatedInvoice=await settle.json();setStatus("idle");setActiveMilestone(null);setInvoice(updatedInvoice.invoice)}catch(e){setStatus("error");setActiveMilestone(null);setError(e instanceof Error?e.message:"Payment failed")}}
- async function handleCrossChainSettle(txHash: string, chainId: number){setStatus("paying");setError(null);try{const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":`CROSSCHAIN_${chainId}_${txHash}`},body:JSON.stringify({viewKey:viewKey||undefined})});const data=await settle.json();if(!settle.ok)throw new Error(data?.detail||"Cross-chain settlement failed");setShowClawUp(false);setStatus("paid");setActiveMilestone(null);setInvoice(data.invoice)}catch(e){setStatus("error");setActiveMilestone(null);setError(e instanceof Error?e.message:"Cross-chain settlement failed")}}
+ async function handleCrossChainSettle(txHash: string, chainId: number){setStatus("paying");setError(null);try{const settle=await fetch(`/api/pay/${id}/settle`,{method:"POST",headers:{"Content-Type":"application/json","X-PAYMENT":`CROSSCHAIN_${chainId}_${txHash}`},body:JSON.stringify({viewKey:viewKey||undefined})});const data=await settle.json();if(!settle.ok) throw new Error(data?.detail||"Cross-chain settlement failed");setShowClawUp(false);setStatus(data.bridging ? "bridging" : "paid");setActiveMilestone(null);setInvoice(data.invoice)}catch(e){setStatus("error");setActiveMilestone(null);setError(e instanceof Error?e.message:"Cross-chain settlement failed")}}
+
  if(loading)return <main className="loading-page"><div className="loader"/></main>
  if(!invoice)return <main className="loading-page"><div style={{textAlign:"center"}}><h1 style={{fontFamily:"var(--font-display)"}}>Invoice unavailable</h1><p>{error}</p><Link className="button button-dark" href="/">Return home</Link></div></main>
+ 
  const paid=invoice.status==="paid"||status==="paid"
+ const bridging=invoice.status==="bridging"||status==="bridging"
  const isEscrowInvoice = !!invoice.githubPrUrl && !invoice.isStream && !invoice.milestones && !invoice.splits
  const isPlaceholderClient = invoice.client.toLowerCase() === OPEN_CLIENT_ADDRESS.toLowerCase() || invoice.client.toLowerCase() === "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc" // legacy bot-invoice sentinel (pre-rename)
  const isAuthorized = isConnected && address && (isPlaceholderClient || address.toLowerCase() === invoice.client.toLowerCase() || address.toLowerCase() === invoice.freelancer.toLowerCase());
@@ -148,30 +151,67 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
       <>
         <div className="client-line">
           <h2>{invoice.title}</h2>
-          <div className="status-badge" style={{ background: paid ? '#e7f5ec' : invoice.escrowStatus === 'funded' ? '#f0ead9' : '#fff0ed', color: paid ? '#317454' : invoice.escrowStatus === 'funded' ? '#8a6d1a' : '#b94328' }}>
-            {paid ? 'PAID' : invoice.escrowStatus === 'funded' ? 'IN ESCROW' : 'PENDING'}
+          <div className="status-badge" style={{ background: paid ? '#e7f5ec' : bridging ? '#eef2ff' : invoice.escrowStatus === 'funded' ? '#f0ead9' : '#fff0ed', color: paid ? '#317454' : bridging ? '#4338ca' : invoice.escrowStatus === 'funded' ? '#8a6d1a' : '#b94328' }}>
+            {paid ? 'PAID' : bridging ? 'BRIDGING' : invoice.escrowStatus === 'funded' ? 'IN ESCROW' : 'PENDING'}
           </div>
         </div>
 
+        {bridging && (
+          <div style={{ padding: '24px', background: '#eef2ff', borderRadius: '12px', border: '1px solid #c7d2fe', textAlign: 'center', marginBottom: '24px' }}>
+            <h3 style={{ color: '#4338ca', marginBottom: '8px' }}>Payment Received! 🚀</h3>
+            <p style={{ color: '#3730a3', fontSize: '14px', lineHeight: 1.5 }}>
+              Your payment was successfully received on the source network. We are currently bridging the funds to the GOAT network for settlement. 
+              <br/><br/><b>This usually takes 15-30 minutes.</b> You can safely leave this page or check back later!
+            </p>
+          </div>
+        )}
+
+        <div className="invoice-meta">
+          <div>
+            <span>Freelancer</span>
+            <span><a href={`https://explorer.goat.network/address/${invoice.freelancer}`} target="_blank">{invoice.freelancer.substring(0,6)}...{invoice.freelancer.substring(38)} <Icon name="arrow" size={10} /></a></span>
+          </div>
+          <div>
+            <span>Client</span>
+            <span>{isPlaceholderClient ? 'Anyone (Open Link)' : <a href={`https://explorer.goat.network/address/${invoice.client}`} target="_blank">{invoice.client.substring(0,6)}...{invoice.client.substring(38)} <Icon name="arrow" size={10} /></a>}</span>
+          </div>
+          <div>
+            <span>Created</span>
+            <span>{invoice.createdAt ? new Date(invoice.createdAt).toLocaleDateString() : 'N/A'}</span>
+          </div>
+          {invoice.dueDate && (
+            <div>
+              <span>Due Date</span>
+              <span>{invoice.dueDate}</span>
+            </div>
+          )}
+          {invoice.recurring && (
+            <div>
+              <span>Schedule</span>
+              <span style={{textTransform:'capitalize'}}>{invoice.recurring}</span>
+            </div>
+          )}
+        </div>
+        
         <div className="job-summary">
           <div className="payment-label" style={{ marginBottom: '8px' }}>SCOPE OF WORK</div>
           <p>{invoice.description}</p>
         </div>
 
-        <div className="amount-due" style={{marginBottom: '24px'}}>
-          <span>TOTAL DUE</span>
-          <h1 style={{fontSize:'32px', fontFamily:'var(--font-display)', fontWeight:800, margin:0, letterSpacing:'-0.5px'}}>
-            {invoice.isPrivate && decryptedAmount === null ? "█ █ █" : `$${(decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()}`} USDC
-          </h1>
-          {fiatRates && (invoice.isPrivate && decryptedAmount === null ? null : (
-            <div style={{fontSize: '12px', color: 'var(--muted)', marginTop: '8px', fontWeight: 600}}>
-              ≈ {new Intl.NumberFormat('en-US', {style: 'currency', currency: 'EUR', maximumFractionDigits: 0}).format((decryptedAmount !== null ? decryptedAmount : invoice.amountUsd) * fiatRates['EUR'])} · {new Intl.NumberFormat('en-US', {style: 'currency', currency: 'GBP', maximumFractionDigits: 0}).format((decryptedAmount !== null ? decryptedAmount : invoice.amountUsd) * fiatRates['GBP'])} · {new Intl.NumberFormat('en-IN', {style: 'currency', currency: 'INR', maximumFractionDigits: 0}).format((decryptedAmount !== null ? decryptedAmount : invoice.amountUsd) * fiatRates['INR'])} · {new Intl.NumberFormat('ja-JP', {style: 'currency', currency: 'JPY', maximumFractionDigits: 0}).format((decryptedAmount !== null ? decryptedAmount : invoice.amountUsd) * fiatRates['JPY'])}
-            </div>
-          ))}
-        </div>
-        
-        {!paid && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '24px 0', padding: '24px', background: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--line)' }}>
+          <div className="amount-due" style={{marginBottom: '24px'}}>
+            <span>TOTAL DUE</span>
+            <h1 style={{fontSize:'32px', fontFamily:'var(--font-display)', fontWeight:800, margin:0, letterSpacing:'-0.5px'}}>
+              {invoice.isPrivate && decryptedAmount === null ? "█ █ █" : `$${(decryptedAmount !== null ? decryptedAmount : invoice.amountUsd).toLocaleString()}`} USDC
+            </h1>
+            {fiatRates && (invoice.isPrivate && decryptedAmount === null ? null : (
+              <div style={{fontSize: '12px', color: 'var(--muted)', marginTop: '8px', fontWeight: 600}}>
+                ≈ {new Intl.NumberFormat('en-US', {style: 'currency', currency: 'EUR', maximumFractionDigits: 0}).format((decryptedAmount !== null ? decryptedAmount : invoice.amountUsd) * fiatRates['EUR'])} · {new Intl.NumberFormat('en-US', {style: 'currency', currency: 'GBP', maximumFractionDigits: 0}).format((decryptedAmount !== null ? decryptedAmount : invoice.amountUsd) * fiatRates['GBP'])} · {new Intl.NumberFormat('en-IN', {style: 'currency', currency: 'INR', maximumFractionDigits: 0}).format((decryptedAmount !== null ? decryptedAmount : invoice.amountUsd) * fiatRates['INR'])} · {new Intl.NumberFormat('ja-JP', {style: 'currency', currency: 'JPY', maximumFractionDigits: 0}).format((decryptedAmount !== null ? decryptedAmount : invoice.amountUsd) * fiatRates['JPY'])}
+              </div>
+            ))}
+          </div>
+          
+          {!paid && !bridging && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '24px 0', padding: '24px', background: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--line)' }}>
             <div style={{ background: 'white', padding: '12px', borderRadius: '12px', border: '1px solid var(--line)', display: 'inline-block' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img 
@@ -418,7 +458,7 @@ export default function PayPage({params}:{params:Promise<{id:string}>}){
         )}
         {error && <div className="error-box" style={{marginTop: '16px'}}>{error}</div>}
 
-        {!paid && (
+        {!paid && !bridging && (
           <div style={{marginTop:'24px', borderTop:'1px solid var(--line)', paddingTop:'24px'}}>
             <button className="button" style={{background:'transparent', color:'var(--muted)', fontSize:'12px', padding:0, textDecoration:'underline'}} onClick={()=>setShowDispute(!showDispute)}>
               Dispute this invoice

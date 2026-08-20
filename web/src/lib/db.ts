@@ -4,7 +4,7 @@ import type { Plugin } from "./marketplace/types"
 import type { Service, ServiceOrder, JobPost, JobProposal } from "./services/types"
 import { resolveClawUpTag } from "./constants"
 
-export type InvoiceStatus = "pending" | "paid" | "cancelled"
+export type InvoiceStatus = "pending" | "paid" | "cancelled" | "bridging"
 
 export interface InvoiceSplit {
   address: string
@@ -195,6 +195,11 @@ async function ready(): Promise<void> {
         tx_hash TEXT PRIMARY KEY,
         invoice_id TEXT NOT NULL,
         milestone_id TEXT,
+        created_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint
+      )`
+      await sql`CREATE TABLE IF NOT EXISTS pending_crosschain_payouts (
+        invoice_id TEXT PRIMARY KEY,
+        amount_usd DOUBLE PRECISION NOT NULL,
         created_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint
       )`
       // Background relayer (cron): per-chain custody-wallet balance snapshots
@@ -2685,4 +2690,78 @@ export async function claimProofNonce(wallet: string, nonce: string): Promise<bo
     // the proof; the nonce guard is a second layer, not the only one.
     return true
   }
+}
+
+export async function addPendingCrosschainPayout(invoiceId: string, amountUsd: number): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql\INSERT INTO pending_crosschain_payouts (invoice_id, amount_usd) VALUES (${invoiceId}, ${amountUsd}) ON CONFLICT DO NOTHING\
+}
+
+export async function getPendingCrosschainPayouts(): Promise<{invoiceId: string, amountUsd: number}[]> {
+  await ready()
+  const sql = getSql()
+  const rows = await sql\SELECT invoice_id, amount_usd FROM pending_crosschain_payouts ORDER BY created_at ASC\
+  return (rows as any[]).map(r => ({ invoiceId: r.invoice_id, amountUsd: r.amount_usd }))
+}
+
+export async function removePendingCrosschainPayout(invoiceId: string): Promise<void> {
+  await ready()
+  const sql = getSql()
+  await sql\DELETE FROM pending_crosschain_payouts WHERE invoice_id = ${invoiceId}\
+}
+
+export async function markBridging(id: string, sourceTxHash: string): Promise<Invoice | null> {
+  await ready()
+  const sql = getSql()
+  const reserved = await sql\
+    INSERT INTO used_settlement_tx (tx_hash, invoice_id) VALUES (\${sourceTxHash}, \${id})
+    ON CONFLICT (tx_hash) DO NOTHING RETURNING tx_hash
+  \
+  if (reserved.length === 0) return null
+  const updated = (await sql\
+    UPDATE invoices SET status='bridging', tx_hash=\${sourceTxHash}
+    WHERE id=\${id} AND status='pending'
+    RETURNING *
+  \) as unknown as Invoice[]
+  if (updated.length === 0) return null
+  
+  // Try to parse splits and milestones if they exist
+  try {
+    if (updated[0].splits && typeof updated[0].splits === "string") updated[0].splits = JSON.parse(updated[0].splits)
+    if (updated[0].milestones && typeof updated[0].milestones === "string") updated[0].milestones = JSON.parse(updated[0].milestones)
+  } catch(e) {}
+  
+  return updated[0]
+}
+
+export async function markBridging(id: string): Promise<Invoice | null> {
+  await ready()
+  const sql = getSql()
+  const updated = (await sql\
+    UPDATE invoices SET status='bridging'
+    WHERE id=\${id} AND status='pending'
+    RETURNING *
+  \) as unknown as Invoice[]
+  if (updated.length === 0) return null
+  
+  // Try to parse splits and milestones if they exist
+  try {
+    if (updated[0].splits && typeof updated[0].splits === "string") updated[0].splits = JSON.parse(updated[0].splits)
+    if (updated[0].milestones && typeof updated[0].milestones === "string") updated[0].milestones = JSON.parse(updated[0].milestones)
+  } catch(e) {}
+  
+  return updated[0]
+}
+
+export async function claimPendingCrosschainPayout(invoiceId: string): Promise<boolean> {
+  await ready()
+  const sql = getSql()
+  // Atomically delete the row and return it. If it was already deleted by another process, returns empty.
+  const claimed = await sql\
+    DELETE FROM pending_crosschain_payouts 
+    WHERE invoice_id = \${invoiceId}
+    RETURNING invoice_id
+  \
+  return claimed.length > 0
 }

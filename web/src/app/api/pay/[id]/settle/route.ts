@@ -88,7 +88,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return Response.json({ detail: "This cross-chain payment has already been used to settle another invoice." }, { status: 402 })
       }
       sourceChain = { chainId: verified.chainId, sourceTxHash: verified.sourceTxHash }
-      txHash = await settleCrossChainPayout(invoice, invoice.amountUsd)
+      
+      // Instead of settling instantly, we mark the invoice as "bridging" and let the relayer do it
+      const { addPendingCrosschainPayout, markBridging } = await import("@/lib/db")
+      await addPendingCrosschainPayout(id, invoice.amountUsd)
+      const bridgingInvoice = await markBridging(id)
+      
+      return Response.json({
+        ok: true,
+        bridging: true,
+        invoice: bridgingInvoice,
+        message: "Payment received. Bridging funds to GOAT network for settlement.",
+      })
     } catch (error) {
       if (error instanceof PaymentError) {
         console.error(`[CrossChain] settlement failed for ${id}:`, error.message)
